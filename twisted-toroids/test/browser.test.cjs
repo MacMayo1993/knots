@@ -176,6 +176,74 @@ const server = http.createServer((req, res) => {
     await page.context().close();
   }
 
+  // Actual mouse and touch drags reshape the rope while the mathematical word stays fixed.
+  const ropePoint = (page, blue = false) => page.evaluate(blue => new Promise(resolve => requestAnimationFrame(() => {
+    const c=document.getElementById('c'), o=document.createElement('canvas'), rc=c.getBoundingClientRect();
+    o.width=c.width;o.height=c.height;const g=o.getContext('2d');g.drawImage(c,0,0);const a=g.getImageData(0,0,o.width,o.height).data;
+    const top=Math.ceil((document.getElementById('braidToolbar').getBoundingClientRect().bottom-rc.top+12)*o.height/rc.height);
+    for(let x=o.width-10;x>=10;x-=2)for(let y=top;y<o.height-15;y+=2){
+      const i=4*(y*o.width+x),r=a[i],b=a[i+2];
+      if(a[i+3]>200 && (blue?b>r*1.4&&b>60:r>b*1.4&&r>60)) return resolve({x:rc.left+x*rc.width/o.width,y:rc.top+y*rc.height/o.height});
+    }
+    resolve(null);
+  })), blue);
+  async function ropeSTL(page) {
+    const [dl]=await Promise.all([page.waitForEvent('download'),page.evaluate(()=>document.getElementById('x-stl').click())]);
+    return fs.readFileSync(await dl.path());
+  }
+  async function stableFrame(page) { await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))); }
+  for(const touch of [false,true]) {
+    page=await open('#braid=1,1&strands=2',touch?{viewport:{width:390,height:844},isMobile:true,hasTouch:true}:undefined);
+    await page.click('#braidViewPull');
+    await page.waitForFunction(()=>document.getElementById('pullTighten').textContent==='Tighten');
+    await page.waitForTimeout(350); // let sheet/camera framing settle before grabbing
+    ok(await page.getAttribute('#braidViewPull','aria-pressed')==='true','Pull tool activates');
+    const original=await ropeSTL(page), word=await page.inputValue('#braidInput');
+    await page.selectOption('#pullScope', touch?'component':'section');
+    await page.selectOption('#pullComponent',touch?'1':'0');
+    const point=await ropePoint(page,touch);ok(point,'a visible selectable rope pixel');
+    const to={x:Math.min((touch?390:1400)-20,point.x+25),y:Math.max(240,point.y-65)};
+    let cdp;
+    if(touch) {
+      cdp=await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...point,id:1}]});
+    } else { await page.mouse.move(point.x,point.y);await page.mouse.down(); }
+    await page.waitForFunction(()=>document.getElementById('pullStatus').textContent.startsWith('Pulling component'));
+    for(let i=1;i<=12;i++) {
+      const at={x:point.x+(to.x-point.x)*i/12,y:point.y+(to.y-point.y)*i/12};
+      if(touch)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...at,id:1}]});
+      else await page.mouse.move(at.x,at.y);
+      await page.waitForTimeout(20);
+    }
+    if(touch)await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});else await page.mouse.up();
+    await stableFrame(page);
+    ok(!original.equals(await ropeSTL(page)),(touch?'touch whole-component':'mouse section')+' drag changes actual exported geometry');
+    ok(await page.inputValue('#braidInput')===word,'pull does not rewrite the braid word');
+    await screenshot(page,touch?'braid-pull-phone':'braid-pull-desktop');
+    await page.click('#pullUndo');await stableFrame(page);
+    ok(original.equals(await ropeSTL(page)),'Undo pull restores exact geometry');
+    // Cancellation also restores geometry, including native touch cancellation.
+    const q=await ropePoint(page,touch);
+    if(touch) {
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...q,id:2}]});
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:q.x-25,y:q.y-20,id:2}]});
+      await page.waitForTimeout(80);
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
+    } else {
+      await page.mouse.move(q.x,q.y);await page.mouse.down();await page.mouse.move(q.x-25,q.y-20,{steps:4});
+      await page.keyboard.press('Escape');await page.mouse.up();
+    }
+    await stableFrame(page);
+    ok(original.equals(await ropeSTL(page)),'cancelled pull restores exact geometry');
+    await page.click('#pullTighten');await page.waitForTimeout(200);await page.click('#pullTighten');await stableFrame(page);
+    ok(!original.equals(await ropeSTL(page)),'Tighten and Pause shape the rope');
+    await page.click('#pullReset');await stableFrame(page);
+    ok(original.equals(await ropeSTL(page)),'Reset returns to original braid shape');
+    await page.click('#braidViewRibbon');
+    ok(await page.locator('#braidPullOptions').isHidden(),'leaving Pull clears its controls');
+    await page.context().close();
+  }
+
   ok(errors.length === 0, 'no console or page errors: ' + errors.join(' | '));
   await browser.close(); server.close();
   console.log('PASS: ' + checks + ' browser checks — sticky desktop model, WebGL drawing (torus, Seifert surface, relaxed knot, Klein bottle, phone), knot names, editor, closed STL downloads, PNG, phone bottom sheet, no console errors.');

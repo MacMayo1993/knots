@@ -3,7 +3,7 @@
 .braid-toolbar[hidden] { display: none; }
 .braid-toolbar button, .braid-workspace button, .braid-workspace summary, .braid-workspace select { min-height: 44px; }
 .braid-toolbar button { border: 1px solid transparent; border-radius: 10px; padding: 8px; background: transparent; color: var(--ink); font: 600 .84rem var(--f-body); cursor: pointer; }
-.braid-view-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 3px; background: var(--bg); border-radius: 12px; }
+.braid-view-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 3px; background: var(--bg); border-radius: 12px; }
 .braid-view-tabs button[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); box-shadow: 0 2px 5px #00000012; }
 .braid-quick-actions { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) 44px 44px 44px; gap: 3px; }
 .braid-quick-actions button { padding-inline: 4px; }
@@ -69,3 +69,13 @@
   #braidResetView { display: none; }
   .braid-workspace .be-tools { grid-template-columns: 1fr; }
 }
+
+.braid-toolbar[data-pulling="true"] .braid-quick-actions { display: none; }
+.braid-pull-options { display: grid; gap: 4px; }
+.braid-pull-options[hidden] { display: none; }
+.braid-pull-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) auto; gap: 4px; align-items: center; }
+.braid-pull-row select { min-width: 0; width: 100%; min-height: 44px; border: 1px solid var(--rule); border-radius: 9px; padding: 6px; background: var(--bg); color: var(--ink); font: .76rem var(--f-body); }
+.braid-pull-row button { min-width: 44px; }
+.pull-feedback { grid-template-columns: minmax(0, 1fr) 44px auto; }
+#pullStatus { padding: 4px; font: .73rem/1.35 var(--f-body); color: var(--muted); }
+#pullTighten { background: var(--ink); color: var(--bg); }

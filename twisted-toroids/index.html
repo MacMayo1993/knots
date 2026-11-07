@@ -491,6 +491,7 @@ h2 {
             <button type="button" id="braidViewRibbon" aria-pressed="true">Ribbons</button>
             <button type="button" id="braidViewRope" aria-pressed="false">Rope</button>
             <button type="button" id="braidViewSurface" aria-pressed="false">Surface</button>
+            <button type="button" id="braidViewPull" aria-pressed="false">Pull</button>
           </div>
           <div class="braid-quick-actions">
             <button type="button" id="braidEdit" class="braid-primary">✎ Edit braid</button>
@@ -498,6 +499,18 @@ h2 {
             <button type="button" id="braidUndo" aria-label="Undo braid edit" title="Undo (Ctrl/⌘ Z)">↶</button>
             <button type="button" id="braidRedo" aria-label="Redo braid edit" title="Redo (Ctrl/⌘ Shift Z)">↷</button>
             <button type="button" id="braidResetView" aria-label="Reset braid camera" title="Reset camera">⌖</button>
+          </div>
+          <div class="braid-pull-options" id="braidPullOptions" hidden>
+            <div class="braid-pull-row">
+              <select id="pullScope" aria-label="What to pull"><option value="section">A section</option><option value="component">Whole loop</option></select>
+              <select id="pullComponent" aria-label="Component to pull"><option value="-1">Any component</option></select>
+              <button type="button" id="pullTighten">Tighten</button>
+            </div>
+            <div class="braid-pull-row pull-feedback">
+              <span id="pullStatus" role="status">Drag a rope to pull it.</span>
+              <button type="button" id="pullUndo" aria-label="Undo shape pull" title="Undo shape pull" disabled>↶</button>
+              <button type="button" id="pullReset" aria-label="Reset rope shape" title="Reset rope shape">Reset</button>
+            </div>
           </div>
         </div>
         <div class="mobile-tools" id="mobileTools" role="group" aria-label="Quick toroid controls" hidden>
@@ -593,6 +606,8 @@ h2 {
         <button type="button" class="link-btn" id="braidFromTorus">Start from the last torus construction</button>
         <div class="braid-tools">
           <button type="button" class="secondary" id="relaxBtn">Relax into a smooth knot</button>
+          <button type="button" class="secondary" id="pullStart">Grab &amp; pull the rope</button>
+          <p class="note">Pull a local section or a whole component in 3D. Tighten keeps the rope moving; Pause holds its shape. Choose Rope to rotate the view. Linked loops stay linked. Undo pull and Reset change the shape, not the braid word.</p>
           <p class="note">The strands pull tight and push each other apart, like rope, but never pass through each other, so the knot stays the same knot.</p>
           <label class="check" for="seifertBox"><input type="checkbox" id="seifertBox"> Show its Seifert surface</label>
           <p class="note" id="seifertNote">An orientable surface whose edge is the knot or link: one disk per strand, one twisted band per crossing. Its two sides get two colors.</p>
@@ -1487,7 +1502,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     }
     if (relaxShown()) {
       const nm = shortName(identifyBraid(state.braid.n, state.braid.word));
-      hud.textContent = (relax.done ? 'Relaxed' : 'Relaxing · step ' + relax.S.steps) + (nm ? ' · ' + nm : '') + ' · strands never pass through each other';
+      hud.textContent = pullMode ? 'Pull the rope · ' + (nm || 'closed braid') : (relax.done ? 'Relaxed' : 'Relaxing · step ' + relax.S.steps) + (nm ? ' · ' + nm : '') + ' · strands never pass through each other';
       return;
     }
     if (seifertShown() && seifData) {
@@ -1872,8 +1887,10 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const changed = bar.hidden !== hidden; bar.hidden = hidden;
     document.getElementById('braidUndo').disabled = !braidHistory.canUndo;
     document.getElementById('braidRedo').disabled = !braidHistory.canRedo;
-    for (const [id, on] of [['Ribbon', !relax && !seifertBox.checked], ['Rope', !!relax], ['Surface', !relax && seifertBox.checked]])
+    for (const [id, on] of [['Ribbon', !relax && !seifertBox.checked], ['Rope', !!relax && !pullMode], ['Surface', !relax && seifertBox.checked], ['Pull', pullMode]])
       document.getElementById('braidView' + id).setAttribute('aria-pressed', String(on));
+    bar.dataset.pulling = String(pullMode);
+    document.getElementById('braidPullOptions').hidden = !pullMode;
     if (changed) measureTopTools();
   }
   function syncBraidWorkspace() {
@@ -1910,7 +1927,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   document.getElementById('braidUndo').addEventListener('click', () => replayBraid('undo'));
   document.getElementById('braidRedo').addEventListener('click', () => replayBraid('redo'));
   document.getElementById('braidViewRibbon').addEventListener('click', () => { setRelax(false); seifertBox.checked = false; seifKey = '#'; clearSelection(); syncBraidToolbar(); });
-  document.getElementById('braidViewRope').addEventListener('click', () => { if (!relax) setRelax(true); syncBraidToolbar(); });
+  document.getElementById('braidViewRope').addEventListener('click', () => { leavePull(); if (!relax) setRelax(true); syncBraidToolbar(); });
   document.getElementById('braidViewSurface').addEventListener('click', () => { if (!seifertBox.checked) seifertBox.click(); });
   document.getElementById('braidResetView').addEventListener('click', () => {
     controls.target.set(0, 0, 0); camera.position.setFromSpherical(new THREE.Spherical(6.2, Math.PI / 2 - 0.62, 0.5));
@@ -2312,16 +2329,21 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0 }));
     m.visible = false; scene.add(m); return m;
   });
-  let relax = null;   // { S, key, steps, done }
+  let relax = null;
+  let pullMode = false, pullDrag = null, pullSelected = -1, pullHistory = [];
+  const pullMarker = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
+  pullMarker.visible = false; pullMarker.renderOrder = 30; scene.add(pullMarker);
+  const pullGuide = polyline(1.5); pullGuide.visible = false;
   const RELAX_STEPS = 1600;
   const relaxShown = () => !!relax && !!state.braid && !labCut;
   function setRelax(on) {
+    leavePull(); pullHistory = []; pullSelected = -1;
     if (on && state.braid && RX && THREE.TubeGeometry) {
       let curves;
       try { curves = RX.fromBraid(KM, state.braid.n, state.braid.word); }
       catch (err) { flash(err.message); return; }
       seifertBox.checked = false; seifKey = '#';
-      relax = { S: RX.create(curves), key: state.braid.n + ':' + state.braid.word.join(','), done: false, gap: 0 };
+      relax = { S: RX.create(curves), key: state.braid.n + ':' + state.braid.word.join(','), done: false, gap: 0, paused: false, dirty: true, frame: null, remaining: RELAX_STEPS };
       clearSelection(); revealModel();
       logOp('relax', relax.key);
     } else relax = null;
@@ -2331,17 +2353,26 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   relaxBtn.addEventListener('click', () => setRelax(!relax));
   function syncRelax(dt) {
-    if (!relaxShown()) { relaxTubes.forEach(t => { t.visible = false; }); return false; }
+    if (!relaxShown()) { if (pullDrag) endPull(true); pullMarker.visible = pullGuide.visible = false; relaxTubes.forEach(t => { t.visible = false; }); return false; }
     if (relax.key !== state.braid.n + ':' + state.braid.word.join(',')) { setRelax(false); return false; }
-    if (!relax.done) {
-      const per = reduceMotion ? RELAX_STEPS : Math.max(2, Math.round(10 * Math.min(dt, 0.05) / 0.016));
+    const moving = !!pullDrag || (!relax.paused && !relax.done);
+    if (moving) {
+      const per = reduceMotion && !pullMode ? RELAX_STEPS : Math.max(2, Math.round(10 * Math.min(dt, 0.05) / 0.016));
       const started = performance.now();
-      for (let k = 0; k < per && relax.S.steps < RELAX_STEPS; k++) {
-        relax.gap = RX.step(relax.S).gap;
+      for (let k = 0; k < per && (pullDrag || relax.remaining > 0); k++) {
+        const result = RX.step(relax.S, { handle: pullDrag?.handle });
+        relax.gap = result.gap; relax.blocked = !!result.blocked;
+        if (result.blocked) { relax.paused = true; relax.remaining = 0; syncPullControls('Collision limit reached. Undo or Reset to try another pull.'); break; }
+        if (!pullDrag) relax.remaining--;
         if (performance.now() - started >= 12) break;
       }
-      relax.done = relax.S.steps >= RELAX_STEPS;
-      const C = RX.curves(relax.S), r = RX.tubeRadius(relax.S), comps = KM.cycles(KM.permutation(state.braid.n, state.braid.word));
+      relax.done = !pullDrag && relax.remaining <= 0;
+      relax.dirty = true;
+      if (relax.done && pullMode) { relax.paused = true; syncPullControls(); }
+    }
+    if (relax.dirty) {
+      relax.dirty = false;
+      const f = relax.frame || RX.displayFrame(relax.S), C = RX.curves(relax.S, 2.1, f), r = RX.tubeRadius(relax.S, 2.1, f);
       C.forEach((pts, k) => {
         const tube = relaxTubes[k]; if (!tube) return;
         // Draw exactly the polygon protected by the segment-distance check.
@@ -2363,18 +2394,169 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         tube.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
         tube.visible = true;
       });
-      void comps;
     }
+    syncPullMarker();
     return true;
   }
   seifertBox.addEventListener('change', () => { if (seifertBox.checked && relax) setRelax(false); syncBraidToolbar(); });
+
+  // Pulling uses a fixed world-to-rope transform and a camera-facing drag plane.
+  // The pointer supplies a force target; only RX.step may move polygon vertices.
+  function shapeSnapshot() {
+    const f = relax.frame || RX.displayFrame(relax.S);
+    return { P: relax.S.P.slice(), frame: { center: f.center.slice(), scale: f.scale } };
+  }
+  function restoreShape(saved) {
+    relax.S.P.set(saved.P); relax.frame = saved.frame; relax.paused = true;
+    relax.done = false; relax.blocked = false; relax.remaining = 0; relax.dirty = true;
+  }
+  function syncPullControls(message) {
+    document.getElementById('pullTighten').textContent = relax && !relax.paused && !relax.done ? 'Pause' : 'Tighten';
+    document.getElementById('pullUndo').disabled = !pullHistory.length;
+    if (message) document.getElementById('pullStatus').textContent = message;
+  }
+  function leavePull() {
+    if (pullDrag) endPull(true);
+    pullMode = false; pullMarker.visible = pullGuide.visible = false;
+    controls.enabled = true; canvas.style.cursor = '';
+    canvas.setAttribute('aria-label', '3D model. Drag or use the arrow keys to rotate, tap a strip to follow it, press Escape to clear.');
+  }
+  function enterPull(component = -1) {
+    if (!state.braid || labCut) return;
+    const fresh = !relax;
+    if (fresh) setRelax(true);
+    if (!relax) return;
+    if (!relax.frame) relax.frame = fresh ? { center: [0, 0, 0], scale: 1 } : RX.displayFrame(relax.S);
+    pullMode = true; relax.paused = true; relax.dirty = true;
+    controls.autoRotate = false; controls.enabled = false;
+    canvas.style.cursor = 'crosshair';
+    canvas.setAttribute('aria-label', 'Pull rope: drag a section or loop. Escape cancels a drag. Choose Rope to rotate and zoom.');
+    const picker = document.getElementById('pullComponent'); picker.textContent = '';
+    for (let i = -1; i < relax.S.len.length; i++) {
+      const o = document.createElement('option'); o.value = String(i); o.textContent = i < 0 ? 'Any component' : 'Component ' + (i + 1); picker.appendChild(o);
+    }
+    picker.value = String(component);
+    if (isPhone()) setSheet('hidden');
+    syncBraidToolbar(); syncPullControls('Drag a rope to pull it. Rope restores rotation.'); measureTopTools();
+  }
+  function syncPullMarker() {
+    pullMarker.visible = pullMode && pullSelected >= 0 && relaxShown();
+    pullGuide.visible = !!pullDrag && relaxShown();
+    if (!pullMarker.visible) return;
+    const f = relax.frame, p = f.center.map((v, d) => (relax.S.P[3 * pullSelected + d] - v) * f.scale);
+    pullMarker.position.set(...p);
+    if (pullDrag) {
+      const target = pullDrag.handle.target.map((v, d) => (v - f.center[d]) * f.scale);
+      setPolyline(pullGuide, [...p, ...target]);
+    }
+  }
+  function pullRay(e) {
+    const rc = canvas.getBoundingClientRect();
+    raycaster.setFromCamera(new THREE.Vector2((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height) * 2 + 1), camera);
+  }
+  function beginPull(e) {
+    if (!pullMode || !relaxShown() || (e.button != null && e.button !== 0)) return;
+    if (pullDrag) { if (e.pointerId !== pullDrag.id) endPull(true); return; }
+    e.preventDefault(); downAt = null;
+    pullRay(e);
+    const component = Number(document.getElementById('pullComponent').value), f = relax.frame;
+    let nearest = null;
+    relaxTubes.forEach((tube, i) => {
+      if (!tube.visible || (component >= 0 && component !== i)) return;
+      const hit = raycaster.intersectObject(tube)[0];
+      if (hit && (!nearest || hit.distance < nearest.hit.distance)) nearest = { hit, component: i };
+    });
+    let vertex = -1;
+    if (nearest) {
+      const p = nearest.hit.point;
+      vertex = RX.nearestVertex(relax.S, [p.x, p.y, p.z].map((v, d) => v / f.scale + f.center[d]), nearest.component);
+    } else {
+      // Finger-friendly fallback: pick the nearest projected vertex within 22px.
+      // Exact mesh hits above win, so visible foreground strands take priority.
+      const rc = canvas.getBoundingClientRect(); let best = 22 * 22;
+      for (let i = 0; i < relax.S.N; i++) {
+        if (component >= 0 && relax.S.comp[i] !== component) continue;
+        const v = new THREE.Vector3(...f.center.map((c, d) => (relax.S.P[3 * i + d] - c) * f.scale)).project(camera);
+        if (v.z < -1 || v.z > 1) continue;
+        const dx = rc.left + (v.x + 1) * rc.width / 2 - e.clientX, dy = rc.top + (1 - v.y) * rc.height / 2 - e.clientY;
+        const dist = dx * dx + dy * dy;
+        if (dist < best) { best = dist; vertex = i; }
+      }
+    }
+    if (vertex < 0) { syncPullControls('Grab a rope, or choose Rope to rotate.'); return; }
+    const target = Array.from(relax.S.P.slice(3 * vertex, 3 * vertex + 3));
+    const world = new THREE.Vector3(...target.map((v, d) => (v - f.center[d]) * f.scale));
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), world);
+    const pointer = raycaster.ray.intersectPlane(plane, new THREE.Vector3());
+    if (!pointer) return;
+    pullDrag = { id: e.pointerId, before: shapeSnapshot(), plane, offset: world.clone().sub(pointer), handle: { vertex, target, whole: document.getElementById('pullScope').value === 'component' } };
+    pullSelected = vertex; relax.done = false;
+    canvas.focus({ preventScroll: true });
+    canvas.setPointerCapture?.(e.pointerId); canvas.style.cursor = 'grabbing';
+    syncPullControls('Pulling component ' + (relax.S.comp[vertex] + 1) + ' · release to hold.');
+  }
+  function movePull(e) {
+    if (!pullDrag || e.pointerId !== pullDrag.id) return;
+    e.preventDefault(); pullRay(e);
+    const point = raycaster.ray.intersectPlane(pullDrag.plane, new THREE.Vector3());
+    if (!point) return;
+    point.add(pullDrag.offset);
+    // Bound the target, rather than allowing a pointer outside the viewport to
+    // request unbounded coordinates. Collision protection still limits each step.
+    const f = relax.frame, p = [point.x, point.y, point.z];
+    pullDrag.handle.target = p.map((v, d) => Math.max(-12, Math.min(12, v)) / f.scale + f.center[d]);
+  }
+  function endPull(cancel = false) {
+    if (!pullDrag) return;
+    const drag = pullDrag; pullDrag = null;
+    if (cancel) restoreShape(drag.before);
+    else {
+      pullHistory.push(drag.before); if (pullHistory.length > 16) pullHistory.shift();
+      relax.remaining = RELAX_STEPS; relax.done = false;
+    }
+    if (canvas.hasPointerCapture?.(drag.id)) canvas.releasePointerCapture(drag.id);
+    pullGuide.visible = false; canvas.style.cursor = pullMode ? 'crosshair' : '';
+    syncPullControls(cancel ? 'Pull cancelled. Shape restored.' : relax.blocked ? 'Collision limit reached. Undo or Reset to try another pull.' : 'Pulled component ' + (relax.S.comp[drag.handle.vertex] + 1) + '. Tighten to keep shaping.');
+  }
+  canvas.addEventListener('pointerdown', beginPull, true);
+  canvas.addEventListener('pointermove', movePull);
+  canvas.addEventListener('pointerup', e => { if (pullDrag && e.pointerId === pullDrag.id) endPull(); });
+  canvas.addEventListener('pointercancel', e => { if (pullDrag && e.pointerId === pullDrag.id) endPull(true); });
+  canvas.addEventListener('lostpointercapture', e => { if (pullDrag && e.pointerId === pullDrag.id) endPull(true); });
+  window.addEventListener('blur', () => { if (pullDrag) endPull(true); });
+  window.addEventListener('resize', () => { if (pullDrag) endPull(true); });
+  document.getElementById('braidViewPull').addEventListener('click', () => enterPull());
+  document.getElementById('pullStart').addEventListener('click', () => enterPull());
+  document.getElementById('pullScope').addEventListener('change', () => { if (pullDrag) endPull(true); });
+  document.getElementById('pullComponent').addEventListener('change', () => { if (pullDrag) endPull(true); pullSelected = -1; syncPullControls('Drag the chosen component.'); });
+  document.getElementById('pullTighten').addEventListener('click', () => {
+    if (!pullMode || !relax) return;
+    if (pullDrag) endPull();
+    relax.paused = !relax.paused;
+    if (!relax.paused) { relax.done = false; relax.remaining = RELAX_STEPS; }
+    syncPullControls(relax.paused ? 'Shape held. Drag to pull again.' : 'Tightening · Pause holds this shape.');
+  });
+  document.getElementById('pullUndo').addEventListener('click', () => {
+    if (!pullMode || !relax) return;
+    if (pullDrag) endPull(true);
+    const saved = pullHistory.pop(); if (saved) restoreShape(saved);
+    pullSelected = -1; syncPullControls('Shape restored.');
+  });
+  document.getElementById('pullReset').addEventListener('click', () => {
+    if (!pullMode || !relax) return;
+    if (pullDrag) endPull(true);
+    const saved = shapeSnapshot(), previous = pullHistory.slice(-15);
+    setRelax(true); if (!relax) return;
+    relax.frame = { center: [0, 0, 0], scale: 1 }; pullHistory = [...previous, saved];
+    enterPull(); syncPullControls('Original braid shape restored.');
+  });
 
   let seamShown = null, trailShown = null;
   function retint() {
     readPalette();
     Object.assign(surfMat, AP.FINISHES[appearance.finish]);
     const trace = new THREE.Color(pal.trace);
-    [seamLine, sheetSolid, sheetDashed, trailLine, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => o.material.color.copy(trace));
+    [seamLine, sheetSolid, sheetDashed, trailLine, selCore, selCoreHidden, selEdge, selEdgeHidden, pullGuide].forEach(o => o.material.color.copy(trace));
     traveler.material.color.copy(trace);
     cutTipMaterial.color.copy(trace);
     travelerRing.material.color.set(pal.stage);
@@ -2458,7 +2640,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   let downAt = null;
   canvas.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerup', e => {
-    if (!downAt) return;
+    if (pullMode || !downAt) return;
     const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y), quick = performance.now() - downAt.t < 600;
     downAt = null;
     if (moved > 6 || !quick) return;
@@ -2486,7 +2668,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     mapKey = '';
   });
   canvas.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { clearSelection(); return; }
+    if (e.key === 'Escape') { if (pullDrag) endPull(true); else if (pullMode) { leavePull(); syncBraidToolbar(); } clearSelection(); return; }
+    if (pullMode) return;
     const step = 0.12, off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
     if (e.key === 'ArrowLeft') sph.theta -= step;
     else if (e.key === 'ArrowRight') sph.theta += step;
@@ -2565,18 +2748,18 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       syncSeifert(); syncRelax(0);
       surface.visible = false;
       [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
-      controls.update(); updateViewShift(); renderer.render(scene, camera); return;
+      if (!pullMode) controls.update(); updateViewShift(); renderer.render(scene, camera); return;
     }
     syncSeifert();
     if (syncRelax(renderDt)) {
       surface.visible = false;
       [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
-      controls.update(); updateViewShift(); renderer.render(scene, camera); return;
+      if (!pullMode) controls.update(); updateViewShift(); renderer.render(scene, camera); return;
     }
     if (seifertShown()) {
       surface.visible = false;
       [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
-      controls.update(); updateViewShift(); renderer.render(scene, camera); return;
+      if (!pullMode) controls.update(); updateViewShift(); renderer.render(scene, camera); return;
     }
     if (!surface.visible) { surface.visible = true; seamShown = null; buildSelectionLines(); }
     syncSurface();
@@ -2742,6 +2925,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     };
   }
   function setLabCut(kind) {
+    if (kind) leavePull();
     if (kind !== null && !LAB_KINDS.has(kind)) return;
     if (kind && (kind.startsWith('k-') ? 'klein' : 'torus') !== labSurfaceName) setLabSurface(kind.startsWith('k-') ? 'klein' : 'torus', false);
     if (kind !== labCut) labDraft = [];
@@ -3251,6 +3435,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     return MODEL_RADIUS / (t * Math.max(0.15, Math.min(w, h) / H)) * 1.04;
   }
   function updateViewShift() {
+    if (pullDrag) return;
     const ease = reduceMotion ? 1 : 0.18;
     let tx = 0, ty = 0, freeW = W, freeH = H;
     if (isPhone()) {

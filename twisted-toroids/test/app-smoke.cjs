@@ -290,6 +290,16 @@ console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sect
  get('braidStyleReset').click();assert.equal(get('braidWidth').value,'100');paint([0,2,1]);
  p.setSheet('hidden');p.syncQuick();assert.equal(get('braidToolbar').hidden,false);p.setLabCut('meridian');p.syncQuick();assert.equal(get('braidToolbar').hidden,true);p.setLabCut(null);p.syncQuick();assert.equal(get('braidToolbar').hidden,false);
  console.log('PASS: braid selection/insertion/mirror/clear/undo/redo, single strand, persistent component colors, ribbon widths preserve centerlines/invariants, toolbar visibility.');
+ // Pull tool starts from the original braid, pauses between gestures, and cleans up.
+ get('braidViewPull').click();p.render(false,0,[0,0,0]);
+ assert(p.getRelax().paused);assert.equal(get('braidPullOptions').hidden,false);assert.equal(get('pullComponent').children.length,4);
+ const pullStart=Array.from(p.getRelax().S.P);tick1();assert.deepEqual(Array.from(p.getRelax().S.P),pullStart);
+ get('pullTighten').click();tick1();assert.notDeepEqual(Array.from(p.getRelax().S.P),pullStart);
+ get('pullTighten').click();const held=Array.from(p.getRelax().S.P);tick1();assert.deepEqual(Array.from(p.getRelax().S.P),held);
+ get('pullReset').click();p.render(false,0,[0,0,0]);assert.deepEqual(Array.from(p.getRelax().S.P),pullStart);
+ get('pullUndo').click();p.render(false,0,[0,0,0]);assert.deepEqual(Array.from(p.getRelax().S.P),held);
+ get('braidViewRibbon').click();assert.equal(get('braidPullOptions').hidden,true);assert.equal(p.getRelax(),null);
+ console.log('PASS: Pull view, paused geometry, tightening, pause, reset, shape undo and view cleanup.');
  // Seifert surface: shown instead of the ribbons, with its genus, and printable
  p.showBraid({n:3,word:[1,-2,1,-2]});const sb=get('seifertBox');sb.checked=true;sb.dispatch('change');p.render(false,0,[0,0,0]);
  assert.equal(p.getSeif().genus,1);assert.equal(p.surface.visible,false);tick1();assert.match(get('hud').textContent,/Seifert surface · genus 1/);
