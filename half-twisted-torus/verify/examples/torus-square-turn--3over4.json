@@ -1,7 +1,7 @@
 {
   "format": "half-twisted-torus/experiment",
   "version": 2,
-  "created": "2026-11-07T03:51:53.396Z",
+  "created": "2026-11-07T04:08:01.957Z",
   "construction": {
     "type": "torus",
     "shape": "square",
@@ -15,7 +15,7 @@
     {
       "op": "open link",
       "value": "#shape=square&turn=-3/4",
-      "at": "2026-11-07T03:51:52.961Z"
+      "at": "2026-11-07T04:08:01.523Z"
     }
   ],
   "braid": {
@@ -38,8 +38,9 @@
       "laps": 4,
       "turns": -3,
       "knot": {
-        "name": "8_19",
-        "torus": [3, 4],
+        "name": "T(3,-4)",
+        "torus": [3, -4],
+        "chirality": "left-handed",
         "genus": 3,
         "crossingNumber": 8
       },

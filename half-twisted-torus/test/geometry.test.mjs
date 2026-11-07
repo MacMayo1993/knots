@@ -44,7 +44,9 @@ function gaussLink(P, Q) {
   }
   return s / (4 * Math.PI);
 }
-function offsetFor(kind, n, pos) {   // pos is a piece index; +0.5 is the edge on its far side
+// pos is a piece index; for a ring, +0.5 is the boundary on its far side. For a
+// line, +0.25 is a push-off inside the lane (a lane boundary can sit on the axis).
+function offsetFor(kind, n, pos) {
   if (kind === 'ring') { const phi = pos * TAU / n; return [RAD * Math.cos(phi), RAD * Math.sin(phi)]; }
   const lw = 2 * HALF / n; return [-HALF + lw * (pos + 0.5), 0];
 }
@@ -68,8 +70,11 @@ for (const [name, [kind, n, sym]] of Object.entries(SHAPES)) {
     }
     // framing: core against its edge pushed along the stripe
     d.components.forEach((c, a) => {
-      if (c.oneSided) { expect(kind === 'line' && Math.round(2 * k) % 2 !== 0, label + ' only Möbius stripes are one-sided'); return; }
-      const [ea, eb] = offsetFor(kind, n, c.pieces[0] + 0.5);
+      // one-sided exactly when it is the centre lane of a flat strip with an odd number of half turns
+      const mobius = kind === 'line' && Math.abs(Math.round(2 * k)) % 2 === 1 && n % 2 === 1 && c.pieces[0] === (n - 1) / 2;
+      expect(c.oneSided === mobius, label + ' stripe ' + a + (mobius ? ' should' : ' should not') + ' be one-sided');
+      if (c.oneSided) return;
+      const [ea, eb] = offsetFor(kind, n, c.pieces[0] + (kind === 'ring' ? 0.5 : 0.25));
       const edge = curve(ea, eb, k, c.laps, 240);
       const g = gaussLink(cores[a], edge);
       expect(Math.abs(g - c.framing) < 0.05, label + ' framing of stripe ' + a + ' braid ' + c.framing + ' vs Gauss ' + g.toFixed(3));
