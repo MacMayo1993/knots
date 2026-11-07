@@ -133,13 +133,21 @@ h1 {
 }
 #c:active { cursor: grabbing; }
 #c:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
-.hud {
+.stage-tools {
   position: absolute;
   top: 12px;
   left: 12px;
   right: 12px;
+  z-index: 2;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+.mobile-tools { display: none; }
+.mobile-tools[hidden] { display: none !important; }
+.hud {
   width: fit-content;
-  max-width: calc(100% - 24px);
+  max-width: 100%;
   font-family: var(--f-mono);
   font-size: 0.8rem;
   background: var(--panel);
@@ -364,12 +372,18 @@ h2 {
     position: fixed; inset: 0; aspect-ratio: auto; max-width: none;
     border: 0; border-radius: 0;
   }
-  .hud {
+  .stage-tools {
     top: calc(env(safe-area-inset-top, 0px) + 10px);
     left: calc(env(safe-area-inset-left, 0px) + 10px);
-    max-width: calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
-    font-size: 0.74rem;
+    right: calc(env(safe-area-inset-right, 0px) + 10px);
   }
+  .hud { font-size: 0.74rem; }
+  .mobile-tools { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--rule); border-radius: 14px; background: var(--panel); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); pointer-events: auto; }
+  .quick-shape { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; font-weight: 500; }
+  .quick-shape select { width: 100%; min-width: 0; min-height: 44px; padding: 8px 30px 8px 10px; border: 1px solid var(--rule); border-radius: 9px; background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
+  .mobile-tools .quick { margin: 0; }
+  .mobile-tools .quick .step, .mobile-tools .quick .secondary { min-width: 44px; min-height: 44px; touch-action: manipulation; }
+  .mobile-tools .q-value { font-size: 0.86rem; overflow-wrap: anywhere; }
   .hint { display: none; }
   .panel {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
@@ -419,6 +433,7 @@ h2 {
 /* Phone on its side: the sheet sits on the right instead of across the bottom */
 @media (max-height: 520px) and (pointer: coarse) and (orientation: landscape) {
   .panel { left: auto; width: min(400px, 48vw); height: calc(100dvh - 8px); border-radius: 18px 0 0 0; }
+  .stage:not([data-sheet="hidden"]) .stage-tools { right: calc(min(400px, 48vw) + 10px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -438,7 +453,18 @@ h2 {
   <section class="lab" aria-label="Interactive model">
     <div class="stage" id="stage">
       <canvas id="c" tabindex="0" aria-label="3D model. Drag or use the arrow keys to rotate, tap a strip to follow it, press Escape to clear."></canvas>
-      <div class="hud" id="hud" aria-live="polite">Drawing the model</div>
+      <div class="stage-tools" id="stageTools">
+        <div class="hud" id="hud" aria-live="polite">Drawing the model</div>
+        <div class="mobile-tools" id="mobileTools" role="group" aria-label="Quick toroid controls" hidden>
+          <label class="quick-shape" for="q-shape"><span>Shape</span><select id="q-shape" aria-label="Tube shape"></select></label>
+          <div class="quick">
+            <button type="button" class="step" id="q-minus" aria-label="Subtract a step of twist">−</button>
+            <output class="q-value" id="q-twist" aria-label="Tube twist" aria-live="polite">½ turn</output>
+            <button type="button" class="step" id="q-plus" aria-label="Add a step of twist">+</button>
+            <button type="button" class="secondary" id="q-cut">Cut</button>
+          </div>
+        </div>
+      </div>
       <p class="hint">Drag to rotate · scroll or pinch to zoom · tap a strip to follow it</p>
     </div>
 
@@ -452,12 +478,6 @@ h2 {
             <button type="button" class="icon-btn" id="sheetSize" aria-label="Show more controls" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
             <button type="button" class="icon-btn" id="sheetHide" aria-label="Hide controls"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19h14"/></svg></button>
           </div>
-        </div>
-        <div class="quick torus-only">
-          <button type="button" class="step" id="q-minus" aria-label="Subtract a step of twist">−</button>
-          <output class="q-value" id="q-twist" aria-live="polite">½ turn</output>
-          <button type="button" class="step" id="q-plus" aria-label="Add a step of twist">+</button>
-          <button type="button" class="secondary" id="q-cut">Cut</button>
         </div>
         <div class="quick braid-only">
           <span class="q-word" id="q-word"></span>
@@ -1534,6 +1554,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function setMode(mode) {
     panelEl.dataset.mode = mode;
     document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    if (isPhone()) setSheet(sheet, false);
   }
   // Show a braid (or return to the torus with null).
   function showBraid(b, text) {
@@ -1681,6 +1702,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     state.twistFrom = state.k; state.twistTo = target;
     state.twistDur = 1200 + 500 * Math.min(4, Math.abs(target - state.k));
     state.twistStart = performance.now(); state.twisting = true;
+    syncQuick();
   }
   document.querySelectorAll('#shapeSeg button').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2122,6 +2144,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (kind !== null && !Object.prototype.hasOwnProperty.call(EX.CUTS, kind)) return;
     labCut = kind; mapPick = null; mapKey = ''; labColorKey = '';
     panelEl.dataset.exploring = String(!!kind);
+    if (isPhone()) setSheet(sheet, false); else syncMobileTools();
     document.getElementById('labReturn').hidden = !kind;
     document.getElementById('labReadout').hidden = !kind;
     labSurface.visible = !!kind; labBoundary.visible = false;
@@ -2329,12 +2352,14 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }));
 
   // ---------- phone layout: full-screen model with a bottom sheet ----------
-  // On a phone the panel is a sheet with four sizes: hidden, peek (the quick bar),
-  // half and full. Drag its head, tap it, or use its buttons. The model is shifted
-  // up so it stays centered in the part of the screen the sheet leaves free.
+  // On a phone the panel has hidden, peek, half and full sizes. The torus quick
+  // controls live above the model in hidden/peek; braid/lab shortcuts stay in the
+  // sheet. The camera accounts for both the sheet and the top controls.
   const phoneMQ = window.matchMedia('(max-width: 760px), (max-height: 520px) and (pointer: coarse)');
   const sheetHead = document.getElementById('sheetHead'), sheetBody = document.getElementById('sheetBody');
   const sheetFab = document.getElementById('sheetShow'), sizeBtn = document.getElementById('sheetSize');
+  const mobileTools = document.getElementById('mobileTools'), stageTools = document.getElementById('stageTools'), quickShape = document.getElementById('q-shape');
+  let topToolsInset = 0;
   const notesEl = document.querySelector('.notes'), labEl = document.querySelector('.lab');
   const SHEET_KEY = 'twisted-toroids-sheet';
   let sheet = 'peek';
@@ -2343,6 +2368,19 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const isPhone = () => phoneMQ.matches;
   const sideMQ = window.matchMedia('(max-height: 520px) and (pointer: coarse) and (orientation: landscape)');
   const isSide = () => sideMQ.matches;
+  function measureTopTools() {
+    const r = stageTools.getBoundingClientRect();
+    topToolsInset = Math.max(0, r.top - stage.getBoundingClientRect().top + r.height + 8);
+  }
+  function syncMobileTools() {
+    const hidden = !isPhone() || !['hidden','peek'].includes(sheet) || !!state.braid || !!labCut;
+    const changed = mobileTools.hidden !== hidden;
+    mobileTools.hidden = hidden;
+    stage.dataset.sheet = sheet;
+    if (changed && !hidden) measureTopTools();
+  }
+  if ('ResizeObserver' in window) new ResizeObserver(measureTopTools).observe(stageTools);
+  window.addEventListener('resize', measureTopTools);
   function sheetHeights() {
     const vh = window.innerHeight, ph = panelEl.getBoundingClientRect().height || vh * 0.9;
     const safe = parseFloat(getComputedStyle(sheetBody).paddingBottom) - 28 || 0;
@@ -2355,6 +2393,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   function setSheet(name, save = true) {
     sheet = name;
+    syncMobileTools();
     if (!isPhone()) return;
     applySheet(sheetHeights()[name]);
     panelEl.setAttribute('aria-hidden', String(name === 'hidden'));
@@ -2375,6 +2414,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       panelEl.style.removeProperty('--sheet-visible');
       panelEl.removeAttribute('aria-hidden'); panelEl.inert = false;
       sheetFab.hidden = true; sheetVisible = 0;
+      syncMobileTools();
     }
   }
   if (phoneMQ.addEventListener) phoneMQ.addEventListener('change', layoutForDevice);
@@ -2416,6 +2456,15 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   sheetHead.addEventListener('pointercancel', endSheetDrag);
 
   // quick bar: shortcuts to the panel's own controls
+  document.querySelectorAll('#shapeSeg button').forEach(button => {
+    const option = document.createElement('option');
+    option.value = button.dataset.shape; option.textContent = button.textContent;
+    quickShape.appendChild(option);
+  });
+  quickShape.addEventListener('change', () => {
+    const button = document.getElementById('shape-'+quickShape.value);
+    if (button && !state.braid && !labCut) button.click();
+  });
   document.getElementById('q-minus').addEventListener('click', () => minusBtn.click());
   document.getElementById('q-plus').addEventListener('click', () => plusBtn.click());
   document.getElementById('q-cut').addEventListener('click', () => cutBtn.click());
@@ -2431,7 +2480,10 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     document.getElementById('q-plus').setAttribute('aria-label', 'Add ' + step + ' turn');
     const qc = document.getElementById('q-cut');
     set('q-cut', state.cutTarget ? 'Glue' : 'Cut');
-    qc.disabled = cutBtn.disabled;
+    qc.disabled = cutBtn.disabled || state.twisting;
+    qc.setAttribute('aria-label', state.cutTarget ? 'Glue the color boundaries back together' : 'Cut along the color lines');
+    quickShape.value = state.shape;
+    syncMobileTools();
     set('q-word', state.braid ? (state.braid.word.length ? KM.wordText(state.braid.word) : 'identity') + ' · ' + state.braid.n + ' strands' : '');
   }
   // following a strip from the list: make room to see it
@@ -2465,6 +2517,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       if (isSide()) {
         if (sheetVisible > 1) { const pw = panelEl.getBoundingClientRect().width; tx = pw / 2; freeW = W - pw; }
       } else { const cover = Math.min(sheetVisible, H * 0.6); ty = cover / 2; freeH = H - cover; }
+      if (!mobileTools.hidden) { ty -= topToolsInset / 2; freeH = Math.max(1, freeH - topToolsInset); }
       if (!userZoomed) {
         const off = camera.position.clone().sub(controls.target), d = off.length(), want = fitDistance(freeW, freeH);
         if (Math.abs(want - d) > 0.01) camera.position.copy(controls.target).add(off.setLength(d + (want - d) * ease));
