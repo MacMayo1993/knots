@@ -782,6 +782,7 @@ h2 {
 
 <script src="knotmath.js"></script>
 <script src="explore.js"></script>
+<script src="cut-animation.js"></script>
 <script type="importmap">
 { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
 </script>
@@ -802,6 +803,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 (function () {
   const TAU = Math.PI * 2;
   const AP = window.ToroidAppearance;
+  const CUT = window.ToroidCutAnimation;
   const appearance = (() => { try { return AP.load(localStorage); } catch (_) { return AP.normalize(null); } })();
   const R = 1.6;          // distance from centre of hole to centre of tube
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -942,7 +944,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     userMoved: false,
     m: 2,               // build stage: 0 flat sheet, 1 straight tube, 2 finished torus
     building: false, buildT: 0,
-    cut: 0, cutTarget: 0,   // 0 joined, 1 cut along the color lines and pulled apart
+    cut: 0, cutTarget: 0,   // timeline progress; the spatial opening trails two moving cut fronts
     grow: null,         // sweep progress 0..1 while growing from the shape; null when off
     growing: false, growT: 0,
     braid: null         // { n, word, text } while showing an arbitrary closed braid
@@ -1082,7 +1084,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   // `off` lifts the point off the surface for lines drawn on it: a scale factor for
   // a closed cross-section, a sideways offset for a flat strip.
   function surfacePoint(p, phi, th, out, i, off) {
-    const sh = shapeOf(), nc = sh.colors.length, e = smooth(Math.max(0, Math.min(1, state.cut)));
+    const sh = shapeOf(), nc = sh.colors.length, e = CUT.amount(state.cut, th / TAU);
     let s = section(state.shape, phi);
     if (off !== undefined) s = sh.open ? [s[0], s[1] + off] : [s[0] * off, s[1] * off];
     if (e > 0) {
@@ -1339,6 +1341,11 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   function updateHud() {
     if (labCut) { hud.textContent = 'Cut explorer · ' + EX.CUTS[labCut].result; return; }
+    if (!state.braid && state.cut !== state.cutTarget) {
+      const cutting = state.cutTarget === 1;
+      hud.textContent = (cutting ? 'Cutting paint boundaries' : 'Gluing paint boundaries') + ' · ' + Math.round(100*(cutting ? state.cut : 1-state.cut)) + '% · follow the moving tips';
+      return;
+    }
     if (sel !== null) {
       const d = exactInfo(), c = d.ok && d.components[sel];
       if (c) {
@@ -1671,7 +1678,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function uncut() { if (state.cut || state.cutTarget) { state.cut = 0; setCut(false); updatePositions(); } }
   cutBtn.addEventListener('click', () => {
     if (state.cutTarget) { setCut(false); return; }
-    if (!cutInfo().ok) return;
+    if (state.twisting || !cutInfo().ok) return;
     logOp('cut', 'along the color lines');
     stopGrow(); state.building = false;
     if (state.m < 2) setM(2);
@@ -1860,6 +1867,30 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const traveler = new THREE.Mesh(new THREE.SphereGeometry(0.075, 24, 16), new THREE.MeshBasicMaterial());
   const travelerRing = new THREE.Mesh(new THREE.SphereGeometry(0.095, 24, 16), new THREE.MeshBasicMaterial({ side: THREE.BackSide }));
   scene.add(traveler, travelerRing);
+  // Reuse a shared geometry/material: at most two tips on each of eight boundaries.
+  const cutTipGeometry = new THREE.SphereGeometry(0.045, 12, 8);
+  const cutTipMaterial = new THREE.MeshBasicMaterial();
+  const cutTips = Array.from({length:16}, () => {
+    const tip = new THREE.Mesh(cutTipGeometry,cutTipMaterial);
+    tip.visible = false; scene.add(tip); return tip;
+  });
+  const cutTipA = [0,0,0], cutTipB = [0,0,0];
+  function syncCutTips() {
+    cutTips.forEach(tip => { tip.visible = false; });
+    if (labCut || state.braid || state.m < 2 || state.grow !== null || state.twisting) return;
+    const fronts = CUT.fronts(state.cut), sh = shapeOf(), n = sh.colors.length;
+    const count = sh.open ? n-1 : n;
+    let i=0;
+    for (const u of fronts) for (let p=0;p<count;p++) {
+      const phi = sh.open ? -sh.half+(p+1)*2*sh.half/n : (p+0.5)*TAU/n;
+      const lift = sh.open ? 0.018 : 1.025;
+      surfacePoint(p,phi,u*TAU,cutTipA,0,lift);
+      surfacePoint((p+1)%n,phi,u*TAU,cutTipB,0,lift);
+      const tip=cutTips[i++];
+      tip.position.set((cutTipA[0]+cutTipB[0])/2,(cutTipA[1]+cutTipB[1])/2,(cutTipA[2]+cutTipB[2])/2);
+      tip.visible=true;
+    }
+  }
   // the selected strip: centerline and edge, solid where visible and faint behind the surface
   // centerline solid, edge dashed, so both read on any paint color
   const DASH = { dashed: true, dashSize: 0.07, gapSize: 0.05 };
@@ -1875,6 +1906,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const trace = new THREE.Color(pal.trace);
     [seamLine, sheetSolid, sheetDashed, trailLine, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => o.material.color.copy(trace));
     traveler.material.color.copy(trace);
+    cutTipMaterial.color.copy(trace);
     travelerRing.material.color.set(pal.stage);
     growFill.material.color.set(pal.panel);
     colorKey = '';
@@ -2046,6 +2078,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function render(showTraveler, trailCount, travelerAt) {
     if (!W || !H) return;
     syncExplore();
+    syncCutTips();
     if (labCut) {
       surface.visible = false;
       [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
@@ -2210,7 +2243,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function drawFlatMap() {
     if (!mapContext || !mapDetails.open) return;
     const ready = mapReady(), sh = shapeOf(), n = sh.colors.length;
-    const key = [labCut,state.shape,state.braid ? 'braid' : '',state.k,state.cutTarget,cutColorBox.checked,sel,ready,JSON.stringify(mapPick),pal.stage,JSON.stringify(pal.c)].join('|');
+    const key = [labCut,state.shape,state.braid ? 'braid' : '',state.k,state.cut,state.cutTarget,cutColorBox.checked,sel,ready,JSON.stringify(mapPick),pal.stage,JSON.stringify(pal.c)].join('|');
     if (key === mapKey) return; mapKey = key;
     const c = mapContext, {x,y,w,h} = mapRect;
     const ink = token('--ink'), stageColor = token('--stage');
@@ -2237,6 +2270,19 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       c.strokeStyle = ink; c.setLineDash([5,5]);
       for (let p = 1; p < n; p++) { c.beginPath(); c.moveTo(x,y+h*p/n); c.lineTo(x+w,y+h*p/n); c.stroke(); }
       c.setLineDash([]);
+      if (state.cut > 0) {
+        const reach = CUT.reach(state.cut)/2;
+        // Solid segments are already cut; dashed segments are still joined.
+        for (let p=0;p<=n;p++) {
+          const yy=y+h*p/n;
+          c.strokeStyle=stageColor; c.lineWidth=5;
+          c.beginPath(); c.moveTo(x,yy); c.lineTo(x+w*reach,yy); c.moveTo(x+w*(1-reach),yy); c.lineTo(x+w,yy); c.stroke();
+          c.strokeStyle=ink; c.lineWidth=1.5;
+          c.beginPath(); c.moveTo(x,yy); c.lineTo(x+w*reach,yy); c.moveTo(x+w*(1-reach),yy); c.lineTo(x+w,yy); c.stroke();
+          for (const u of CUT.fronts(state.cut)) { c.beginPath(); c.arc(x+w*u,yy,4,0,TAU); c.fillStyle=ink; c.fill(); }
+        }
+        c.lineWidth=2;
+      }
     }
     c.strokeStyle = ink; c.strokeRect(x,y,w,h);
     // Matching arrows mark the direction of the gluing; the text gives its shift.
@@ -2245,7 +2291,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       const a = Math.atan2(by-ay,bx-ax); c.moveTo(bx-8*Math.cos(a-0.5),by-8*Math.sin(a-0.5)); c.lineTo(bx,by); c.lineTo(bx-8*Math.cos(a+0.5),by-8*Math.sin(a+0.5)); c.stroke();
     };
     if (labCut !== 'meridian' && (labCut || analysis().fits)) { arrow(x-16,y+h*.6,x-16,y+h*.4); arrow(x+w+16,y+h*.6,x+w+16,y+h*.4); }
-    if (labCut !== 'longitude' && (labCut || !state.cutTarget)) { arrow(x+w*.45,y-14,x+w*.55,y-14); arrow(x+w*.45,y+h+14,x+w*.55,y+h+14); }
+    if (labCut !== 'longitude' && (labCut || CUT.reach(state.cut)<1)) { arrow(x+w*.45,y-14,x+w*.55,y-14); arrow(x+w*.45,y+h+14,x+w*.55,y+h+14); }
     if (labCut && labCut !== 'closed') {
       c.strokeStyle = ink; c.lineWidth = 4;
       if (labCut === 'patch') c.strokeRect(x+w*3/8,y+h*5/8,w/4,h/4);
@@ -2260,7 +2306,10 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (labCut) mapNote.textContent = 'Horizontal: around the central hole. Vertical: around the tube. Arrows show edges still glued. ' + (labCut === 'patch' ? 'The outlined gold patch lifts out as a disk.' : EX.CUTS[labCut].result);
     else {
       const fit = analysis().fits;
-      mapNote.textContent = 'Horizontal: one lap. Vertical: painted cross-section. ' + (state.cutTarget ? 'Top and bottom are cut; ' : 'Top ↔ bottom; ') + 'right edge at v ↔ left edge at v + ' + turnText(state.k) + ' (mod 1). ' + (!fit ? 'These ends do not fit yet: the edge rule is only a proposed gluing.' : state.cutTarget ? 'Paint boundaries are now cut; rows in the same cycle form one ribbon.' : 'Dashed lines are paint boundaries, not cuts.') + (mapPick ? ' Point: (' + mapPick.u.toFixed(2) + ', ' + mapPick.v.toFixed(2) + ').' : '');
+      const edge = state.cut === 0 ? 'Top ↔ bottom; ' : CUT.reach(state.cut) >= 1 ? 'Top and bottom are cut; ' : 'Top/bottom stay joined only along the uncut portions; ';
+      const cutting = state.cut !== state.cutTarget;
+      const status = cutting ? (state.cutTarget ? 'Cutting' : 'Gluing') + ' · ' + Math.round(100*(state.cutTarget ? state.cut : 1-state.cut)) + '%. Tips travel from both ends of the map; the 3D ribbons ' + (state.cutTarget ? 'open' : 'close') + ' behind them.' : state.cut === 1 ? 'Paint boundaries are now cut; rows in the same cycle form one ribbon.' : 'Dashed lines are paint boundaries, not cuts.';
+      mapNote.textContent = 'Horizontal: one lap. Vertical: painted cross-section. ' + edge + 'right edge at v ↔ left edge at v + ' + turnText(state.k) + ' (mod 1). ' + (!fit ? 'These ends do not fit yet: the edge rule is only a proposed gluing.' : status) + (mapPick ? ' Point: (' + mapPick.u.toFixed(2) + ', ' + mapPick.v.toFixed(2) + ').' : '');
     }
   }
   function syncExplore() {
@@ -2566,13 +2615,12 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       updatePositions();
     }
     let trailCount = 0;
-    if (state.cut !== state.cutTarget) {
-      const d = state.cutTarget - state.cut, stepC = dt / 0.9;
-      state.cut = Math.abs(d) <= stepC ? state.cutTarget : state.cut + Math.sign(d) * stepC;
+    if (state.cut !== state.cutTarget && !labCut) {
+      state.cut = CUT.advance(state.cut,state.cutTarget,dt);
       updatePositions();
       if (sel !== null) buildSelectionLines();
     }
-    if (!state.twisting && trailPts && state.m >= 2 && state.grow === null && state.cut < 0.02) {
+    if (!state.twisting && trailPts && state.m >= 2 && state.grow === null && state.cut === 0 && state.cutTarget === 0) {
       if (state.traveling) {
         if (state.progress < laps) state.progress = Math.min(laps, state.progress + dt / 3.6);
         else { state.hold += dt; if (state.hold > 1.4) restartTraveler(); }
@@ -2581,7 +2629,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       travelerPoint(p * TAU, tmp, 0);
       trailCount = Math.max(2, Math.floor(p * PER_LAP) + 1);
     }
-    try { render(!state.braid && !state.twisting && state.m >= 2 && state.grow === null && state.cut < 0.02 && sel === null, trailCount, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; return; }
+    try { render(!state.braid && !state.twisting && state.m >= 2 && state.grow === null && state.cut === 0 && state.cutTarget === 0 && sel === null, trailCount, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; return; }
     requestAnimationFrame(frame);
   }
 

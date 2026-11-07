@@ -50,8 +50,8 @@ class Renderer{setClearColor(){}setPixelRatio(){}setSize(){}render(){}}
 class OrbitControls{constructor(){this.target=new Vector();}addEventListener(){}update(){}}
 class Raycaster{setFromCamera(){}intersectObject(){return Raycaster.hit ? [Raycaster.hit] : [];}}
 const THREE={MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
-const phone=process.argv.includes('--phone'),side=process.argv.includes('--landscape');
-const win={innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),addEventListener(){},matchMedia(q){return {matches:q.includes('reduced-motion')||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
+const phone=process.argv.includes('--phone'),side=process.argv.includes('--landscape'),animate=process.argv.includes('--animate');
+const win={innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
 const sandbox={KnotMath:win.KnotMath,THREE,OrbitControls,Line2:Object3D,LineSegments2:Object3D,LineMaterial:Material,LineGeometry:Geometry,LineSegmentsGeometry:Geometry,window:win,document:{documentElement:root,body:el(),getElementById:get,createElement:el,querySelectorAll(s){const key={'#shapeSeg button':'shape','#twistSeg button':'k','#modeSeg button':'mode','#braidExamples button':'word'}[s];return buttons.filter(b=>key in b.dataset);}},getComputedStyle(){return {getPropertyValue(k){return root.style[k]||palette[k]||'#888888';}};},MutationObserver:class{observe(){}},localStorage:{getItem(){return null;},setItem(){}},location:{hash:'',href:'https://example.test/'},history:{replaceState(){}},performance:{now(){return 0;}},requestAnimationFrame(){},setTimeout(f){timers.push(f);},URLSearchParams,console};
 vm.createContext(sandbox);
 const savedPreferences=new Map();
@@ -60,9 +60,30 @@ sandbox.document.querySelector=s=>get(s);
 sandbox.document.addEventListener=()=>{};
 get('.lab').parentElement=el(); get('.notes').parentElement=get('.lab').parentElement;
 get('stageTools').getBoundingClientRect=()=>({width:370,height:150,left:10,top:10,bottom:160});
-vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal}; setTimeout(start,30);'),sandbox);
+vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal}; setTimeout(start,30);'),sandbox);
 timers.shift()();assert(!get('hud').textContent.includes('failed'));
 const p=win.probe,toggle=get('cutColors'),legend=get('cutColorLegend');get('seam').checked=false;
+if(animate){
+ let clock=0;const tick=n=>{for(let i=0;i<n;i++){clock+=50;p.frame(clock);assert(!get('hud').textContent.includes('failed'),get('hud').textContent);}};
+ const sample=u=>{const out=[];p.surfacePoint(0,0,u*Math.PI*2,out,0);return out;};
+ const near=sample(.05),far=sample(.5),geometry=p.cutTips[0].geometry;
+ get('mapDetails').open=true;get('cutBtn').click();assert.equal(p.state.cut,0);tick(20);
+ assert(p.state.cut>0&&p.state.cut<.5);assert.notDeepEqual(sample(.05),near);assert.deepEqual(sample(.5),far);
+ assert.equal(p.cutTips.filter(t=>t.visible).length,4);assert(get('hud').textContent.includes('Cutting paint boundaries'));assert(get('mapNote').textContent.includes('Cutting'));
+ const beforeReverse=sample(.15),progress=p.state.cut;get('cutBtn').click();assert.equal(p.state.cut,progress);assert.deepEqual(sample(.15),beforeReverse);
+ tick(1);assert(get('hud').textContent.includes('Gluing paint boundaries'));tick(19);assert.equal(p.state.cut,0);assert.deepEqual(sample(.05),near);assert(p.cutTips.every(t=>!t.visible));
+ get('cutBtn').click();tick(72);assert.equal(p.state.cut,1);assert(p.cutTips.every(t=>!t.visible));assert(get('mapNote').textContent.includes('Paint boundaries are now cut'));
+ get('cutBtn').click();tick(72);assert.equal(p.state.cut,0);assert.deepEqual(sample(.5),far);assert(p.cutTips.every(t=>t.geometry===geometry));
+ get('cutBtn').click();tick(10);const paused=p.state.cut;p.setLabCut('patch');tick(10);assert.equal(p.state.cut,paused);assert(p.cutTips.every(t=>!t.visible));p.setLabCut(null);tick(1);assert(p.state.cut>paused);
+ p.showBraid({n:2,word:[1,1,1]});tick(1);assert(p.cutTips.every(t=>!t.visible));p.showBraid(null);
+ for(const [shape,count] of [['band2',2],['band3',4],['gear',16]]){
+  get('shape-'+shape).click();get('cutBtn').click();tick(20);assert.equal(p.cutTips.filter(t=>t.visible).length,count);
+  get('cutBtn').click();tick(72);assert.equal(p.state.cut,0);
+ }
+ p.state.twisting=true;get('cutBtn').click();assert.equal(p.state.cutTarget,0);p.state.twisting=false;
+ console.log('PASS: timed cut and reverse glue, moving tips, local mesh opening, unchanged material ahead, progress readouts/map, pause in explorer, mode cleanup and geometry reuse.');
+ process.exit(0);
+}
 const rgb=c=>[c.r,c.g,c.b];
 function rows(){p.syncSurface();const a=p.surface.geometry.attributes.color.array,v=p.getVertexPieces(),out=[];for(let i=0;i<v.length;i++)if(!out[v[i]])out[v[i]]=Array.from(a.slice(3*i,3*i+3));return out;}
 function expected(ci,dim=false){const a=p.getPalette().c[ci],c=new Color().setRGB(...a.map(x=>x/255),'srgb');if(dim)c.lerp(new Color(p.getPalette().stage),0.72);return rgb(c);}
@@ -171,3 +192,22 @@ p.showBraid(null);assert.equal(get('mobileTools').hidden,!phone);
 p.setLabCut('patch');assert.equal(get('mobileTools').hidden,true);p.setLabCut(null);assert.equal(get('mobileTools').hidden,!phone);
 assert.equal(p.getSheet(),'hidden');
 console.log('PASS: collapsed/hidden top toolbar, all shape options, shared twist/cut actions, invalid/animating cut guards, view offset, and braid/lab visibility.');
+// The material remains continuous at the original gluing seam during the cut.
+const TAU=2*Math.PI;
+for(const button of buttons.filter(b=>'shape' in b.dataset)){
+ button.click();const sh=p.getShape(),n=sh.colors.length;
+ const step=sh.sym?1/sh.sym:.5;
+ for(const turn of [-step,0,step]){
+ p.twistTo(turn);const ci=p.cutInfo();assert(ci.ok);
+ for(const t of [.04,.3,.65,.96]){
+  p.state.cut=t;
+  for(let piece=0;piece<n;piece++)for(const f of [-.35,0,.35]){
+   const phi=sh.open?-sh.half+(piece+.5+f)*2*sh.half/n:(piece+f)*TAU/n;
+   const next=ci.a.sigma(piece),nextPhi=sh.open?(Math.abs(Math.round(2*turn))%2?-phi:phi):phi+turn*TAU;
+   const a=[],b=[];p.surfacePoint(piece,phi,TAU,a,0);p.surfacePoint(next,nextPhi,0,b,0);
+   assert(Math.hypot(...a.map((x,i)=>x-b[i]))<1e-7,`seam gap: ${button.dataset.shape}, ${t}, ${piece}`);
+  }
+ }
+ }
+}
+console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sections, including Möbius bands.');
