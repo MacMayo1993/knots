@@ -59,7 +59,8 @@ sandbox.localStorage={getItem:k=>savedPreferences.get(k)??null,setItem:(k,v)=>sa
 sandbox.document.querySelector=s=>get(s);
 sandbox.document.addEventListener=()=>{};
 get('.lab').parentElement=el(); get('.notes').parentElement=get('.lab').parentElement;
-vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal}; setTimeout(start,30);'),sandbox);
+get('stageTools').getBoundingClientRect=()=>({width:370,height:150,left:10,top:10,bottom:160});
+vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal}; setTimeout(start,30);'),sandbox);
 timers.shift()();assert(!get('hud').textContent.includes('failed'));
 const p=win.probe,toggle=get('cutColors'),legend=get('cutColorLegend');get('seam').checked=false;
 const rgb=c=>[c.r,c.g,c.b];
@@ -147,3 +148,26 @@ p.setLabCut('patch');get('palette-sunset').click();p.render(false,0,[0,0,0]);con
 p.showBraid({n:3,word:[1,-2,1,-2,1,-2]});get('palette-lagoon').click();paint([0,2,1]);assert.equal(p.experiment().format,'twisted-toroids/experiment');
 assert.equal(win.ToroidAppearance.load(sandbox.localStorage).palette,'lagoon');
 console.log('PASS: all palettes/backgrounds/finishes, persistence, custom reset, selection and cut preservation, lab/braid colors, and renamed exports.');
+p.showBraid(null);p.setLabCut(null);
+assert.equal(get('q-shape').children.length,20);
+assert.deepEqual(get('q-shape').children.map(o=>o.value),buttons.filter(b=>'shape' in b.dataset).map(b=>b.dataset.shape));
+for(const size of ['hidden','peek','half','full']){
+ p.setSheet(size);p.render(false,0,[0,0,0]);
+ assert.equal(get('mobileTools').hidden,!phone||!['hidden','peek'].includes(size));
+}
+p.setSheet('hidden');
+get('q-shape').value='hex';get('q-shape').dispatch('change');p.twistTo(0);
+get('q-plus').click();assert(Math.abs(p.state.twistTo-1/6)<1e-9);assert.equal(p.getSheet(),'hidden');
+assert.equal(get('q-plus').attrs['aria-label'],'Add ⅙ turn');
+get('q-minus').click();assert.equal(p.state.twistTo,0);
+get('q-cut').click();assert.equal(p.state.cutTarget,1);assert.equal(get('q-cut').textContent,'Glue');assert.equal(p.getSheet(),'hidden');
+get('q-cut').click();assert.equal(p.state.cutTarget,0);assert.equal(get('q-cut').textContent,'Cut');
+get('shape-hept').click();assert.equal(get('q-shape').value,'hept');
+p.twistTo(.25);assert.equal(get('q-cut').disabled,true);get('q-cut').click();assert.equal(p.state.cutTarget,0);
+p.twistTo(1/7);p.state.twisting=true;p.syncQuick();assert.equal(get('q-cut').disabled,true);p.state.twisting=false;p.syncQuick();assert.equal(get('q-cut').disabled,false);
+p.render(false,0,[0,0,0]);if(phone)assert(p.getViewShift()<0,'camera reserves the space above the model');
+p.showBraid({n:2,word:[1,1,1]});assert.equal(get('mobileTools').hidden,true);
+p.showBraid(null);assert.equal(get('mobileTools').hidden,!phone);
+p.setLabCut('patch');assert.equal(get('mobileTools').hidden,true);p.setLabCut(null);assert.equal(get('mobileTools').hidden,!phone);
+assert.equal(p.getSheet(),'hidden');
+console.log('PASS: collapsed/hidden top toolbar, all shape options, shared twist/cut actions, invalid/animating cut guards, view offset, and braid/lab visibility.');

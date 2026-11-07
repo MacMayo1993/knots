@@ -16,12 +16,14 @@ The page draws with [Three.js](https://threejs.org) (WebGL 2), loaded as JavaScr
 
 On a phone the model fills the screen and the controls live in a bottom sheet. You can drag the sheet's handle, tap it, or use its buttons to switch between four sizes:
 
-- **Peek:** a slim bar with the essentials: the twist stepper and Cut on the torus, or the braid word and an Edit button in braid mode.
+- **Peek:** the sheet shrinks to its handle and title. In torus mode, a separate toolbar above the model shows the shape dropdown, twist −/+, current twist, and Cut/Glue. In braid mode the sheet keeps its braid word and Edit shortcut.
 - **Half:** the model stays visible above the controls.
 - **Full:** for reading the exact description and the notes, which move into the sheet on a phone.
-- **Hidden:** only a small *Controls* button remains.
+- **Hidden:** a small *Controls* button reopens the sheet, while the top toolbar remains available in torus mode.
 
-The model slides up, or left when the phone is on its side, so it stays centered in the space the sheet leaves free. Until you zoom yourself, the camera also pulls back so the whole torus fits. The sheet remembers its size on your device.
+The top toolbar uses the same handlers as the full controls, including the shape-dependent twist step and the rules for valid cuts. Its dropdown contains all 20 cross-sections. Choosing a shape, changing the twist, or cutting does not reopen the sheet. The toolbar hides in Half/Full views and in braid/cut-explorer modes. The full-panel controls remain available there.
+
+The model slides up, or left when the phone is on its side, so it stays centered in the space the sheet leaves free. With the top toolbar visible, its height and the readout are also reserved above the model. Until you zoom yourself, the camera pulls back so the whole torus fits. The sheet remembers its size on your device.
 
 The full-screen button hides the browser bars where the browser allows it. iPhone Safari doesn't, but you can use *Add to Home Screen* there: the page includes a web app manifest and icons, so it opens full screen with no browser interface. On Android, *Install app* or *Add to Home screen* does the same.
 
