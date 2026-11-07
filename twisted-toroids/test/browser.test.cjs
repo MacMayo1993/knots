@@ -10,7 +10,7 @@ let chromium, devices;
 try { ({ chromium, devices } = require('playwright')); } catch (_) { console.log('SKIP: Playwright is not installed (npm install playwright, then npx playwright install chromium).'); process.exit(0); }
 const MK = require('../meshkit.js');
 const ROOT = path.join(__dirname, '..');
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+const TYPES = { '.css': 'text/css', '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 const server = http.createServer((req, res) => {
   const file = path.join(ROOT, decodeURIComponent(new URL(req.url, 'http://x').pathname));
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
@@ -76,13 +76,37 @@ const server = http.createServer((req, res) => {
   page = await open('#braid=1,1,1&strands=2');
   ok(/right-handed trefoil/.test(await hud(page)), 'trefoil is named: ' + await hud(page));
   ok(/t⁴/.test(await page.textContent('#x-jones')), 'Jones polynomial shown');
-  await page.evaluate(() => document.getElementById('seifertBox').click());
+  await page.click('#braidViewSurface');
+  ok(await page.getAttribute('#braidViewSurface','aria-pressed') === 'true', 'surface view is selected');
   await page.waitForFunction(() => /Seifert surface · genus 1/.test(document.getElementById('hud').textContent));
   ok(await drawn(page) > 0.1, 'Seifert surface draws');
   ok(await stlClosed(page), 'Seifert surface STL is a closed solid');
-  await page.evaluate(() => document.getElementById('relaxBtn').click());
+  await page.click('#braidViewRope');
+  ok(await page.getAttribute('#braidViewRope','aria-pressed') === 'true', 'rope view is selected');
   await page.waitForFunction(() => /Relaxed/.test(document.getElementById('hud').textContent), null, { timeout: 30000 });
   ok(await drawn(page) > 0.05, 'relaxed knot draws');
+  await page.click('#braidViewRibbon');
+  ok(await page.getAttribute('#braidViewRibbon', 'aria-pressed') === 'true', 'ribbon view is selected');
+  await page.locator('#braidEditor rect.be-hit').nth(1).click();
+  ok(await page.inputValue('#braidInput') === 's1 s1 s1', 'selecting a crossing does not change it');
+  await page.getByRole('button', { name: 'Flip selected crossing', exact: true }).click();
+  ok(await page.inputValue('#braidInput') === 's1 S1 s1', 'selected crossing flips');
+  await page.click('#braidUndo');
+  ok(await page.inputValue('#braidInput') === 's1 s1 s1', 'on-canvas undo restores the trefoil');
+  await page.click('#braidRedo');
+  ok(await page.inputValue('#braidInput') === 's1 S1 s1', 'on-canvas redo restores the edit');
+  await page.click('#braidUndo');
+  await page.click('#braidCustomize');
+  await page.locator('#braidCustomizeDetails[open]').waitFor();
+  const invariant = await page.textContent('#x-jones');
+  await page.evaluate(() => { const w=document.getElementById('braidWidth'); w.value='140'; w.dispatchEvent(new Event('input',{bubbles:true})); const c=document.querySelector('#braidComponentColors input'); c.value='#12abef'; c.dispatchEvent(new Event('input',{bubbles:true})); });
+  ok(await page.textContent('#braidWidthValue') === '140%', 'width feedback updates');
+  ok(await page.textContent('#x-jones') === invariant, 'styling preserves the Jones polynomial');
+  ok(await page.$eval('#braidEditor line', e => e.style.stroke) === 'rgb(18, 171, 239)', 'custom color reaches the diagram');
+  await page.reload({waitUntil:'load'});
+  await page.waitForFunction(() => document.getElementById('braidStats').textContent.includes('3 crossings'));
+  ok(await page.inputValue('#braidWidth') === '140', 'width persists after reload');
+  ok(await page.locator('#braidComponentColors input').first().inputValue() === '#12abef', 'component color persists after reload');
   // the diagram editor drew a crossing per generator
   ok(await page.$$eval('#braidEditor rect.be-hit', r => r.length) === 3, 'editor shows three crossings');
   await page.context().close();
@@ -112,6 +136,30 @@ const server = http.createServer((req, res) => {
   ok(phone.stage === 'fixed' && phone.panel === 'fixed' && phone.tools && phone.sheetTop > phone.vh * 0.6, 'phone layout: ' + JSON.stringify(phone));
   ok(await drawn(page) > 0.1, 'phone draws the torus');
   await page.context().close();
+
+  // Braid controls remain useful with the phone sheet hidden, including narrow screens.
+  for (const viewport of [{width:390,height:844},{width:320,height:740},{width:844,height:390}]) {
+    page = await open('#braid=1,-2,1,-2&strands=3', {viewport, isMobile:true, hasTouch:true, deviceScaleFactor:1});
+    await page.click('#sheetHide');
+    await page.locator('#braidToolbar').waitFor({state:'visible'});
+    const layout = await page.evaluate(() => {
+      const bar = document.getElementById('braidToolbar').getBoundingClientRect();
+      return {left:bar.left,right:bar.right,width:innerWidth,overflow:document.documentElement.scrollWidth > innerWidth,
+        taps:[...document.querySelectorAll('#braidToolbar button')].filter(e=>e.getBoundingClientRect().width).map(e=>{const r=e.getBoundingClientRect();return [r.width,r.height];})};
+    });
+    ok(layout.left >= 0 && layout.right <= layout.width && !layout.overflow, 'braid toolbar fits viewport: '+JSON.stringify(layout));
+    ok(layout.taps.every(([w,h])=>w>=44 && h>=44), 'toolbar touch targets are at least 44px');
+    await page.click('#braidEdit');
+    await page.locator('#braidEditor rect.be-hit').first().click();
+    await page.getByRole('button',{name:'Flip selected crossing',exact:true}).click();
+    ok(await page.inputValue('#braidInput') === 'S1 S2 s1 S2', 'phone crossing edit works');
+    await page.locator('#braidEditor').getByRole('button',{name:'Undo braid edit',exact:true}).click();
+    ok(await page.inputValue('#braidInput') === 's1 S2 s1 S2', 'phone undo restores the braid');
+    await page.click('#sheetHide');
+    await page.click('#braidViewSurface');
+    ok(await page.getAttribute('#braidViewSurface','aria-pressed') === 'true', 'surface switch works with sheet hidden');
+    await page.context().close();
+  }
 
   ok(errors.length === 0, 'no console or page errors: ' + errors.join(' | '));
   await browser.close(); server.close();

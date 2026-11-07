@@ -1,0 +1,23 @@
+const assert = require('node:assert/strict');
+const BC = require('../braid-controls.js');
+const H = BC.history(3), original = { n: 2, word: [1,1,1] };
+H.record(original); original.word[0] = -1;
+H.record({n:3,word:[1,-2,1,-2]});
+assert.deepEqual(H.undo(), {n:2,word:[1,1,1]});
+const redone = H.redo(); redone.word.pop();
+H.record({n:3,word:[1,-2,1,-2]}); // Re-rendering an unchanged braid adds no history entry.
+assert.deepEqual(H.undo(), {n:2,word:[1,1,1]});
+H.record({n:1,word:[]}); assert.equal(H.canRedo,false); assert.equal(H.redo(),null);
+H.record({n:2,word:[1,1]}); H.record({n:2,word:[-1,-1]});
+assert.deepEqual(H.undo(),{n:2,word:[1,1]});
+assert.deepEqual(H.undo(),{n:1,word:[]}); assert.equal(H.undo(),null); assert.equal(H.canUndo,false);
+const mem = new Map(), storage = {getItem:k=>mem.get(k),setItem:(k,v)=>mem.set(k,v)};
+BC.save(storage, {width:1.25,colors:['#123456',null,'#aBcDeF']});
+assert.equal(BC.load(storage).width,1.25);assert.equal(BC.load(storage).colors[2],'#aBcDeF');
+mem.set(BC.KEY,'invalid JSON');assert.deepEqual(BC.load(storage),BC.normalize());
+mem.set(BC.KEY,JSON.stringify({width:100,colors:['red','#00ff00','javascript:bad']}));
+assert.equal(BC.load(storage).width,1.4);assert.deepEqual(BC.load(storage).colors.slice(0,3),[null,'#00ff00',null]);
+assert.equal(BC.normalize({width:-1}).width,.5);
+assert.deepEqual(BC.load({getItem(){throw Error('denied');}}),BC.normalize());
+assert.doesNotThrow(()=>BC.save({setItem(){throw Error('quota');}},BC.normalize()));
+console.log('PASS: history snapshots, undo/redo branching and bounds; saved style round-trip, malformed data and unavailable storage.');

@@ -16,7 +16,7 @@ The page draws with [Three.js](https://threejs.org) (WebGL 2), loaded as JavaScr
 
 On a phone the model fills the screen and the controls live in a bottom sheet. You can drag the sheet's handle, tap it, or use its buttons to switch between four sizes:
 
-- **Peek:** the sheet shrinks to its handle and title. In torus mode, a separate toolbar above the model shows the shape dropdown, twist −/+, current twist, Cut/Glue, **Build from sheet**, and **Grow from shape**. In braid mode the sheet keeps its braid word and Edit shortcut.
+- **Peek:** the sheet shrinks to its handle and title. In torus mode, a separate toolbar above the model shows the shape dropdown, twist −/+, current twist, Cut/Glue, **Build from sheet**, and **Grow from shape**. In braid mode a separate on-canvas toolbar offers Ribbons, Rope, and Surface views, Edit braid, Customize, undo/redo, and camera reset. The sheet also keeps its braid word and Edit shortcut.
 - **Half:** the model stays visible above the controls.
 - **Full:** for reading the exact description and the notes, which move into the sheet on a phone.
 - **Hidden:** a small *Controls* button reopens the sheet, while the top toolbar remains available in torus mode.
@@ -37,7 +37,8 @@ Appearance, paint edits, and the phone sheet size are saved on the device when s
 
 - **Model:** *Twisted torus* (everything below) or *Any braid*.
 - **Any braid:** type a braid word, or build it in the diagram editor, and the page draws its closure as flat ribbons running around the loop, one color per component. Words can be written as `s1 S2` (a capital letter means the inverse), `σ1 σ2⁻¹`, `1 -2`, with `(…)^k` for powers. Strands default to one more than the largest generator; set the count higher to add free strands. Limits are 10 strands and 400 crossings. Example buttons load the trefoil, figure-eight, 5₂, 6₃, 8₁₈, Hopf link, Whitehead link and Borromean rings. *Start from the last torus construction* loads the braid of the current twisted torus so you can edit it. *Draw a knot or link from the table* draws any of the 249 prime knots up to 10 crossings or 47 prime links up to 8 crossings, from SnapPy's braid word for it.
-- **Edit the diagram:** the braid as a picture, strands running left to right and colored by component. Tap a crossing to flip it (σᵢ ↔ σᵢ⁻¹) or, with *Tap deletes*, to remove it; the σ buttons add a crossing at the end; − and + change the number of strands. A positive crossing is drawn right-handed, so σ₁σ₁σ₁ is the right-handed trefoil, as in the model. Crossings are keyboard-focusable.
+- **Braid studio → Build & edit:** strands run left to right and colors identify components of the closure. Select a crossing before flipping or deleting it, or choose the direct *Tap flips* / *Tap deletes* tools. Insert a generator at the start, end, or before/after the selection. Strand −/+ supports 1–10 strands. Mirror reverses every crossing sign; Clear removes all crossings. Undo/redo covers diagram edits, typed words, strand changes, examples and table choices (up to 80 snapshots per session). Ctrl/⌘ Z and Ctrl/⌘ Shift Z work outside text inputs. Crossings have 46px targets; arrow keys move keyboard focus, Enter/Space activates the current tool, and Delete removes a crossing. A positive crossing is right-handed, so σ₁σ₁σ₁ is the right-handed trefoil.
+- **Braid studio → Customize the model:** set ribbon width to 50–140% and choose a color independently for each component. Colors match in the diagram, ribbons, relaxed rope and Seifert boundary curves. Trace switches to ribbons and highlights that component. Preferences persist on the device; Reset braid style restores 100% width and colors from the current palette. Component numbers follow cycles of the braid permutation and can change after an edit. Width changes the displayed ribbon edges, leaving centerlines and all braid invariants unchanged. These display preferences are separate from the mathematical undo history and shared construction links. Palettes & finish opens the existing global appearance controls.
 - **Relax into a smooth knot:** the closed braid pulls tight like rope while its strands push each other apart, and settles into a smooth knot drawn as tubes. The strands never pass through each other (see *Relaxing a knot* below), so it stays the same knot or link.
 - **Show its Seifert surface:** a two-sided surface whose edge is the knot or link, drawn with its two sides in two colors (see *Seifert surfaces*).
 
@@ -190,6 +191,7 @@ node test/jones.test.cjs
 node test/seifert.test.cjs
 node test/surfaces.test.cjs
 node test/editor-relax.test.cjs
+node test/braid-controls.test.cjs
 node test/app-smoke.cjs
 node test/app-smoke.cjs --phone
 node test/app-smoke.cjs --phone --landscape

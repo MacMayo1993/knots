@@ -471,6 +471,7 @@ h2 {
   .panel { transition: none !important; }
 }
 </style>
+<link rel="stylesheet" href="braid-workspace.css">
 </head>
 <body>
 <main class="wrap">
@@ -485,6 +486,20 @@ h2 {
       <canvas id="c" tabindex="0" aria-label="3D model. Drag or use the arrow keys to rotate, tap a strip to follow it, press Escape to clear."></canvas>
       <div class="stage-tools" id="stageTools">
         <div class="hud" id="hud" aria-live="polite">Drawing the model</div>
+        <div class="braid-toolbar" id="braidToolbar" aria-label="Braid controls" hidden>
+          <div class="braid-view-tabs" role="group" aria-label="Braid view">
+            <button type="button" id="braidViewRibbon" aria-pressed="true">Ribbons</button>
+            <button type="button" id="braidViewRope" aria-pressed="false">Rope</button>
+            <button type="button" id="braidViewSurface" aria-pressed="false">Surface</button>
+          </div>
+          <div class="braid-quick-actions">
+            <button type="button" id="braidEdit" class="braid-primary">✎ Edit braid</button>
+            <button type="button" id="braidCustomize">Customize</button>
+            <button type="button" id="braidUndo" aria-label="Undo braid edit" title="Undo (Ctrl/⌘ Z)">↶</button>
+            <button type="button" id="braidRedo" aria-label="Redo braid edit" title="Redo (Ctrl/⌘ Shift Z)">↷</button>
+            <button type="button" id="braidResetView" aria-label="Reset braid camera" title="Reset camera">⌖</button>
+          </div>
+        </div>
         <div class="mobile-tools" id="mobileTools" role="group" aria-label="Quick toroid controls" hidden>
           <label class="quick-shape" for="q-shape"><span>Shape</span><select id="q-shape" aria-label="Tube shape"></select></label>
           <div class="quick">
@@ -525,6 +540,62 @@ h2 {
         <div class="seg" id="modeSeg">
           <button type="button" data-mode="torus" aria-pressed="true">Twisted torus</button>
           <button type="button" data-mode="braid" aria-pressed="false">Any braid</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="braid-only braid-workspace" id="braidWorkspace">
+        <legend>Braid studio</legend>
+        <p class="braid-stats" id="braidStats" aria-live="polite"></p>
+        <details class="braid-editor-box" id="braidEditorDetails" open>
+          <summary>Build &amp; edit</summary>
+          <p class="note">Select a crossing, then flip, delete, or insert beside it. Scroll the diagram sideways for longer braids. Colors match the closed components.</p>
+          <div id="braidEditor"></div>
+        </details>
+        <details class="braid-word-details" id="braidWordDetails">
+          <summary>Type a braid word</summary>
+        <form class="braid-form" id="braidForm" novalidate>
+          <div class="braid-row">
+            <label class="grow" for="braidInput">Word
+              <input type="text" id="braidInput" value="s1 S2 s1 S2" autocomplete="off" spellcheck="false" aria-describedby="braidHelp">
+            </label>
+            <label for="braidStrands">Strands
+              <input type="number" id="braidStrands" min="1" max="10" placeholder="auto">
+            </label>
+            <button type="submit" class="secondary">Draw</button>
+          </div>
+          <p class="braid-help" id="braidHelp">Write generators as <span class="mono">s1 s2 S1</span> (capital for the inverse), <span class="mono">σ1 σ2⁻¹</span> or <span class="mono">1 2 -1</span>. Use <span class="mono">(s1 s2)^3</span> for powers. Up to 10 strands.</p>
+          <p class="braid-error" id="braidError" role="alert"></p>
+        </form>
+        </details>
+        <details class="braid-custom" id="braidCustomizeDetails">
+          <summary>Customize the model</summary>
+          <label class="braid-width" for="braidWidth">Ribbon width <output id="braidWidthValue">100%</output></label>
+          <input type="range" id="braidWidth" min="50" max="140" step="5" value="100" aria-describedby="braidWidthHelp">
+          <p class="note" id="braidWidthHelp">Changes ribbon thickness across the strand; the braid word and centerlines stay the same.</p>
+          <div class="braid-component-colors" id="braidComponentColors"></div>
+          <div class="be-actions"><button type="button" class="secondary" id="braidStyleReset">Reset braid style</button><button type="button" class="link-btn" id="braidAppearance">Palettes &amp; finish ↗</button></div>
+          <p class="note">Colors follow component numbers and are saved on this device. Reset to use the current palette.</p>
+        </details>
+        <p class="braid-section-label">Start with an example</p>
+        <div class="braid-examples" id="braidExamples">
+          <button type="button" data-word="s1^3"><strong>Trefoil</strong><span>2 strands · 3 crossings</span></button>
+          <button type="button" data-word="(s1 S2)^2"><strong>Figure-eight</strong><span>3 strands · 4 crossings</span></button>
+          <button type="button" data-word="s1^3 s2 S1 s2"><strong>5₂</strong><span>Twist knot</span></button>
+          <button type="button" data-word="s1^2 S2 s1 S2^2"><strong>6₃</strong><span>Six-crossing knot</span></button>
+          <button type="button" data-word="(s1 S2)^4"><strong>8₁₈</strong><span>Eight-crossing knot</span></button>
+          <button type="button" data-word="s1^2"><strong>Hopf link</strong><span>2 linked components</span></button>
+          <button type="button" data-word="s1^2 S2 s1 S2"><strong>Whitehead link</strong><span>2 linked components</span></button>
+          <button type="button" data-word="(s1 S2)^3"><strong>Borromean rings</strong><span>3 linked components</span></button>
+        </div>
+        <label class="table-pick" for="tablePick">Draw a knot or link from the table
+          <select id="tablePick"><option value="">Choose…</option></select>
+        </label>
+        <button type="button" class="link-btn" id="braidFromTorus">Start from the last torus construction</button>
+        <div class="braid-tools">
+          <button type="button" class="secondary" id="relaxBtn">Relax into a smooth knot</button>
+          <p class="note">The strands pull tight and push each other apart, like rope, but never pass through each other, so the knot stays the same knot.</p>
+          <label class="check" for="seifertBox"><input type="checkbox" id="seifertBox"> Show its Seifert surface</label>
+          <p class="note" id="seifertNote">An orientable surface whose edge is the knot or link: one disk per strand, one twisted band per crossing. Its two sides get two colors.</p>
         </div>
       </fieldset>
 
@@ -610,47 +681,6 @@ h2 {
         </details>
       </fieldset>
 
-      <fieldset class="braid-only">
-        <legend>Braid word</legend>
-        <form class="braid-form" id="braidForm" novalidate>
-          <div class="braid-row">
-            <label class="grow" for="braidInput">Word
-              <input type="text" id="braidInput" value="s1 S2 s1 S2" autocomplete="off" spellcheck="false" aria-describedby="braidHelp">
-            </label>
-            <label for="braidStrands">Strands
-              <input type="number" id="braidStrands" min="1" max="10" placeholder="auto">
-            </label>
-            <button type="submit" class="secondary">Draw</button>
-          </div>
-          <p class="braid-help" id="braidHelp">Write generators as <span class="mono">s1 s2 S1</span> (capital for the inverse), <span class="mono">σ1 σ2⁻¹</span> or <span class="mono">1 2 -1</span>. Use <span class="mono">(s1 s2)^3</span> for powers. Up to 10 strands.</p>
-          <p class="braid-error" id="braidError" role="alert"></p>
-        </form>
-        <details class="braid-editor-box" id="braidEditorDetails" open>
-          <summary>Edit the diagram</summary>
-          <p class="note">Strands run left to right. In a positive crossing σᵢ the strand going down passes over, so σ₁σ₁σ₁ is the right-handed trefoil. Colors match the components in the model.</p>
-          <div id="braidEditor"></div>
-        </details>
-        <div class="seg" id="braidExamples">
-          <button type="button" data-word="s1^3">Trefoil</button>
-          <button type="button" data-word="(s1 S2)^2">Figure-eight</button>
-          <button type="button" data-word="s1^3 s2 S1 s2">5₂</button>
-          <button type="button" data-word="s1^2 S2 s1 S2^2">6₃</button>
-          <button type="button" data-word="(s1 S2)^4">8₁₈</button>
-          <button type="button" data-word="s1^2">Hopf link</button>
-          <button type="button" data-word="s1^2 S2 s1 S2">Whitehead link</button>
-          <button type="button" data-word="(s1 S2)^3">Borromean rings</button>
-        </div>
-        <label class="table-pick" for="tablePick">Draw a knot or link from the table
-          <select id="tablePick"><option value="">Choose…</option></select>
-        </label>
-        <button type="button" class="link-btn" id="braidFromTorus">Start from the last torus construction</button>
-        <div class="braid-tools">
-          <button type="button" class="secondary" id="relaxBtn">Relax into a smooth knot</button>
-          <p class="note">The strands pull tight and push each other apart, like rope, but never pass through each other, so the knot stays the same knot.</p>
-          <label class="check" for="seifertBox"><input type="checkbox" id="seifertBox"> Show its Seifert surface</label>
-          <p class="note" id="seifertNote">An orientable surface whose edge is the knot or link: one disk per strand, one twisted band per crossing. Its two sides get two colors.</p>
-        </div>
-      </fieldset>
 
       <fieldset class="torus-only">
         <legend>Tube cross-section</legend>
@@ -873,6 +903,7 @@ h2 {
 <script src="meshkit.js"></script>
 <script src="seifert.js"></script>
 <script src="surfaces.js"></script>
+<script src="braid-controls.js"></script>
 <script src="braid-editor.js"></script>
 <script src="relax.js"></script>
 <script src="explore.js"></script>
@@ -898,6 +929,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const TAU = Math.PI * 2;
   const AP = window.ToroidAppearance;
   const CUT = window.ToroidCutAnimation;
+  const BC = window.BraidControls, braidHistory = BC.history();
+  let braidStyle = (() => { try { return BC.load(localStorage); } catch (_) { return BC.normalize(); } })();
   const appearance = (() => { try { return AP.load(localStorage); } catch (_) { return AP.normalize(null); } })();
   const R = 1.6;          // distance from centre of hole to centre of tube
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1080,7 +1113,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const perm = KM.permutation(n, word);
     const comps = KM.cycles(perm), compOf = new Array(n);
     comps.forEach((c, i) => c.forEach(p => { compOf[p] = i; }));
-    const hw = KM.laneWidth(n) * 0.28;
+    const hw = KM.laneWidth(n) * 0.28 * braidStyle.width;
     const segU = Math.min(1200, Math.max(160, Math.max(word.length, 1) * 28)), segV = 1;
     const per = (segU + 1) * (segV + 1);
     nVerts = per * n;
@@ -1644,7 +1677,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' lap, ' : ' laps, ') + minus(c.turns) + (Math.abs(c.turns) === 1 ? ' turn · ' : ' turns · ') + knot +
           ' · ' + (c.oneSided ? 'Möbius, no framing' : 'framing ' + minus(c.framing));
       }
-      if (state.braid) li.style.color = 'var(' + COLOR_VARS[COMP_COLORS[i % COMP_COLORS.length]] + ')';
+      if (state.braid) li.style.color = braidHex(i);
       li.tabIndex = 0; li.setAttribute('role', 'button');
       li.setAttribute('aria-pressed', String(sel === i));
       li.title = 'Show this ' + (state.braid ? 'component' : 'strip') + '\'s route, centerline and edge';
@@ -1771,13 +1804,17 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (isPhone()) setSheet(sheet, false);
   }
   // Show a braid (or return to the torus with null).
-  function showBraid(b, text) {
+  function showBraid(b, text, replay = false) {
     if (b) {
       stopGrow(); state.building = false; uncut();
       state.twisting = false; state.k = state.twistTo;
       if (state.m < 2) setM(2);
       state.braid = { n: b.n, word: b.word.slice(), text: text || KM.wordText(b.word) };
       logOp('braid', { strands: b.n, word: b.word.slice() });
+      if (!replay) braidHistory.record(b);
+      braidInput.value = b.word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ');
+      braidStrandsIn.value = String(b.n);
+      braidError.textContent = '';
       setMode('braid');
     } else {
       if (!state.braid) return;
@@ -1787,7 +1824,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     }
     buildMesh(); buildSeam(); buildTrail(); restartTraveler(); updateReadouts();
     if (relax) setRelax(false);
-    if (state.braid && braidEditor) braidEditor.render(Math.max(2, state.braid.n), state.braid.word);
+    syncBraidWorkspace();
+    if (state.braid && braidEditor) braidEditor.render(state.braid.n, state.braid.word);
   }
   function drawFromForm() {
     try {
@@ -1810,7 +1848,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   // The diagram editor: taps change the word, which redraws the model through the form.
   const braidEditor = window.BraidEditor && document.createElementNS ? window.BraidEditor.mount(document.getElementById('braidEditor'), {
     document,
-    color: comp => 'var(' + COLOR_VARS[COMP_COLORS[comp % COMP_COLORS.length]] + ')',
+    color: braidHex,
+    history: () => braidHistory, onUndo: () => replayBraid('undo'), onRedo: () => replayBraid('redo'),
     paper: () => 'var(--panel)',
     maxStrands: MAX_STRANDS, maxCrossings: MAX_CROSSINGS,
     onChange(n, word) {
@@ -1820,6 +1859,78 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       logOp('edit diagram', word.slice());
     }
   }) : null;
+  function braidRGB(comp) { return braidStyle.colors[comp] ? hexRgb(braidStyle.colors[comp]) : pal.c[COMP_COLORS[comp % COMP_COLORS.length]]; }
+  function braidHex(comp) { return '#' + braidRGB(comp).map(v => Math.round(v).toString(16).padStart(2, '0')).join(''); }
+  function replayBraid(direction) {
+    if (!state.braid) return;
+    const b = braidHistory[direction]();
+    if (b) showBraid(b, null, true);
+  }
+  function syncBraidToolbar() {
+    const bar = document.getElementById('braidToolbar');
+    const hidden = !state.braid || !!labCut || (isPhone() && !['hidden', 'peek'].includes(sheet));
+    const changed = bar.hidden !== hidden; bar.hidden = hidden;
+    document.getElementById('braidUndo').disabled = !braidHistory.canUndo;
+    document.getElementById('braidRedo').disabled = !braidHistory.canRedo;
+    for (const [id, on] of [['Ribbon', !relax && !seifertBox.checked], ['Rope', !!relax], ['Surface', !relax && seifertBox.checked]])
+      document.getElementById('braidView' + id).setAttribute('aria-pressed', String(on));
+    if (changed) measureTopTools();
+  }
+  function syncBraidWorkspace() {
+    syncBraidToolbar();
+    if (!state.braid) return;
+    const { n, word } = state.braid, count = KM.cycles(KM.permutation(n, word)).length;
+    document.getElementById('braidStats').textContent = n + (n === 1 ? ' strand' : ' strands') + ' · ' + word.length + (word.length === 1 ? ' crossing' : ' crossings') + ' · ' + count + (count === 1 ? ' component' : ' components');
+    document.getElementById('braidWidth').value = String(Math.round(braidStyle.width * 100));
+    document.getElementById('braidWidthValue').textContent = Math.round(braidStyle.width * 100) + '%';
+    const box = document.getElementById('braidComponentColors'); box.textContent = '';
+    for (let i = 0; i < count; i++) {
+      const row = document.createElement('div'); row.className = 'braid-component';
+      const input = document.createElement('input'); input.type = 'color'; input.value = braidHex(i);
+      input.setAttribute('aria-label', 'Color for component ' + (i + 1));
+      input.addEventListener('input', () => {
+        braidStyle.colors[i] = input.value;
+        saveBraidStyle(); retint();
+      });
+      const label = document.createElement('span'); label.textContent = 'Component ' + (i + 1);
+      const focus = document.createElement('button'); focus.type = 'button'; focus.className = 'secondary'; focus.textContent = 'Trace';
+      focus.setAttribute('aria-label', 'Trace component ' + (i + 1));
+      focus.addEventListener('click', () => { setRelax(false); seifertBox.checked = false; seifKey = '#'; syncBraidToolbar(); select(sel === i ? null : i); revealModel(); });
+      row.appendChild(input); row.appendChild(label); row.appendChild(focus); box.appendChild(row);
+    }
+  }
+  function saveBraidStyle() { try { BC.save(localStorage, braidStyle); } catch (_) {} }
+  function openBraidPanel(id) {
+    const details = document.getElementById(id); details.open = true;
+    setSheet('half');
+    setTimeout(() => { details.scrollIntoView?.({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' }); details.querySelector?.('summary')?.focus(); }, 300);
+  }
+  document.getElementById('braidEdit').addEventListener('click', () => openBraidPanel('braidEditorDetails'));
+  document.getElementById('braidCustomize').addEventListener('click', () => openBraidPanel('braidCustomizeDetails'));
+  document.getElementById('braidUndo').addEventListener('click', () => replayBraid('undo'));
+  document.getElementById('braidRedo').addEventListener('click', () => replayBraid('redo'));
+  document.getElementById('braidViewRibbon').addEventListener('click', () => { setRelax(false); seifertBox.checked = false; seifKey = '#'; clearSelection(); syncBraidToolbar(); });
+  document.getElementById('braidViewRope').addEventListener('click', () => { if (!relax) setRelax(true); syncBraidToolbar(); });
+  document.getElementById('braidViewSurface').addEventListener('click', () => { if (!seifertBox.checked) seifertBox.click(); });
+  document.getElementById('braidResetView').addEventListener('click', () => {
+    controls.target.set(0, 0, 0); camera.position.setFromSpherical(new THREE.Spherical(6.2, Math.PI / 2 - 0.62, 0.5));
+    state.userMoved = false; userZoomed = false; controls.update();
+  });
+  document.getElementById('braidWidth').addEventListener('input', e => {
+    braidStyle.width = BC.normalize({ ...braidStyle, width: Number(e.target.value) / 100 }).width;
+    saveBraidStyle(); document.getElementById('braidWidthValue').textContent = Math.round(braidStyle.width * 100) + '%';
+    if (state.braid) { const selected = sel; buildMesh(); if (selected !== null) select(selected); }
+  });
+  document.getElementById('braidStyleReset').addEventListener('click', () => {
+    braidStyle = BC.normalize(); saveBraidStyle(); if (state.braid) buildMesh();
+    retint(); syncBraidWorkspace();
+  });
+  document.getElementById('braidAppearance').addEventListener('click', () => openBraidPanel('appearanceDetails'));
+  document.addEventListener('keydown', e => {
+    if (!state.braid || labCut || !(e.ctrlKey || e.metaKey) || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName) || e.target?.isContentEditable) return;
+    if (e.key.toLowerCase() === 'z') { e.preventDefault(); replayBraid(e.shiftKey ? 'redo' : 'undo'); }
+    else if (e.key.toLowerCase() === 'y') { e.preventDefault(); replayBraid('redo'); }
+  });
   // Every knot and link in the table, grouped by crossing number, drawn from its braid word.
   const tablePick = document.getElementById('tablePick');
   (function buildTablePicker() {
@@ -2180,7 +2291,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         arr.push(x + 0.012 * x / r, y, z + 0.012 * z / r);
       });
       setPolyline(seifLines[i], arr);
-      const c = pal.c[COMP_COLORS[comp[i] % COMP_COLORS.length]];
+      const c = braidRGB(comp[i]);
       seifLines[i].material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
     });
     seifData = { S, A, idx, genus: A.pieces.length === 1 ? A.pieces[0].genus : null };
@@ -2216,6 +2327,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     } else relax = null;
     relaxBtn.textContent = relax ? 'Back to the braid' : 'Relax into a smooth knot';
     relaxTubes.forEach(t => { t.visible = false; });
+    syncBraidToolbar();
   }
   relaxBtn.addEventListener('click', () => setRelax(!relax));
   function syncRelax(dt) {
@@ -2247,7 +2359,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         curve.getTangentAt = t => curve.getTangent(t);
         tube.geometry.dispose();
         tube.geometry = new THREE.TubeGeometry(curve, pts.length, r, 12, true);
-        const c = pal.c[COMP_COLORS[k % COMP_COLORS.length]];
+        const c = braidRGB(k);
         tube.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
         tube.visible = true;
       });
@@ -2255,7 +2367,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     }
     return true;
   }
-  seifertBox.addEventListener('change', () => { if (seifertBox.checked && relax) setRelax(false); });
+  seifertBox.addEventListener('change', () => { if (seifertBox.checked && relax) setRelax(false); syncBraidToolbar(); });
 
   let seamShown = null, trailShown = null;
   function retint() {
@@ -2270,6 +2382,15 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     colorKey = ''; seifKey = '#';
     Object.assign(seifFront.material, AP.FINISHES[appearance.finish]); Object.assign(seifBack.material, AP.FINISHES[appearance.finish]);
     syncAppearanceControls();
+    relaxTubes.forEach((tube, i) => {
+      const c = braidRGB(i); tube.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+      Object.assign(tube.material, AP.FINISHES[appearance.finish]);
+    });
+    if (state.braid) {
+      if (braidEditor) braidEditor.render(state.braid.n, state.braid.word);
+      Array.from(document.getElementById('braidComponentColors').children).forEach((row, i) => { row.firstElementChild.value = braidHex(i); });
+      exactKey = ''; updateExact();
+    }
   }
 
   // ---------- selecting a strip ----------
@@ -2310,7 +2431,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     return out;
   }
   function braidRoute(comp, edge) {
-    const { n, word } = state.braid, lay = KM.braidLayout(n, word), hw = KM.laneWidth(n) * 0.28, out = [], v = [0, 0, 0];
+    const { n, word } = state.braid, lay = KM.braidLayout(n, word), hw = KM.laneWidth(n) * 0.28 * braidStyle.width, out = [], v = [0, 0, 0];
     const N = Math.max(160, word.length * 24);
     comp.braidStrands.forEach((st, k) => {
       for (let i = 0; i <= N; i++) {
@@ -2428,7 +2549,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const col = surface.geometry.attributes.color.array, bg = new THREE.Color(pal.stage), tmpC = new THREE.Color();
     const pieces = state.braid ? COMP_COLORS : shapeOf().colors;
     for (let v = 0; v < nVerts; v++) {
-      const p = vPiece[v], ci0 = state.braid ? COMP_COLORS[p % COMP_COLORS.length] : pieces[rep ? rep[p] : p], c = pal.c[ci0];
+      const p = vPiece[v], ci0 = state.braid ? COMP_COLORS[p % COMP_COLORS.length] : pieces[rep ? rep[p] : p], c = state.braid ? braidRGB(p) : pal.c[ci0];
       tmpC.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
       if (selPieces && !selPieces.has(p)) tmpC.lerp(bg, 0.72);
       col[v * 3] = tmpC.r; col[v * 3 + 1] = tmpC.g; col[v * 3 + 2] = tmpC.b;
@@ -2958,7 +3079,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     name.className='palette-name'; name.textContent=p.name; button.append(preview,name);
     button.addEventListener('click',()=>{
       appearance.palette=p.id; customHex.fill(null);
-      applyPaint(); savePaint(); saveAppearance(); buildPaintInputs();
+      applyPaint(); retint(); savePaint(); saveAppearance(); buildPaintInputs();
       logOp('palette',p.id);
     });
   });
@@ -2971,8 +3092,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 
   // ---------- phone layout: full-screen model with a bottom sheet ----------
   // On a phone the panel has hidden, peek, half and full sizes. The torus quick
-  // controls live above the model in hidden/peek; braid/lab shortcuts stay in the
-  // sheet. The camera accounts for both the sheet and the top controls.
+  // controls and braid toolbar live above the model in hidden/peek. The camera accounts for both the sheet and the top controls.
   const phoneMQ = window.matchMedia('(max-width: 760px), (max-height: 520px) and (pointer: coarse)');
   const sheetHead = document.getElementById('sheetHead'), sheetBody = document.getElementById('sheetBody');
   const sheetFab = document.getElementById('sheetShow'), sizeBtn = document.getElementById('sheetSize');
@@ -2991,6 +3111,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     topToolsInset = Math.max(0, r.top - stage.getBoundingClientRect().top + r.height + 8);
   }
   function syncMobileTools() {
+    syncBraidToolbar();
     const hidden = !isPhone() || !['hidden','peek'].includes(sheet) || !!state.braid || !!labCut;
     const changed = mobileTools.hidden !== hidden;
     mobileTools.hidden = hidden;
@@ -3089,8 +3210,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   document.getElementById('q-build').addEventListener('click', () => document.getElementById('buildBtn').click());
   document.getElementById('q-grow').addEventListener('click', () => document.getElementById('growBtn').click());
   document.getElementById('q-edit').addEventListener('click', () => {
-    setSheet('half');
-    setTimeout(() => { braidInput.focus(); braidInput.select(); }, 300);
+    openBraidPanel('braidEditorDetails');
   });
   function syncQuick() {
     const set = (id, t) => { const el = document.getElementById(id); if (el.textContent !== t) el.textContent = t; };
@@ -3137,7 +3257,10 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       if (isSide()) {
         if (sheetVisible > 1) { const pw = panelEl.getBoundingClientRect().width; tx = pw / 2; freeW = W - pw; }
       } else { const cover = Math.min(sheetVisible, H * 0.6); ty = cover / 2; freeH = H - cover; }
-      if (!mobileTools.hidden) { ty -= topToolsInset / 2; freeH = Math.max(1, freeH - topToolsInset); }
+    }
+    const braidToolsVisible = !document.getElementById('braidToolbar').hidden;
+    if (!mobileTools.hidden || braidToolsVisible) { ty -= topToolsInset / 2; freeH = Math.max(1, freeH - topToolsInset); }
+    if (isPhone() || braidToolsVisible) {
       if (!userZoomed) {
         const off = camera.position.clone().sub(controls.target), d = off.length(), want = fitDistance(freeW, freeH);
         if (Math.abs(want - d) > 0.01) camera.position.copy(controls.target).add(off.setLength(d + (want - d) * ease));
@@ -3208,6 +3331,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function start() {
     layoutForDevice();
     readHash();
+    if (state.braid) braidHistory.record(state.braid);
     loadPaint();
     applyPaint();
     buildPaintInputs();
@@ -3217,9 +3341,9 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncTravelBtn();
     syncStepper();
     updateReadouts();
-    if (state.braid && braidEditor) braidEditor.render(Math.max(2, state.braid.n), state.braid.word);
+    if (state.braid && braidEditor) braidEditor.render(state.braid.n, state.braid.word);
     resize();
-    retint();
+    retint(); syncBraidWorkspace();
     try { render(false, 0, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; }
     last = performance.now();
     requestAnimationFrame(frame);
