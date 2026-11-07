@@ -1,7 +1,7 @@
 {
   "format": "half-twisted-torus/experiment",
   "version": 2,
-  "created": "2026-11-07T03:51:54.425Z",
+  "created": "2026-11-07T04:08:02.986Z",
   "construction": {
     "type": "torus",
     "shape": "band2",
@@ -15,7 +15,7 @@
     {
       "op": "open link",
       "value": "#shape=band2&turn=1/2",
-      "at": "2026-11-07T03:51:54.007Z"
+      "at": "2026-11-07T04:08:02.553Z"
     }
   ],
   "braid": {
@@ -26,10 +26,10 @@
   },
   "ribbonBraid": {
     "note": "Adds one edge beside each strip. A strip's framing is the linking number of its core strand with its edge strand. Positions are 0-based.",
-    "strands": 5,
-    "word": [1, 2, 1, 3, 2, 1, 4, 3, 2, 1],
-    "cores": [1, 3],
-    "edges": [2, 4]
+    "strands": 6,
+    "word": [1, 2, 1, 3, 2, 1, 4, 3, 2, 1, 5, 4, 3, 2, 1],
+    "cores": [1, 4],
+    "edges": [2, 5]
   },
   "components": [
     {
@@ -40,10 +40,11 @@
       "knot": {
         "name": "unknot",
         "genus": 0,
-        "crossingNumber": 0
+        "crossingNumber": 0,
+        "chirality": null
       },
-      "framing": null,
-      "oneSided": true,
+      "framing": 2,
+      "oneSided": false,
       "alexander": [1]
     }
   ],

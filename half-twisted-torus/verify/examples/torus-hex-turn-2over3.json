@@ -1,7 +1,7 @@
 {
   "format": "half-twisted-torus/experiment",
   "version": 2,
-  "created": "2026-11-07T03:51:56.478Z",
+  "created": "2026-11-07T04:08:05.056Z",
   "construction": {
     "type": "torus",
     "shape": "hex",
@@ -15,7 +15,7 @@
     {
       "op": "open link",
       "value": "#shape=hex&turn=2/3",
-      "at": "2026-11-07T03:51:56.043Z"
+      "at": "2026-11-07T04:08:04.621Z"
     }
   ],
   "braid": {
@@ -38,8 +38,9 @@
       "laps": 3,
       "turns": 2,
       "knot": {
-        "name": "trefoil",
+        "name": "right-handed trefoil",
         "torus": [2, 3],
+        "chirality": "right-handed",
         "genus": 1,
         "crossingNumber": 3
       },
@@ -53,8 +54,9 @@
       "laps": 3,
       "turns": 2,
       "knot": {
-        "name": "trefoil",
+        "name": "right-handed trefoil",
         "torus": [2, 3],
+        "chirality": "right-handed",
         "genus": 1,
         "crossingNumber": 3
       },

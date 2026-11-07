@@ -89,12 +89,22 @@
     const r = Math.round(x);
     return Math.abs(x - r) < 1e-6 ? r : null;
   }
+  // The (q, p) torus knot, keeping its handedness. Nontrivial torus knots are all
+  // chiral: T(a, b) and its mirror T(a, -b) are different knots. With this file's
+  // conventions a positive twist gives a positive braid, and a positive torus knot
+  // is right-handed (verify/verify.py checks this with the tau invariant).
   function torusKnot(q, p) {
+    const sign = Math.sign(q) * Math.sign(p);
     q = Math.abs(q); p = Math.abs(p);
-    if (q < 2 || p < 2) return { name: 'unknot', genus: 0, crossingNumber: 0 };
+    if (q < 2 || p < 2) return { name: 'unknot', genus: 0, crossingNumber: 0, chirality: null };
     const a = Math.min(q, p), b = Math.max(q, p);
-    const named = { '2,3': 'trefoil', '2,5': 'cinquefoil', '2,7': '7_1', '3,4': '8_19', '3,5': '10_124' };
-    return { name: named[a + ',' + b] || 'T(' + a + ',' + b + ')', torus: [a, b], genus: (a - 1) * (b - 1) / 2, crossingNumber: Math.min(q * (p - 1), p * (q - 1)) };
+    const hand = sign > 0 ? 'right-handed' : 'left-handed';
+    const named = { '2,3': 'trefoil', '2,5': 'cinquefoil' }[a + ',' + b];
+    return {
+      name: named ? hand + ' ' + named : 'T(' + a + ',' + (sign < 0 ? '-' : '') + b + ')',
+      torus: [a, sign * b], chirality: hand,
+      genus: (a - 1) * (b - 1) / 2, crossingNumber: Math.min(q * (p - 1), p * (q - 1))
+    };
   }
 
   function describe(spec) {
@@ -110,19 +120,22 @@
       for (let i = 0; i < n; i++) pieceAt[i] = fwd ? i : mod(-i, n);
     } else for (let i = 0; i < n; i++) pieceAt[i] = i;
 
-    // Ribbon braid: each stripe's core plus the edge on one side of it, so the
-    // stripe's framing is the linking number of its core with that edge.
-    // ring: 2n points, cores at even positions, edges between them.
-    // line: 2n+1 points, edges at even positions, cores at odd positions.
-    const rn = kind === 'ring' ? 2 * n : 2 * n + 1;
+    // Ribbon braid: each stripe's core plus a parallel copy pushed along the stripe,
+    // so the stripe's framing is the linking number of its core with that copy.
+    // ring: 2n points, cores at even positions, the boundaries between them odd.
+    // line: 3n points, each lane as (push-off to one side, core, push-off to the
+    //   other side), so the set is symmetric about the axis but no push-off ever
+    //   sits on it. (A lane boundary can lie on the axis, and then it would be a
+    //   one-lap curve that no longer follows a two-lap stripe.)
+    const rn = kind === 'ring' ? 2 * n : 3 * n;
     const rsteps = kind === 'ring' ? 2 * steps : steps;
     const ribbonWord = braidWord(kind, rn, rsteps);
     const ribbon = readBraid(rn, ribbonWord);
     const rPerm = permutation(rn, ribbonWord);
     const rFwd = kind === 'ring' && rPerm.every((q, i) => q === mod(i + rsteps, rn));
     const rPos = x => (kind === 'ring' && !rFwd) ? mod(-x, rn) : x;
-    const corePos = i => rPos(kind === 'ring' ? 2 * i : 2 * i + 1);
-    const edgePos = i => rPos(kind === 'ring' ? 2 * i + 1 : 2 * i + 2);
+    const corePos = i => rPos(kind === 'ring' ? 2 * i : 3 * i + 1);
+    const edgePos = i => rPos(kind === 'ring' ? 2 * i + 1 : 3 * i + 2);
 
     const components = rb.components.map((c, idx) => {
       const laps = c.length;

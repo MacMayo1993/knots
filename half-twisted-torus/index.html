@@ -508,7 +508,7 @@ h2 {
       </div>
       <div class="note-block">
         <h3>Cutting along the color lines</h3>
-        <p>Every color boundary is a cut line. After the cut, each strip is a chain of pieces that the twist hands on from one lap to the next, so the number of strips and their lengths come straight from the twist. A strip that goes around <span class="mono">q</span> times while turning <span class="mono">p</span> times around the core is a <span class="mono">(q, p)</span> torus knot: a triangle tube with a ⅔ turn cuts into a trefoil. The flat strips reproduce the classic Möbius experiments: down the middle of a ½-turn strip gives one strip twice as long, in thirds gives a long strip linked with a smaller Möbius band, and down the middle of a 1½-turn strip gives a trefoil.</p>
+        <p>Every color boundary is a cut line. After the cut, each strip is a chain of pieces that the twist hands on from one lap to the next, so the number of strips and their lengths come straight from the twist. A strip that goes around <span class="mono">q</span> times while turning <span class="mono">p</span> times around the core is a <span class="mono">(q, p)</span> torus knot: a triangle tube with a ⅔ turn cuts into a right-handed trefoil, and turning the other way gives the left-handed one, its mirror image. The two can't be deformed into each other, so the readouts always say which. The flat strips reproduce the classic Möbius experiments: down the middle of a ½-turn strip gives one strip twice as long, in thirds gives a long strip linked with a smaller Möbius band, and down the middle of a 1½-turn strip gives a trefoil.</p>
       </div>
       <div class="note-block">
         <h3>The cut</h3>
@@ -519,8 +519,8 @@ h2 {
         <p>Turning a circle spins it but never turns it inside out, so the inside of the tube stays inside. The result is still a torus. Only a mirror flip of the cut end would join inside to outside. That surface is the Klein bottle, which can't be built in 3D without passing through itself.</p>
       </div>
       <div class="note-block">
-        <h3>The paint goes Möbius</h3>
-        <p>Paint applied before the twist can't match at the cut: the red half runs straight into the blue half. Follow the traveler and it rides red for one lap, blue for the next, and only then gets home. That's the Möbius signature, two things becoming one that goes around twice.</p>
+        <h3>The paint gets shuffled, not flipped</h3>
+        <p>Paint applied before the twist can't match at the cut: the red half runs straight into the blue half. Follow the traveler and it rides red for one lap, blue for the next, and only then gets home. The twist permutes the painted pieces at the cut, and a stripe needs as many laps as its piece's cycle is long. That looks like the Möbius band's "go around twice" but it is not the same thing: every stripe on the tube is still two-sided, and cutting along the color lines gives ordinary orientable ribbons. Only the flat strip with an odd number of half turns is a true Möbius band, one-sided with a single edge.</p>
       </div>
       <div class="note-block">
         <h3>Why flat-sided tubes show it best</h3>
@@ -532,7 +532,7 @@ h2 {
       </div>
       <div class="note-block">
         <h3>The antipodal rule</h3>
-        <p>A half-turn of a circle sends each point to the one opposite. On a circle that keeps orientation, so the torus stays two-sided. On a sphere the same move reverses orientation, which is why the projective plane <span class="mono">RP²</span> has no inside or outside.</p>
+        <p>On a circle, the antipodal map <span class="mono">x ↦ −x</span> is the same as a half-turn, a rotation, so it keeps orientation and the torus stays two-sided. On a sphere the two come apart. A half-turn about an axis is still a rotation and keeps orientation. The antipodal map <span class="mono">x ↦ −x</span> is not a rotation: it reverses orientation. Gluing each point of the sphere to its antipode gives the projective plane <span class="mono">RP²</span>, which is one-sided.</p>
       </div>
       <div class="note-block">
         <h3>Reading the numbers</h3>
@@ -964,12 +964,12 @@ window.addEventListener('error', function (e) {
     }
     return { n, fits, L, bands: cycles ? cycles.length : null, offset, cycles, sigma };
   }
+  // Name a (q, p) torus knot with its handedness: a mirror image is a different knot.
   function knotName(q, p) {
-    q = Math.abs(q); p = Math.abs(p);
-    if (q < 2 || p < 2) return 'unknotted';
-    const key = Math.min(q, p) + ',' + Math.max(q, p);
-    const named = { '2,3': 'tied in a trefoil knot', '2,5': 'tied in a cinquefoil knot' };
-    return named[key] || 'tied in a (' + key.replace(',', ', ') + ') torus knot';
+    const kn = KnotMath.torusKnot(q, p);
+    if (!kn.chirality) return 'unknotted';
+    if (!kn.name.startsWith('T(')) return 'tied in a ' + kn.name + ' knot';
+    return 'tied in a ' + kn.chirality + ' (' + kn.torus[0] + ', ' + Math.abs(kn.torus[1]) + ') torus knot';
   }
   // What cutting along every color line produces: one strip per cycle of pieces.
   function cutInfo() {
@@ -977,7 +977,7 @@ window.addEventListener('error', function (e) {
     if (!a.cycles) return { ok: false, a };
     const n = a.n, h = Math.abs(Math.round(2 * k));
     const strips = a.cycles.map(c => {
-      const L = c.length, p = Math.round(Math.abs(k * L));
+      const L = c.length, p = Math.round(Math.abs(k * L)), pSigned = Math.round(k * L);
       let radius = 1, center = false;
       if (sh.open) {
         const lw = 2 * sh.half / n, x = -sh.half + lw * (c[0] + 0.5);
@@ -985,7 +985,7 @@ window.addEventListener('error', function (e) {
       }
       const oneSided = !!sh.open && L === 1 && h % 2 === 1;
       // a strip that goes around L times and turns p times around the core is a (L, p) torus knot
-      return { pieces: c, L, p: center ? 0 : p, radius, oneSided, knot: center ? 'unknotted' : knotName(L, p) };
+      return { pieces: c, L, p: center ? 0 : p, radius, oneSided, knot: center ? 'unknotted' : knotName(L, pSigned) };
     });
     const links = [];
     for (let i = 0; i < strips.length; i++) for (let j = i + 1; j < strips.length; j++) {
@@ -1191,7 +1191,8 @@ window.addEventListener('error', function (e) {
       if (state.braid) {
         li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' strand' : ' strands') + ' · framing ' + minus(c.framing) + ' · Δ = ' + KM.polyText(c.alexander);
       } else {
-        const knot = c.knot.name === 'unknot' ? 'unknot' : c.knot.name + (c.knot.name.startsWith('T(') ? '' : ' T(' + c.knot.torus.join(',') + ')');
+        const knot = c.knot.name === 'unknot' ? 'unknot'
+          : (c.knot.name.startsWith('T(') ? c.knot.chirality + ' ' : c.knot.name + ' ') + 'T(' + c.knot.torus.map(minus).join(',') + ')';
         li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' lap, ' : ' laps, ') + minus(c.turns) + (Math.abs(c.turns) === 1 ? ' turn · ' : ' turns · ') + knot +
           ' · ' + (c.oneSided ? 'Möbius, no framing' : 'framing ' + minus(c.framing));
       }
