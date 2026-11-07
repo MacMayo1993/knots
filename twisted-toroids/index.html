@@ -2522,6 +2522,9 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       const off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
       sph.phi = Math.PI / 2 - 0.5; camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
     }
+    // Initialize playback with the view change, so the controls never briefly
+    // report the previous view's completed progress before the first frame.
+    syncSeifert();
   });
 
   // Relaxing a closed braid into a smooth knot: one tube per component, rebuilt as

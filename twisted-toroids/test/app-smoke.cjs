@@ -115,7 +115,7 @@ if(animate){
  get('braidViewPull').click();assert(p.getRelax());get('randomBraid').click();
  assert.equal(p.getRelax(),null);assert.equal(get('braidViewRibbon').attrs['aria-pressed'],'true');
  console.log('PASS: randomization interrupts building, growing, cutting and Pull cleanly; animated random toroids remain cuttable.');
- p.showBraid({n:2,word:[1,1,1]});get('seifertBox').checked=true;get('seifertBox').dispatch('change');tick(1);
+ p.showBraid({n:2,word:[1,1,1]});get('seifertBox').checked=true;get('seifertBox').dispatch('change');assert.equal(p.seifBuild.progress,0);tick(1);
  assert(p.seifBuild.playing);assert(p.seifFront.geometry.drawRange.count<p.getSeif().idx.length);
  get('seifQuickPlay').click();const heldProgress=p.seifBuild.progress;tick(8);assert.equal(p.seifBuild.progress,heldProgress);
  const seek=v=>{get('seifQuickProgress').value=String(v);get('seifQuickProgress').dispatch('input');};
