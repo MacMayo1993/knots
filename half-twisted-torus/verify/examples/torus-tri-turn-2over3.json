@@ -1,0 +1,53 @@
+{
+  "format": "half-twisted-torus/experiment",
+  "version": 1,
+  "created": "2026-11-07T03:41:15.921Z",
+  "construction": {
+    "shape": "tri",
+    "label": "triangle",
+    "kind": "ring",
+    "pieces": 3,
+    "turn": "2/3",
+    "steps": 2
+  },
+  "operations": [
+    {
+      "op": "open link",
+      "value": "#shape=tri&turn=2/3",
+      "at": "2026-11-07T03:41:15.132Z"
+    }
+  ],
+  "braid": {
+    "strands": 3,
+    "word": [1, 2, 1, 2],
+    "formula": "(σ1 σ2)²",
+    "convention": "Closure is the strips left after cutting along the color lines. Generator +i is a positive crossing of strands i and i+1 (SnapPy/Spherogram braid_closure). A positive twist gives positive generators."
+  },
+  "ribbonBraid": {
+    "note": "Adds one edge beside each strip. A strip's framing is the linking number of its core strand with its edge strand. Positions are 0-based.",
+    "strands": 6,
+    "word": [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
+    "cores": [0, 4, 2],
+    "edges": [5, 3, 1]
+  },
+  "components": [
+    {
+      "pieces": [0, 1, 2],
+      "braidStrands": [0, 1, 2],
+      "laps": 3,
+      "turns": 2,
+      "knot": {
+        "name": "trefoil",
+        "torus": [2, 3],
+        "genus": 1,
+        "crossingNumber": 3
+      },
+      "framing": 6,
+      "oneSided": false
+    }
+  ],
+  "linkingMatrix": [
+    [0]
+  ],
+  "verify": "python verify/verify.py <this file>"
+}

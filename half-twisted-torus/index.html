@@ -208,6 +208,7 @@ legend, .label {
   color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
 .link-btn:hover { color: var(--ink); }
+.link-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .stepper { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .step {
   font: 600 0.9rem/1 var(--f-body);
@@ -280,6 +281,13 @@ h2 {
 .note-block h3 { margin: 0; font-size: 1rem; font-weight: 600; }
 .note-block p { margin: 0; color: var(--muted); max-width: 60ch; }
 .mono { font-family: var(--f-mono); font-size: 0.92em; }
+.exact { display: grid; gap: 10px; }
+.exact .readout dd { font-size: 0.9rem; overflow-wrap: anywhere; }
+.stripes { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.stripes li { font-family: var(--f-mono); font-size: 0.85rem; }
+.matrix { margin: 0; font-family: var(--f-mono); font-size: 0.85rem; line-height: 1.35; white-space: pre; overflow-x: auto; }
+.exact-actions { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.exact-status { font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
@@ -368,6 +376,36 @@ h2 {
       </fieldset>
 
       <fieldset>
+        <legend>Exact description</legend>
+        <div class="exact">
+          <dl class="readout">
+            <div>
+              <dt>Braid whose closure is the cut strips</dt>
+              <dd id="x-braid">–</dd>
+              <dd class="note" id="x-braid-note"></dd>
+            </div>
+            <div>
+              <dt>Strips: laps, turns around the core, knot, framing</dt>
+              <dd><ul class="stripes" id="x-stripes"></ul></dd>
+              <dd class="note">Framing: how many times a strip's edge winds around its own centerline.</dd>
+            </div>
+            <div>
+              <dt>Linking matrix</dt>
+              <dd><pre class="matrix" id="x-matrix">–</pre></dd>
+            </div>
+          </dl>
+          <div class="exact-actions">
+            <button type="button" class="link-btn" id="x-copy">Copy braid word</button>
+            <button type="button" class="link-btn" id="x-download">Download experiment</button>
+            <button type="button" class="link-btn" id="x-link">Copy link</button>
+            <button type="button" class="link-btn" id="x-load-btn">Load experiment</button>
+            <input type="file" id="x-load" accept="application/json,.json" hidden>
+          </div>
+          <p class="exact-status" id="x-status" aria-live="polite"></p>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend>Paint colors</legend>
         <div class="paints" id="paints"></div>
         <button type="button" class="link-btn" id="resetPaint">Reset colors</button>
@@ -451,6 +489,7 @@ h2 {
   </section>
 </main>
 
+<script src="knotmath.js"></script>
 <script>
 window.addEventListener('error', function (e) {
   var hud = document.getElementById('hud');
@@ -914,6 +953,7 @@ window.addEventListener('error', function (e) {
       : oneSide ? 'A Möbius band: one side and one edge. Paint one face and you have painted both.'
       : 'A plain band: two sides and two edges.';
     updateCutReadout();
+    updateExact();
   }
   function updateHud() {
     if (state.grow !== null) {
@@ -957,6 +997,125 @@ window.addEventListener('error', function (e) {
     hud.textContent = t;
   }
 
+  // ---------- exact description and experiments ----------
+  const KM = window.KnotMath;
+  const ops = [];   // every operation since the page opened, for the experiment record
+  function logOp(op, value) { ops.push({ op, value, at: new Date().toISOString() }); if (ops.length > 500) ops.shift(); }
+  // exact fraction for a twist, e.g. 0.666… -> "2/3"
+  function turnText(x) {
+    for (let q = 1; q <= 24; q++) if (near(x * q)) { const p = Math.round(x * q); return q === 1 ? String(p) : p + '/' + q; }
+    return String(x);
+  }
+  function parseTurn(t) {
+    const m = /^\s*(-?\d+)(?:\/(\d+))?\s*$/.exec(String(t));
+    if (!m) return null;
+    const q = m[2] ? Number(m[2]) : 1;
+    return q ? Number(m[1]) / q : null;
+  }
+  function exactInfo() {
+    const sh = shapeOf(), k = state.twistTo;
+    if (sh.sym && !near(k * sh.sym)) return { ok: false, reason: 'The cut ends don\'t fit yet, so there is no closed surface to describe.' };
+    return KM.describe({ kind: sh.open ? 'line' : 'ring', pieces: sh.colors.length, turn: k });
+  }
+  function experiment() {
+    const d = exactInfo();
+    if (!d.ok) return null;
+    return {
+      format: 'half-twisted-torus/experiment',
+      version: 1,
+      created: new Date().toISOString(),
+      construction: { shape: state.shape, label: shapeOf().label, kind: d.kind, pieces: d.pieces, turn: turnText(state.twistTo), steps: d.steps },
+      operations: ops.slice(),
+      braid: { strands: d.braid.strands, word: d.braid.word, formula: KM.wordFormula(d.kind, d.pieces, d.steps), convention: 'Closure is the strips left after cutting along the color lines. Generator +i is a positive crossing of strands i and i+1 (SnapPy/Spherogram braid_closure). A positive twist gives positive generators.' },
+      ribbonBraid: Object.assign({ note: 'Adds one edge beside each strip. A strip\'s framing is the linking number of its core strand with its edge strand. Positions are 0-based.' }, d.ribbonBraid),
+      components: d.components.map(c => ({ pieces: c.pieces, braidStrands: c.braidStrands, laps: c.laps, turns: c.turns, knot: c.knot, framing: c.framing, oneSided: c.oneSided })),
+      linkingMatrix: d.linking,
+      verify: 'python verify/verify.py <this file>'
+    };
+  }
+  const matrixText = M => {
+    const cells = M.map(r => r.map(x => String(x).replace('-', '−')));
+    const w = Math.max(...cells.flat().map(c => c.length));
+    return cells.map(r => r.map(c => c.padStart(w)).join('  ')).join('\n');
+  };
+  let exactKey = '';
+  function updateExact() {
+    const key = state.shape + '|' + state.twistTo;
+    if (key === exactKey) return;
+    exactKey = key;
+    const set = (id, t) => { document.getElementById(id).textContent = t; };
+    const list = document.getElementById('x-stripes');
+    list.textContent = '';
+    const d = exactInfo();
+    ['x-copy', 'x-download'].forEach(id => { document.getElementById(id).disabled = !d.ok; });
+    try { history.replaceState(null, '', '#shape=' + state.shape + '&turn=' + turnText(state.twistTo)); } catch (_) {}
+    if (!d.ok) { set('x-braid', '–'); set('x-braid-note', d.reason); set('x-matrix', '–'); return; }
+    set('x-braid', KM.wordFormula(d.kind, d.pieces, d.steps));
+    set('x-braid-note', d.braid.strands + (d.braid.strands === 1 ? ' strand' : ' strands') + ' · ' + d.braid.word.length + ' crossings · ' +
+      (d.kind === 'ring' ? 'δ turns ' + d.pieces + ' points ' + '1/' + d.pieces + ' of a turn' : 'Δ turns the strip half a turn'));
+    d.components.forEach((c, i) => {
+      const li = document.createElement('li');
+      const knot = c.knot.name === 'unknot' ? 'unknot' : c.knot.name + (c.knot.name.startsWith('T(') ? '' : ' ' + 'T(' + c.knot.torus.join(',') + ')');
+      li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' lap, ' : ' laps, ') + String(c.turns).replace('-', '−') + (Math.abs(c.turns) === 1 ? ' turn · ' : ' turns · ') + knot +
+        ' · ' + (c.oneSided ? 'Möbius, no framing' : 'framing ' + String(c.framing).replace('-', '−'));
+      list.appendChild(li);
+    });
+    set('x-matrix', matrixText(d.linking));
+  }
+  function flash(msg) { document.getElementById('x-status').textContent = msg; }
+  async function copyText(t, what) {
+    try { await navigator.clipboard.writeText(t); flash(what + ' copied.'); }
+    catch (_) { flash('Copy failed. Here it is: ' + t); }
+  }
+  document.getElementById('x-copy').addEventListener('click', () => {
+    const d = exactInfo(); if (!d.ok) return;
+    copyText('[' + d.braid.word.join(', ') + ']', 'Braid word');
+  });
+  document.getElementById('x-link').addEventListener('click', () => copyText(location.href, 'Link'));
+  document.getElementById('x-download').addEventListener('click', () => {
+    const e = experiment(); if (!e) return;
+    // indented, but with number lists (braid words, matrix rows) kept on one line
+    const json = JSON.stringify(e, null, 2).replace(/\[\s+(-?\d+(?:,\s+-?\d+)*)\s+\]/g, (m, inner) => '[' + inner.split(/,\s+/).join(', ') + ']');
+    const blob = new Blob([json + '\n'], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'torus-' + state.shape + '-turn-' + e.construction.turn.replace('/', 'over') + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    flash('Saved ' + a.download + '.');
+  });
+  // Apply a shape and twist, from a link or a saved experiment.
+  function applyConstruction(shape, turn) {
+    if (!Object.prototype.hasOwnProperty.call(SHAPES, shape) || turn === null || !isFinite(turn)) return false;
+    if (shape !== state.shape) document.getElementById('shape-' + shape).click();
+    twistTo(turn);
+    return true;
+  }
+  document.getElementById('x-load-btn').addEventListener('click', () => document.getElementById('x-load').click());
+  document.getElementById('x-load').addEventListener('change', async ev => {
+    const f = ev.target.files[0]; ev.target.value = '';
+    if (!f) return;
+    try {
+      const e = JSON.parse(await f.text());
+      const c = e && e.construction;
+      if (!c || !applyConstruction(c.shape, parseTurn(c.turn))) throw new Error('no shape and turn in it');
+      logOp('load', f.name);
+      flash('Loaded ' + f.name + '.');
+    } catch (err) { flash('Could not load ' + f.name + ': ' + err.message); }
+  });
+  function readHash() {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (h.has('shape') || h.has('turn')) {
+      const shape = h.get('shape') || state.shape, turn = h.has('turn') ? parseTurn(h.get('turn')) : state.twistTo;
+      if (!Object.prototype.hasOwnProperty.call(SHAPES, shape) || turn === null || Math.abs(turn) > 12) return;
+      state.shape = shape;
+      document.querySelectorAll('#shapeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.shape === shape)));
+      state.k = state.twistTo = turn;
+      document.querySelectorAll('#twistSeg button').forEach(b => b.setAttribute('aria-pressed', String(Math.abs(parseFloat(b.dataset.k) - turn) < 1e-9)));
+      logOp('open link', location.hash);
+    }
+  }
+
   // ---------- controls ----------
   function restartTraveler() { state.progress = 0; state.hold = 0; }
   const cutBtn = document.getElementById('cutBtn');
@@ -969,6 +1128,7 @@ window.addEventListener('error', function (e) {
   cutBtn.addEventListener('click', () => {
     if (state.cutTarget) { setCut(false); return; }
     if (!cutInfo().ok) return;
+    logOp('cut', 'along the color lines');
     stopGrow(); state.building = false;
     if (state.m < 2) setM(2);
     setCut(true);
@@ -985,6 +1145,7 @@ window.addEventListener('error', function (e) {
   }
   function twistTo(target) {
     uncut();
+    logOp('twist', turnText(target));
     document.querySelectorAll('#twistSeg button').forEach(b =>
       b.setAttribute('aria-pressed', String(Math.abs(parseFloat(b.dataset.k) - target) < 1e-9)));
     document.getElementById('twist-value').textContent = twistLabel(target);
@@ -1001,6 +1162,7 @@ window.addEventListener('error', function (e) {
     btn.addEventListener('click', () => {
       if (state.shape === btn.dataset.shape) return;
       state.shape = btn.dataset.shape;
+      logOp('shape', state.shape);
       document.querySelectorAll('#shapeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
       state.twisting = false;
       state.k = state.twistTo;
@@ -1349,6 +1511,7 @@ window.addEventListener('error', function (e) {
   }
 
   function start() {
+    readHash();
     loadPaint();
     applyPaint();
     buildPaintInputs();

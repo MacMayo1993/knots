@@ -1,0 +1,53 @@
+{
+  "format": "half-twisted-torus/experiment",
+  "version": 1,
+  "created": "2026-11-07T03:41:16.438Z",
+  "construction": {
+    "shape": "square",
+    "label": "square",
+    "kind": "ring",
+    "pieces": 4,
+    "turn": "-3/4",
+    "steps": -3
+  },
+  "operations": [
+    {
+      "op": "open link",
+      "value": "#shape=square&turn=-3/4",
+      "at": "2026-11-07T03:41:16.001Z"
+    }
+  ],
+  "braid": {
+    "strands": 4,
+    "word": [-3, -2, -1, -3, -2, -1, -3, -2, -1],
+    "formula": "(σ1 σ2 σ3)⁻³",
+    "convention": "Closure is the strips left after cutting along the color lines. Generator +i is a positive crossing of strands i and i+1 (SnapPy/Spherogram braid_closure). A positive twist gives positive generators."
+  },
+  "ribbonBraid": {
+    "note": "Adds one edge beside each strip. A strip's framing is the linking number of its core strand with its edge strand. Positions are 0-based.",
+    "strands": 8,
+    "word": [-7, -6, -5, -4, -3, -2, -1, -7, -6, -5, -4, -3, -2, -1, -7, -6, -5, -4, -3, -2, -1, -7, -6, -5, -4, -3, -2, -1, -7, -6, -5, -4, -3, -2, -1, -7, -6, -5, -4, -3, -2, -1],
+    "cores": [0, 6, 4, 2],
+    "edges": [7, 5, 3, 1]
+  },
+  "components": [
+    {
+      "pieces": [0, 1, 2, 3],
+      "braidStrands": [0, 3, 2, 1],
+      "laps": 4,
+      "turns": -3,
+      "knot": {
+        "name": "8_19",
+        "torus": [3, 4],
+        "genus": 3,
+        "crossingNumber": 8
+      },
+      "framing": -12,
+      "oneSided": false
+    }
+  ],
+  "linkingMatrix": [
+    [0]
+  ],
+  "verify": "python verify/verify.py <this file>"
+}
