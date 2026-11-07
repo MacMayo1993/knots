@@ -49,7 +49,7 @@
   function render(speak=false){
     let label;
     if(mode==='tie'){
-      const ends=endsAt(knot,progress),i=Math.min(knot.steps.length-1,Math.floor(progress+1e-5));
+      const ends=endsAt(knot,progress),i=Math.min(knot.steps.length-1,Math.ceil(progress-1e-5));
       viewer.setScene({ropes:knot.ropes.map((r,j)=>({color:r.color,points:prefix(r.points,ends[j])})),support:knot.support});
       label=knot.steps[i].title;$('viewLabel').textContent='TYING DIAGRAM';$('progressCount').textContent=(i+1)+' / '+knot.steps.length;$('timeline').value=Math.round(progress*100);
       if(i!==stepIndex){stepIndex=i;[...$('steps').querySelectorAll('button')].forEach((b,j)=>{if(j===i)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');b.classList.toggle('done',j<i);});}
@@ -86,6 +86,6 @@
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
   window.addEventListener('pagehide',stop);
   window.addEventListener('hashchange',()=>{const selected=KNOTS.find(k=>k.id===location.hash.slice(1));if(selected&&selected.id!==knot.id)select(selected,false);});
-  window.addEventListener('popstate',()=>{if(hashKnot().id!==knot.id)select(hashKnot(),false);});
+  window.addEventListener('popstate',()=>{if(location.hash!=='#workspace'&&hashKnot().id!==knot.id)select(hashKnot(),false);});
   select(knot,false);
 })();
