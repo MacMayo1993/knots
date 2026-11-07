@@ -65,8 +65,8 @@ sandbox.document.querySelector=s=>get(s);
 sandbox.document.createElementNS=(ns,tag)=>el(tag);
 sandbox.document.addEventListener=()=>{};
 get('.lab').parentElement=el(); get('.notes').parentElement=get('.lab').parentElement;
-get('stageTools').getBoundingClientRect=()=>({width:370,height:202,left:10,top:10,bottom:212});
-vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,seifCircles,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal,makeSTL,getLabModel:()=>labModel,getRelax:()=>relax,getSeif:()=>seifData,seifBuild,seifFront,seifLines,seifCursor,setLabSurface,getLabLoops:()=>labLoops,braidEditor,setRelax,identifyBraid}; setTimeout(start,30);'),sandbox);
+get('stageTools').getBoundingClientRect=()=>({width:side?240:370,height:202,left:10,top:10,bottom:212});
+vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getViewShiftX:()=>viewShiftX,getSheet:()=>sheet,getMapPick:()=>mapPick,seifCircles,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal,makeSTL,getLabModel:()=>labModel,getRelax:()=>relax,getSeif:()=>seifData,seifBuild,seifFront,seifLines,seifCursor,setLabSurface,getLabLoops:()=>labLoops,braidEditor,setRelax,identifyBraid}; setTimeout(start,30);'),sandbox);
 timers.shift()();assert(!get('hud').textContent.includes('failed'));
 const p=win.probe,toggle=get('cutColors'),legend=get('cutColorLegend');get('seam').checked=false;
 if(animate){
@@ -243,7 +243,7 @@ get('q-cut').click();assert.equal(p.state.cutTarget,0);assert.equal(get('q-cut')
 get('shape-hept').click();assert.equal(get('q-shape').value,'hept');
 p.twistTo(.25);assert.equal(get('q-cut').disabled,true);get('q-cut').click();assert.equal(p.state.cutTarget,0);
 p.twistTo(1/7);p.state.twisting=true;p.syncQuick();assert.equal(get('q-cut').disabled,true);p.state.twisting=false;p.syncQuick();assert.equal(get('q-cut').disabled,false);
-p.render(false,0,[0,0,0]);if(phone)assert(p.getViewShift()<0,'camera reserves the space above the model');
+p.render(false,0,[0,0,0]);if(phone)assert(side?p.getViewShiftX()<0:p.getViewShift()<0,side?'on its side, the camera keeps the model right of the control column':'camera reserves the space above the model');
 p.showBraid({n:2,word:[1,1,1]});assert.equal(get('mobileTools').hidden,true);
 p.showBraid(null);assert.equal(get('mobileTools').hidden,!phone);
 p.setLabCut('patch');assert.equal(get('mobileTools').hidden,true);p.setLabCut(null);assert.equal(get('mobileTools').hidden,!phone);

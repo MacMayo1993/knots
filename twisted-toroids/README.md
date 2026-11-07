@@ -12,20 +12,34 @@ python3 -m http.server 8000      # then visit http://localhost:8000/
 
 The page draws with [Three.js](https://threejs.org) (WebGL 2), loaded as JavaScript modules. Browsers won't load modules from a double-clicked file, which is why it needs a server. There is no install and no build step. Three.js r186.1 is copied into `vendor/three/`, unmodified, so the page makes no requests to other sites. The only exception is the optional Google Fonts link; without a connection the page falls back to system fonts.
 
+## Playing it as a game
+
+The page plays like a mobile game, while every lab control and readout stays where it was.
+
+- **Title screen:** the first visit in a browser session opens on a title screen with the model spinning behind it. **Play** (or **Continue**) starts. On a phone it also enters full screen, hiding Chrome's address bar and Android's navigation bar. **Quests** opens the quest board and **Braid lab** switches to braid mode. Opening a shared link (`#shape=…`, `#braid=…`) skips the title.
+- **Player bar:** your level, with an experience ring and bar, and your rank (Novice Knotter, Apprentice, Ribbon Cutter, Knot Weaver, Topologist, Grandmaster). Next to it are the world you are in (Torus Forge, Braid Lab, Cut Explorer or Klein Bottle), your stars and the menu. Tap the level to open the trophy room and the stars to open the quests.
+- **Quests:** the 12 construction challenges, shown as cards grouped by world. Choose one and press **Start quest**. While a quest is active, a tracker over the model has **Check** and a hint button, so you don't need the sheet. A quest earns one star for solving it, one more if you used no hint and one more if no check missed. Your best result is kept. Checking the same solution again repeats its result without new experience.
+- **Experience:** you earn it from badges, new knots and quest stars. Reaching level L + 1 from level L takes 100 + 50 (L − 1) experience.
+- **Badges:** there are 22, for things like your first cut, a Möbius band, a trefoil, a knot and its mirror image, a finished Seifert surface, pulling a rope or opening the Klein bottle. Each one shows as a toast with its experience.
+- **Knot collection:** any construction that matches exactly one knot or link in the table is collected, whether it comes from cutting a twisted torus or from drawing a braid. Picking a knot from the table's list doesn't count. Making the mirror image of a knot you already have earns a bonus. The unknot, unlinks and knot sums count as bonus finds outside the 296.
+- **Menu:** resume, quests, trophies, style, how it works, full screen, sound effects and vibration switches, the title screen, and *Reset progress* (tap twice).
+- **Feedback:** buttons click and, on Android phones such as the Pixel, give a short vibration. Badges, discoveries, quest clears and level-ups have their own sounds and vibration patterns, and quest clears and level-ups throw confetti. The sounds are synthesized with Web Audio, so there are no audio files. Reduced-motion settings turn off the confetti and animations.
+
+Progress, stars, badges, the collection and the sound and vibration settings are saved on the device (`twisted-toroids-game` in local storage). The rules are in `game.js` and tested by `test/game.test.cjs`.
+
 ## On a phone
 
-On a phone the model fills the screen and the controls live in a bottom sheet. You can drag the sheet's handle, tap it, or use its buttons to switch between four sizes:
+The layout is tuned for Pixel phones, from 360 px wide (Pixel 9 and 10) through 412 px (Pixel 6, 7 and 8) to 448 px (Pro XL). Safe-area insets keep it clear of the camera cut-out and the gesture bar. The model fills the screen. On top of it:
 
-- **Peek:** the sheet shrinks to its handle and title. In torus mode, a separate toolbar above the model shows the shape dropdown, twist −/+, current twist, Cut/Glue, **Build from sheet**, and **Grow from shape**. In braid mode a separate on-canvas toolbar offers Ribbons, Rope, and Surface views, Edit braid, Customize, undo/redo, and camera reset. The sheet also keeps its braid word and Edit shortcut.
-- **Half:** the model stays visible above the controls.
-- **Full:** for reading the exact description and the notes, which move into the sheet on a phone.
-- **Hidden:** a small *Controls* button reopens the sheet, while the top toolbar remains available in torus mode.
+- **Top:** the player bar, then the active quest and the readout. On screens up to 412 px wide the bar drops the rank name, and the ring around the level number shows your experience.
+- **Bottom, in thumb reach:** in torus mode, the control deck. It has the shape picker, the random-toroid die, twist −/+ with the current twist, a big **Cut**/**Glue** button, *Make into braid*, **Build from sheet** and **Grow from shape**. In braid mode, the views toolbar sits at the top as before.
+- **Dock:** the sheet's handle is a row of tabs: **Play**, **Quests**, **Explore**, **Style** and **Data**. Each tab opens the sheet at that page only. Tapping the open tab lowers the sheet again, and the arrow keys move between tabs. Play and Data are disabled while the cut explorer is open, because their controls don't apply there. Anything that opens a control in the sheet, such as *Edit braid* or drawing on the flat map, switches to its page first.
 
-The top toolbar uses the same handlers as the full controls, including the shape-dependent twist step and the rules for valid cuts. Its dropdown contains all 20 cross-sections. Choosing a shape, changing the twist, cutting, or replaying either construction does not reopen the sheet. Build from sheet rolls and bends the painted sheet into the current toroid; Grow from shape sweeps the current cross-section around the loop. Either construction resets a cut and stops the other construction animation. The toolbar hides in Half/Full views and in braid/cut-explorer modes. The full-panel controls remain available there.
+The sheet still has four sizes: **Peek** (only the dock), **Half**, **Full** and **Hidden** (a *Controls* button brings it back). You can drag its handle, tap a tab or use the ⌃ and – buttons. It remembers its size and page. The deck rides on top of the sheet and hides when the sheet is half or fully open.
 
-The model slides up, or left when the phone is on its side, so it stays centered in the space the sheet leaves free. With the top toolbar visible, its height and the readout are also reserved above the model. Until you zoom yourself, the camera pulls back so the whole torus fits. The sheet remembers its size on your device.
+The camera keeps the model centered in the space between the top items and the deck or sheet. Until you zoom yourself, it pulls back so the whole model fits. On its side, the phone shows the readout and quick controls as a column down the left, the model to its right and the sheet on the right edge.
 
-The full-screen button hides the browser bars where the browser allows it. iPhone Safari doesn't, but you can use *Add to Home Screen* there: the page includes a web app manifest and icons, so it opens full screen with no browser interface. On Android, *Install app* or *Add to Home screen* does the same.
+On Android, *Install app* or *Add to Home screen* installs it full screen, with no browser interface. The address bar and status bar take the game's colors. A long press on the home-screen icon offers shortcuts to **Quests** and **Braid lab**. iPhone Safari can't enter full screen, but *Add to Home Screen* opens the page full screen too.
 
 ## Controls
 
@@ -199,13 +213,14 @@ node test/editor-relax.test.cjs
 node test/braid-controls.test.cjs
 node test/pull.test.cjs
 node test/studio.test.cjs
+node test/game.test.cjs
 node test/app-smoke.cjs
 node test/app-smoke.cjs --phone
 node test/app-smoke.cjs --phone --landscape
 node test/browser.test.cjs      # needs Playwright: npm install playwright && npx playwright install chromium
 ```
 
-`test/browser.test.cjs` runs the page in Chromium with software WebGL. It covers what the DOM stand-ins can't: the desktop model staying in view while the panel scrolls, WebGL actually drawing (torus, Seifert surface, relaxed knot, Klein bottle, phone), the phone bottom sheet, knot names in the readout, STL downloads that are closed solids, and no console errors.
+`test/browser.test.cjs` runs the page in Chromium with software WebGL. It covers what the DOM stand-ins can't: the desktop model staying in view while the panel scrolls, WebGL actually drawing (torus, Seifert surface, relaxed knot, Klein bottle, phone), the phone bottom sheet, knot names in the readout, and STL downloads that are closed solids. It also checks the game layer on emulated Pixel 10, Pixel 8 and Pixel 10 Pro XL screens: the title screen; the player bar, readout, control deck and dock in order without overlap; thumb-sized controls; one page per dock tab; a quest played through to its stars; the menu, trophy room and saved progress; and the landscape column. Finally it checks for console errors.
 
 Every pull request runs all of these, and the SnapPy checks (`verify.py` on the examples, `--sweep --max-turns 1`, `--random 80`, `--named 150`), in GitHub Actions: `.github/workflows/twisted-toroids.yml`.
 
@@ -225,6 +240,8 @@ The topology test independently traverses the generated indexed triangle meshes 
 - `braid-studio.js`: pure helpers behind the braid views: the rope tube mesh, Pull's framing, toolbar placement (rail or row) and the space it reserves, view names. `braid-workspace.css` styles the studio.
 - `appearance.js`: preset palettes, finishes, validation and persistence of appearance settings, and pre-paint application of the saved theme.
 - `cut-animation.js`: the periodic spatial opening profile, moving cut-front coordinates, and reversible timing used by the surface and flat map.
+- `game.js`: the game's rules as pure functions: experience and levels, ranks, the 22 badges, quest stars, the knot collection, and saving. Browser global `ToroidGame` or a Node module.
+- `game-ui.js`: draws the game: the player bar, quest tracker and board, toasts (a top-layer popover, so they show over dialogs), the quest-clear, menu, trophy and title dialogs, confetti, synthesized sound effects and vibration. `game.css` is the game skin (light "candy" and dark "arcade" themes, raised buttons) and the phone layout: bar, deck, dock and landscape column.
 - `test/explore.test.cjs`, `test/app-smoke.cjs`: topology/coordinate tests and application integration checks described above. `test/jones.test.cjs`, `test/seifert.test.cjs`, `test/surfaces.test.cjs`, `test/editor-relax.test.cjs` and `test/browser.test.cjs` check the newer modules and the page in a real browser.
 - `test/geometry.test.mjs`, `verify/verify.py`: the checks above.
 
@@ -239,7 +256,8 @@ Everything else is inside `index.html`:
   - `showBraid()` switches modes, and `buildBraidMesh()` turns `braidLayout()` into ribbons for the renderer.
   - The three.js scene section hands the mesh to WebGL (`syncSurface()` updates positions, normals and per-vertex colors only when they change) and draws the seam, traveler, build edges and selection lines as fat lines. `render()` updates those each frame.
   - `select()`, `torusRoute()` and `braidRoute()` handle following a strip.
-  - The phone layout section runs the bottom sheet (`setSheet()`, dragging, the quick bar's `syncQuick()`) and `updateViewShift()`, which keeps the model centered and fitted above the sheet.
+  - The phone layout section runs the bottom sheet (`setSheet()`, dragging, the quick bar's `syncQuick()`), the dock's pages (`setTab()`, `openTab()`, `showTabFor()`) and `updateViewShift()`, which keeps the model centered and fitted between the top items and the deck or sheet.
+  - `logOp()` records every operation and passes it to the game, and `gameEmit()`/`discover()` report finished builds, cuts, Seifert surfaces, pulls and knots identified in the table. `initGame()` starts `game-ui.js` with hooks into the quest controls and the dock.
 - `manifest.webmanifest` and `icons/`: the home-screen app (the icons are renders of the cut hexagon: two linked trefoil strips).
   - `frame()` is the animation loop.
 
