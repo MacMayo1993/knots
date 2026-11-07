@@ -384,6 +384,8 @@ h2 {
   .mobile-tools .quick { margin: 0; }
   .mobile-tools .quick .step, .mobile-tools .quick .secondary { min-width: 44px; min-height: 44px; touch-action: manipulation; }
   .mobile-tools .q-value { font-size: 0.86rem; overflow-wrap: anywhere; }
+  .quick-build { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .quick-build .secondary { justify-self: stretch; min-width: 0; min-height: 44px; padding: 8px; font-size: 0.82rem; line-height: 1.25; touch-action: manipulation; }
   .hint { display: none; }
   .panel {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
@@ -462,6 +464,10 @@ h2 {
             <output class="q-value" id="q-twist" aria-label="Tube twist" aria-live="polite">½ turn</output>
             <button type="button" class="step" id="q-plus" aria-label="Add a step of twist">+</button>
             <button type="button" class="secondary" id="q-cut">Cut</button>
+          </div>
+          <div class="quick-build">
+            <button type="button" class="secondary" id="q-build">Build from sheet</button>
+            <button type="button" class="secondary" id="q-grow">Grow from shape</button>
           </div>
         </div>
       </div>
@@ -2517,6 +2523,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   document.getElementById('q-minus').addEventListener('click', () => minusBtn.click());
   document.getElementById('q-plus').addEventListener('click', () => plusBtn.click());
   document.getElementById('q-cut').addEventListener('click', () => cutBtn.click());
+  document.getElementById('q-build').addEventListener('click', () => document.getElementById('buildBtn').click());
+  document.getElementById('q-grow').addEventListener('click', () => document.getElementById('growBtn').click());
   document.getElementById('q-edit').addEventListener('click', () => {
     setSheet('half');
     setTimeout(() => { braidInput.focus(); braidInput.select(); }, 300);
