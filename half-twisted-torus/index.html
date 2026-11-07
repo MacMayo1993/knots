@@ -262,6 +262,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .readout .note { font-size: 0.8rem; color: var(--muted); font-family: var(--f-body); font-weight: 400; }
 .swatches { display: inline-flex; gap: 4px; margin-right: 8px; vertical-align: -1px; }
 .swatches i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.cut-legend { list-style: none; margin: 0; padding: 0; font-size: 0.82rem; }
+.cut-legend li { display: flex; align-items: baseline; gap: 4px; margin-top: 5px; }
+.cut-legend .swatches { flex: none; }
 
 /* Notes */
 .notes { display: grid; gap: 14px; }
@@ -419,6 +422,9 @@ h2 {
         <legend>Cut it</legend>
         <div class="build">
           <button type="button" class="secondary" id="cutBtn">Cut along the color lines</button>
+          <label class="check" for="cutColors"><input type="checkbox" id="cutColors" aria-describedby="cutColorNote" disabled> Color by connected piece</label>
+          <p class="note" id="cutColorNote" aria-live="polite">Original paint is preserved when you cut.</p>
+          <ul class="cut-legend" id="cutColorLegend" aria-label="Connected pieces" hidden></ul>
           <dl class="readout">
             <div><dt>Pieces after cutting</dt><dd id="c-pieces">–</dd></div>
             <div><dt>Each piece</dt><dd id="c-each">–</dd></div>
@@ -1021,8 +1027,35 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     return { ok: true, a, strips, links, rep };
   }
   const timesWord = t => t === 1 ? 'once' : t === 2 ? 'twice' : t + ' times';
+  function updateCutColors(ci = cutInfo()) {
+    const active = !state.braid && !!state.cutTarget && ci.ok;
+    cutColorBox.disabled = !active;
+    const byPiece = active && cutColorBox.checked;
+    document.getElementById('cutColorNote').textContent = byPiece
+      ? 'Each connected piece uses one color. Uncheck to restore the original paint.'
+      : 'Original paint is preserved when you cut. One connected piece may contain several colors.';
+    const legend = document.getElementById('cutColorLegend');
+    legend.hidden = !byPiece;
+    legend.textContent = '';
+    if (!byPiece) return;
+    ci.strips.forEach((strip, i) => {
+      const row = document.createElement('li');
+      const swatch = document.createElement('span');
+      swatch.className = 'swatches';
+      swatch.setAttribute('aria-hidden', 'true');
+      const chip = document.createElement('i');
+      const representative = ci.rep[strip.pieces[0]];
+      chip.style.background = 'var(' + COLOR_VARS[shapeOf().colors[representative]] + ')';
+      swatch.appendChild(chip);
+      const label = document.createElement('span');
+      const sections = strip.pieces.slice().sort((a, b) => a - b).map(p => p + 1);
+      label.textContent = 'Piece ' + (i + 1) + ' · original section' + (sections.length === 1 ? ' ' : 's ') + sections.join(', ');
+      row.appendChild(swatch); row.appendChild(label); legend.appendChild(row);
+    });
+  }
   function updateCutReadout() {
     const ci = cutInfo();
+    updateCutColors(ci);
     const set = (id, t) => { document.getElementById(id).textContent = t; };
     if (!ci.ok) {
       set('c-pieces', !ci.a.fits ? 'The ends don\'t fit yet' : 'The color lines don\'t meet at the cut');
@@ -1386,10 +1419,17 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   // ---------- controls ----------
   function restartTraveler() { state.progress = 0; state.hold = 0; }
   const cutBtn = document.getElementById('cutBtn');
+  const cutColorBox = document.getElementById('cutColors');
+  cutColorBox.checked = false;
+  cutColorBox.addEventListener('change', () => {
+    logOp('cut colors', cutColorBox.checked ? 'connected pieces' : 'original paint');
+    updateCutColors();
+  });
   function setCut(on) {
     state.cutTarget = on ? 1 : 0;
     if (reduceMotion) { state.cut = state.cutTarget; updatePositions(); }
     cutBtn.textContent = on ? 'Glue it back' : 'Cut along the color lines';
+    updateCutColors();
   }
   function uncut() { if (state.cut || state.cutTarget) { state.cut = 0; setCut(false); updatePositions(); } }
   cutBtn.addEventListener('click', () => {
@@ -1725,8 +1765,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       g.computeVertexNormals(); g.computeBoundingSphere();
       shownPos = posVersion;
     }
-    // colors: paint, or each cut strip in one color, or the components of a braid; dim all but the selection
-    const ci = !state.braid && state.cut > 0.02 ? cutInfo() : null;
+    // Cutting preserves paint; component recoloring is optional. Selection dims the other pieces in either view.
+    const ci = !state.braid && state.cutTarget && cutColorBox.checked && state.cut > 0.02 ? cutInfo() : null;
     const rep = ci && ci.ok ? ci.rep : null;
     const d = sel !== null ? exactInfo() : null;
     const selPieces = d && d.ok && d.components[sel] ? new Set(state.braid ? [sel] : d.components[sel].pieces) : null;
