@@ -15,7 +15,7 @@ function el(tag='div') {
   setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];},addEventListener(k,f){(this.handlers[k]??=[]).push(f);},
   appendChild(c){this.children.push(c);c.parentElement=this;return c;},append(...cs){cs.forEach(c=>this.appendChild(c));},after(c){c.parentElement=this.parentElement;},focus(){},
   dispatch(k,extra={}){for(const f of this.handlers[k]||[])f({target:this,preventDefault(){},...extra});},click(){if(!this.disabled)this.dispatch('click');},
-  getContext(){return new Proxy({}, {get(t,p){return t[p]||(()=>{});},set(t,p,v){t[p]=v;return true;}});},getBoundingClientRect(){return {width:600,height:550,left:0,top:0};}};
+  getContext(){return new Proxy({}, {get(t,p){return t[p]||(()=>{});},set(t,p,v){t[p]=v;return true;}});},toBlob(cb){cb({size:1});},remove(){},getBoundingClientRect(){return {width:600,height:550,left:0,top:0};}};
 }
 const get=id=>{if(!nodes.has(id))nodes.set(id,el());return nodes.get(id);};
 for(const m of html.matchAll(/<(button|input)\b([^>]*)>/g)){
@@ -49,18 +49,21 @@ class Object3D{constructor(geometry=new Geometry(),material=new Material()){this
 class Renderer{setClearColor(){}setPixelRatio(){}setSize(){}render(){}}
 class OrbitControls{constructor(){this.target=new Vector();}addEventListener(){}update(){}}
 class Raycaster{setFromCamera(){}intersectObject(){return Raycaster.hit ? [Raycaster.hit] : [];}}
-const THREE={MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
+class Curve{constructor(points){this.points=points;}}
+class TubeGeometry extends Geometry{constructor(curve,segments,radius,radial,closed){super();this.curve=curve;this.parameters={segments,radius,radial,closed};const P=[],I=[];curve.points.forEach((p,i)=>{for(let k=0;k<3;k++)P.push(i,k,0);const a=3*i,b=3*((i+1)%curve.points.length);I.push(a,a+1,b,a+1,b+1,b,a+1,a+2,b+1,a+2,b+2,b+1,a+2,a,b+2,a,b,b+2);});this.attributes.position=new Attribute(new Float32Array(P),3);this.index=new Attribute(new Uint32Array(I),1);}}
+const THREE={CatmullRomCurve3:Curve,TubeGeometry,FrontSide:0,BackSide:1,DoubleSide:2,MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
 const phone=process.argv.includes('--phone'),side=process.argv.includes('--landscape'),animate=process.argv.includes('--animate');
-const win={innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
-const sandbox={KnotMath:win.KnotMath,THREE,OrbitControls,Line2:Object3D,LineSegments2:Object3D,LineMaterial:Material,LineGeometry:Geometry,LineSegmentsGeometry:Geometry,window:win,document:{documentElement:root,body:el(),getElementById:get,createElement:el,querySelectorAll(s){const key={'#shapeSeg button':'shape','#twistSeg button':'k','#modeSeg button':'mode','#braidExamples button':'word'}[s];return buttons.filter(b=>key in b.dataset);}},getComputedStyle(){return {getPropertyValue(k){return root.style[k]||palette[k]||'#888888';}};},MutationObserver:class{observe(){}},localStorage:{getItem(){return null;},setItem(){}},location:{hash:'',href:'https://example.test/'},history:{replaceState(){}},performance:{now(){return 0;}},requestAnimationFrame(){},setTimeout(f){timers.push(f);},URLSearchParams,console};
+const win={innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),BraidEditor:require(process.cwd()+'/braid-editor.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),KnotRelax:require(process.cwd()+'/relax.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
+const sandbox={KnotMath:win.KnotMath,THREE,OrbitControls,Line2:Object3D,LineSegments2:Object3D,LineMaterial:Material,LineGeometry:Geometry,LineSegmentsGeometry:Geometry,window:win,document:{documentElement:root,body:el(),getElementById:get,createElement:el,querySelectorAll(s){const key={'#shapeSeg button':'shape','#twistSeg button':'k','#modeSeg button':'mode','#braidExamples button':'word'}[s];return buttons.filter(b=>key in b.dataset);}},getComputedStyle(){return {getPropertyValue(k){return root.style[k]||palette[k]||'#888888';}};},MutationObserver:class{observe(){}},localStorage:{getItem(){return null;},setItem(){}},location:{hash:'',href:'https://example.test/'},history:{replaceState(){}},performance:{now(){return 0;}},requestAnimationFrame(){},setTimeout(f){timers.push(f);},URLSearchParams,console,Blob:class{constructor(parts){this.parts=parts;}},URL:{createObjectURL(){return 'blob:x';},revokeObjectURL(){}}};
 vm.createContext(sandbox);
 const savedPreferences=new Map();
 sandbox.localStorage={getItem:k=>savedPreferences.get(k)??null,setItem:(k,v)=>savedPreferences.set(k,v)};
 sandbox.document.querySelector=s=>get(s);
+sandbox.document.createElementNS=(ns,tag)=>el(tag);
 sandbox.document.addEventListener=()=>{};
 get('.lab').parentElement=el(); get('.notes').parentElement=get('.lab').parentElement;
 get('stageTools').getBoundingClientRect=()=>({width:370,height:202,left:10,top:10,bottom:212});
-vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal}; setTimeout(start,30);'),sandbox);
+vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal,makeSTL,getLabModel:()=>labModel,getRelax:()=>relax,getSeif:()=>seifData,setLabSurface,getLabLoops:()=>labLoops,braidEditor,setRelax,identifyBraid}; setTimeout(start,30);'),sandbox);
 timers.shift()();assert(!get('hud').textContent.includes('failed'));
 const p=win.probe,toggle=get('cutColors'),legend=get('cutColorLegend');get('seam').checked=false;
 if(animate){
@@ -162,7 +165,7 @@ get('challengePick').value='three';get('challengeStart').click();assert.equal(p.
 p.twistTo(.5);get('cutBtn').click();get('challengeCheck').click();assert(get('challengeFeedback').textContent.startsWith('Solved!'),JSON.stringify({message:get('challengeFeedback').textContent,state:p.state}));
 get('challengePick').value='trefoils';get('challengeStart').click();p.twistTo(2/3);get('cutBtn').click();get('challengeCheck').click();assert(get('challengeFeedback').textContent.includes('Linking number: 6'));
 get('challengePick').value='mirror';get('challengeStart').click();get('cutBtn').click();get('challengeCheck').click();assert(get('challengeFeedback').textContent.startsWith('Not yet.'));
-p.twistTo(-2/3);get('cutBtn').click();get('challengeCheck').click();assert(get('challengeFeedback').textContent.startsWith('Solved!'),JSON.stringify({message:get('challengeFeedback').textContent,state:p.state,disabled:get('cutBtn').disabled}));assert.equal(get('challengeProgress').textContent,'3 of 3 solved this session.');
+p.twistTo(-2/3);get('cutBtn').click();get('challengeCheck').click();assert(get('challengeFeedback').textContent.startsWith('Solved!'),JSON.stringify({message:get('challengeFeedback').textContent,state:p.state,disabled:get('cutBtn').disabled}));assert.equal(get('challengeProgress').textContent,'3 of '+win.TorusExplore.CHALLENGES.length+' solved this session.');
 p.showBraid({n:2,word:[1,1,1]});p.render(false,0,[0,0,0]);assert.equal(p.mapMarker.visible,false);assert(get('mapNote').textContent.includes('braid / flat-strip'));
 if(phone){for(const s of ['peek','half','full','hidden']){p.setSheet(s);p.render(false,0,[0,0,0]);assert.equal(p.getSheet(),s);assert.equal(get('sheetShow').hidden,s!=='hidden');}p.setSheet('full');p.setLabCut('patch');assert.equal(p.getSheet(),'half');get('q-return').click();assert.equal(get('panel').dataset.exploring,'false');}
 console.log('PASS: cut explorer restoration, linked map selection/keyboard, challenges, mode switches, and '+(phone?(side?'landscape':'portrait')+' phone sheet':'desktop')+' wiring.');
@@ -227,3 +230,87 @@ for(const button of buttons.filter(b=>'shape' in b.dataset)){
  }
 }
 console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sections, including Möbius bands.');
+
+// ---------- features added with the knot table, Seifert surfaces, the general cut explorer, the editor and relaxation ----------
+{
+ const MK=win.MeshKit,KM=win.KnotMath,EX=win.TorusExplore;
+ let clock=1000;const tick1=()=>{clock+=16;p.frame(clock);};
+ const closed=made=>{const W=MK.weld(made.positions,made.indices,1e-6),E=MK.edgeFaces(W.indices);return [...E.values()].every(l=>l.length===2);};
+ const walk=(node,pred,out=[])=>{if(pred(node))out.push(node);(node.children||[]).forEach(c=>walk(c,pred,out));return out;};
+ p.setLabCut(null);p.showBraid(null);
+ // Jones polynomial and table names in the exact description
+ p.showBraid({n:2,word:[1,1,1]});
+ assert.equal(get('x-jones').textContent,'−t⁴ + t³ + t');assert.match(get('x-name').textContent,/right-handed trefoil/);
+ tick1();assert.match(get('hud').textContent,/right-handed trefoil/);
+ p.showBraid({n:2,word:[-1,-1,-1]});assert.match(get('x-name').textContent,/left-handed trefoil/);
+ const ex=p.experiment();assert.equal(ex.jones.text,'t⁻¹ + t⁻³ − t⁻⁴');assert.deepEqual(ex.tableNames,['3_1']);assert.equal(ex.seifert.genus,1);assert.equal(ex.seifert.homogeneous,true);
+ // the table picker draws an entry from its braid word
+ get('tablePick').value='6_2';get('tablePick').dispatch('change');assert.match(get('x-name').textContent,/6₂/);
+ // the diagram editor: add, flip and delete crossings through its own buttons
+ p.showBraid({n:3,word:[]});
+ const editorBox=get('braidEditor'),gens=()=>walk(editorBox,n=>n.attrs&&n.attrs.class==='be-gen');
+ assert.equal(gens().length,4);
+ for(const label of ['σ₁','σ₂⁻¹','σ₁','σ₂⁻¹'])gens().find(b=>b.text===label).click();
+ assert.deepEqual(p.state.braid.word,[1,-2,1,-2]);assert.match(get('x-name').textContent,/figure-eight/);
+ const hits=()=>walk(editorBox,n=>n.tag==='rect'&&n.attrs.class==='be-hit');
+ assert.equal(hits().length,4);hits()[1].dispatch('click');assert.deepEqual(p.state.braid.word,[1,2,1,-2]);
+ walk(editorBox,n=>n.tag==='button'&&n.text==='Tap deletes')[0].click();hits()[1].dispatch('click');assert.deepEqual(p.state.braid.word,[1,1,-2]);
+ walk(editorBox,n=>n.tag==='button'&&n.text==='Remove last crossing')[0].click();assert.deepEqual(p.state.braid.word,[1,1]);
+ walk(editorBox,n=>n.tag==='button'&&n.attrs['aria-label']==='One strand more')[0].click();assert.equal(p.state.braid.n,4);
+ // Seifert surface: shown instead of the ribbons, with its genus, and printable
+ p.showBraid({n:3,word:[1,-2,1,-2]});const sb=get('seifertBox');sb.checked=true;sb.dispatch('change');p.render(false,0,[0,0,0]);
+ assert.equal(p.getSeif().genus,1);assert.equal(p.surface.visible,false);tick1();assert.match(get('hud').textContent,/Seifert surface · genus 1/);
+ assert.match(get('x-seifert').textContent,/3 disks \+ 4 bands · χ = −1 · genus 1/);assert.match(get('x-seifert-note').textContent,/the knot has genus 1/);
+ let made=p.makeSTL();assert(made&&closed(made),'Seifert STL is a closed solid');
+ sb.checked=false;sb.dispatch('change');p.render(false,0,[0,0,0]);assert.equal(p.surface.visible,true);
+ // relaxation runs through the frame loop and keeps the knot
+ get('relaxBtn').click();assert(p.getRelax());for(let i=0;i<40;i++)tick1();
+ assert(p.getRelax().S.steps>0);assert.equal(p.surface.visible,false);assert.match(get('hud').textContent,/Relax/);
+ made=p.makeSTL();assert(made&&made.indices.length>0,'relaxed tubes export');
+ get('relaxBtn').click();assert.equal(p.getRelax(),null);
+ // the twisted torus and braid ribbons export as closed solids too
+ p.showBraid(null);get('shape-hex').click();p.twistTo(1/3);made=p.makeSTL();assert(closed(made),'torus STL closed');
+ get('cutBtn').click();made=p.makeSTL();assert(closed(made),'cut torus STL closed');get('cutBtn').click();
+ get('shape-band2').click();p.twistTo(0.5);made=p.makeSTL();assert(closed(made),'Möbius strip STL closed');
+ p.showBraid({n:3,word:[1,-2,1,-2,1,-2]});made=p.makeSTL();assert(closed(made),'braid ribbons STL closed');
+ get('x-png').click();assert.match(get('x-status').textContent,/Saved twisted-toroids-braid-.*\.png/);
+ get('x-stl').click();assert.match(get('x-status').textContent,/Saved twisted-toroids-braid-.*\.stl/);
+ console.log('PASS: Jones and table names in readouts, HUD and export; table picker; diagram editor add/flip/delete/strands; Seifert view, genus and STL; relaxation in the frame loop; PNG and closed STL solids for torus, cut, Möbius strip and braid.');
+ // the general cut explorer: Klein bottle presets, slopes, and loops drawn by tapping the map
+ p.showBraid(null);
+ p.setLabSurface('klein');assert.equal(get('labCut').children.length,5);
+ p.setLabCut('k-closed');p.render(false,0,[0,0,0]);assert.equal(get('labOrient').textContent,'One-sided');assert.equal(get('labPieces').textContent,'1');
+ p.setLabCut('k-between');assert.equal(get('labPieces').textContent,'2');assert.match(get('labResult').textContent,/2 Möbius bands/);
+ made=p.makeSTL();assert(closed(made),'Möbius bands STL closed');
+ p.render(false,0,[0,0,0]);p.chooseMapPoint(.5,.5);p.syncExplore();assert.equal(p.mapMarker.visible,true);
+ p.setLabSurface('torus');p.setLabCut('slope');get('labA').value='2';get('labB').value='4';get('labA').dispatch('input');
+ assert.equal(get('labPieces').textContent,'2');assert.match(get('labWhy').textContent,/factor 2/);
+ p.setLabCut('draw');get('mapDetails').open=true;
+ const tap=(u,v)=>{const x=(36+568*u)*600/640,y=(28+212*(1-v))*550/280;get('flatMap').dispatch('pointerdown',{clientX:x,clientY:y});get('flatMap').dispatch('pointerup',{clientX:x,clientY:y});};
+ for(const [u,v] of [[.1,.5],[.45,.55],[.8,.5]])tap(u,v);
+ assert.equal(get('labClose').disabled,false);get('labClose').click();assert.match(get('labResult').textContent,/annulus/);assert.equal(p.getLabLoops()[0].a,1);
+ get('flatMap').dispatch('keydown',{key:'ArrowUp'});
+ for(const [u,v] of [[.5,.1],[.55,.45],[.5,.8]])tap(u,v);get('labClose').click();assert.match(get('labResult').textContent,/One piece, a disk/);
+ get('labUndo').click();assert.equal(p.getLabLoops().length,1);get('labClear').click();assert.equal(p.getLabLoops().length,0);assert.match(get('labResult').textContent,/a torus, with no boundary/);
+ get('flatMap').dispatch('keydown',{key:'Enter'});get('flatMap').dispatch('keydown',{key:'ArrowRight'});get('flatMap').dispatch('keydown',{key:'Enter'});
+ assert.match(get('labDrawStatus').textContent,/2 points/);get('flatMap').dispatch('keydown',{key:'Escape'});assert.match(get('labDrawStatus').textContent,/Tap the map/);
+ p.setLabCut(null);
+ console.log('PASS: Klein bottle presets and readouts, (a, b) slopes, loops drawn by tapping and by keyboard, undo/clear, marker on cut pieces.');
+ // every challenge: start it, fail, then solve it through the page's own controls
+ const pick=id=>{get('challengePick').value=id;get('challengePick').dispatch('change');get('challengeStart').click();};
+ const check=()=>{get('challengeCheck').click();return get('challengeFeedback').textContent;};
+ pick('hopf');assert.match(check(),/Cut along the color lines/);get('cutBtn').click();assert.match(check(),/^Not yet/);get('cutBtn').click();p.twistTo(1);get('cutBtn').click();assert.match(check(),/^Solved/);
+ pick('cinquefoil');p.twistTo(2.5);get('cutBtn').click();assert.match(check(),/^Solved/);
+ pick('four');get('shape-square').click();p.twistTo(1);get('cutBtn').click();assert.match(check(),/^Solved/);
+ pick('figure8');assert.match(check(),/^Not yet/);p.showBraid({n:3,word:[1,-2,1,-2]});assert.match(check(),/^Solved/);
+ pick('amphichiral');assert.match(check(),/^Not yet/);p.showBraid({n:3,word:[1,1,-2,1,-2,-2]});assert.match(check(),/^Solved/);
+ pick('genus2');assert.match(check(),/^Not yet/);p.showBraid({n:2,word:[1,1,1,1,1]});assert.match(check(),/^Solved.*genus 2/);
+ p.showBraid({n:3,word:[1,1,-1,1,1,1,1,1]});assert.match(check(),/^Not yet/);
+ pick('brunnian');p.showBraid({n:3,word:[1,1,2,2]});assert.match(check(),/does not come apart/);p.showBraid({n:3,word:[1,-2,1,-2,1,-2]});assert.match(check(),/^Solved/);
+ pick('disk');assert.equal(p.getLabModel().surface,'torus');assert.match(check(),/^Not yet/);
+ for(const [u,v] of [[.1,.5],[.45,.55],[.8,.5]])tap(u,v);get('labClose').click();for(const [u,v] of [[.5,.1],[.55,.45],[.5,.8]])tap(u,v);get('labClose').click();assert.match(check(),/^Solved/);
+ pick('mobius');assert.equal(p.getLabModel().surface,'klein');get('labCut').value='k-between';get('labCut').dispatch('change');assert.match(check(),/^Solved/);
+ assert.equal(get('challengeProgress').textContent,EX.CHALLENGES.length+' of '+EX.CHALLENGES.length+' solved this session.');
+ p.setLabCut(null);
+ console.log('PASS: all '+EX.CHALLENGES.length+' challenges start in the right mode and are solved (and failed) through the page controls.');
+}

@@ -323,6 +323,23 @@ h2 {
 .braid-form input[type="number"] { width: 5.5em; }
 .braid-help { margin: 0; font-size: 0.8rem; color: var(--muted); }
 .braid-error { margin: 0; font-size: 0.85rem; color: var(--red); min-height: 1.2em; }
+.braid-editor-box { margin: 10px 0 6px; }
+.braid-editor-box summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.braid-editor-box .note { margin: 4px 0 8px; font-size: 0.8rem; color: var(--muted); }
+.be-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; }
+.be-strands { display: flex; align-items: center; gap: 6px; }
+.be-count { font: 500 0.85rem var(--f-mono); min-width: 6.5em; text-align: center; }
+.be-mode button { padding: 7px 11px; font-size: 0.82rem; }
+.be-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); touch-action: pan-x pan-y; }
+.be-svg { display: block; }
+.be-hit { fill: transparent; cursor: pointer; }
+.be-hit:hover { fill: var(--rule); fill-opacity: 0.45; }
+.be-hit:focus-visible { outline: none; stroke: var(--accent); stroke-width: 2; }
+.be-add { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 4px; }
+.be-gen { font: 500 0.85rem var(--f-mono); padding: 6px 9px; min-width: 44px; min-height: 36px; border: 1px solid var(--rule); border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; }
+.be-gen:hover { border-color: var(--muted); }
+.be-actions { display: flex; gap: 14px; }
+.be-status { margin: 4px 0 0; font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
 .braid-tools { display: grid; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rule); }
 .braid-tools .note { margin: 0; font-size: 0.8rem; color: var(--muted); }
 .table-pick { display: grid; gap: 4px; margin: 12px 0 8px; font-size: 0.82rem; color: var(--muted); }
@@ -585,7 +602,7 @@ h2 {
         <details id="challengeDetails">
           <summary>Construction challenges</summary>
           <label for="challengePick">Choose a challenge</label>
-          <select id="challengePick"><option value="three">Make exactly three strips</option><option value="trefoils">Make two linked trefoils</option><option value="mirror">Build the mirror trefoil</option></select>
+          <select id="challengePick"></select>
           <p class="result" id="challengeGoal"></p>
           <div class="actions"><button type="button" class="secondary" id="challengeStart">Start challenge</button><button type="button" class="secondary" id="challengeCheck">Check construction</button><button type="button" class="link-btn" id="challengeHint">Show hint</button></div>
           <p class="note" id="challengeFeedback" aria-live="polite">Choose a challenge, then start or check your current construction.</p>
@@ -608,6 +625,11 @@ h2 {
           <p class="braid-help" id="braidHelp">Write generators as <span class="mono">s1 s2 S1</span> (capital for the inverse), <span class="mono">σ1 σ2⁻¹</span> or <span class="mono">1 2 -1</span>. Use <span class="mono">(s1 s2)^3</span> for powers. Up to 10 strands.</p>
           <p class="braid-error" id="braidError" role="alert"></p>
         </form>
+        <details class="braid-editor-box" id="braidEditorDetails" open>
+          <summary>Edit the diagram</summary>
+          <p class="note">Strands run left to right. In a positive crossing σᵢ the strand going down passes over, so σ₁σ₁σ₁ is the right-handed trefoil. Colors match the components in the model.</p>
+          <div id="braidEditor"></div>
+        </details>
         <div class="seg" id="braidExamples">
           <button type="button" data-word="s1^3">Trefoil</button>
           <button type="button" data-word="(s1 S2)^2">Figure-eight</button>
@@ -623,6 +645,8 @@ h2 {
         </label>
         <button type="button" class="link-btn" id="braidFromTorus">Start from the last torus construction</button>
         <div class="braid-tools">
+          <button type="button" class="secondary" id="relaxBtn">Relax into a smooth knot</button>
+          <p class="note">The strands pull tight and push each other apart, like rope, but never pass through each other, so the knot stays the same knot.</p>
           <label class="check" for="seifertBox"><input type="checkbox" id="seifertBox"> Show its Seifert surface</label>
           <p class="note" id="seifertNote">An orientable surface whose edge is the knot or link: one disk per strand, one twisted band per crossing. Its two sides get two colors.</p>
         </div>
@@ -841,6 +865,8 @@ h2 {
 <script src="meshkit.js"></script>
 <script src="seifert.js"></script>
 <script src="surfaces.js"></script>
+<script src="braid-editor.js"></script>
+<script src="relax.js"></script>
 <script src="explore.js"></script>
 <script src="cut-animation.js"></script>
 <script type="importmap">
@@ -1418,6 +1444,11 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         return;
       }
     }
+    if (relaxShown()) {
+      const nm = shortName(identifyBraid(state.braid.n, state.braid.word));
+      hud.textContent = (relax.done ? 'Relaxed' : 'Relaxing · step ' + relax.S.steps) + (nm ? ' · ' + nm : '') + ' · strands never pass through each other';
+      return;
+    }
     if (seifertShown() && seifData) {
       const g = seifData.genus;
       hud.textContent = 'Seifert surface · ' + (g === null ? seifData.A.pieces.length + ' pieces' : 'genus ' + g) + ' · its two sides in two colors';
@@ -1658,7 +1689,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     flash('Saved ' + name + '.');
   }
   const fileStem = () => labCut ? 'twisted-toroids-' + (labCut.startsWith('k-') ? 'klein-' + labCut.slice(2) : 'torus-' + labCut)
-    : state.braid ? 'twisted-toroids-braid-' + (state.braid.word.length ? state.braid.word.join('_').replace(/-/g, 'm') : 'identity').slice(0, 50) + (seifertShown() ? '-seifert' : '')
+    : state.braid ? 'twisted-toroids-braid-' + (state.braid.word.length ? state.braid.word.join('_').replace(/-/g, 'm') : 'identity').slice(0, 50) + (seifertShown() ? '-seifert' : relaxShown() ? '-relaxed' : '')
     : 'twisted-toroids-' + state.shape + '-turn-' + turnText(state.twistTo).replace('/', 'over') + (state.cutTarget ? '-cut' : '');
   // The picture: draw a frame now and copy it, on the stage color, in the same task
   // (the WebGL canvas keeps its pixels only until the browser shows them).
@@ -1684,12 +1715,14 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       out.push({ positions: Array.from(P.array), indices: Array.from(I.array) });
     };
     if (labCut) take(labSurface);
+    else if (relaxShown()) relaxTubes.filter(t => t.visible).forEach(t => { take(t); out[out.length - 1].solid = true; });
     else if (seifertShown()) take(seifFront);
     else { syncSurface(); take(surface); }
     return out;
   }
   function makeSTL() {
-    const parts = visibleMeshes().map(m => MK.thicken(m.positions, m.indices, PRINT_WALL / 2 / PRINT_SCALE));
+    // a tube around a curve is already a closed solid: just join its seam
+    const parts = visibleMeshes().map(m => m.solid ? MK.weld(m.positions, m.indices, 1e-5) : MK.thicken(m.positions, m.indices, PRINT_WALL / 2 / PRINT_SCALE));
     const positions = [], indices = [];
     for (const p of parts) { const base = positions.length / 3; for (const x of p.positions) positions.push(x); for (const i of p.indices) indices.push(i + base); }
     return indices.length ? { stl: MK.toSTL(positions, indices, PRINT_SCALE, 'Twisted Toroids ' + fileStem()), positions, indices } : null;
@@ -1740,6 +1773,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       setMode('torus');
     }
     buildMesh(); buildSeam(); buildTrail(); restartTraveler(); updateReadouts();
+    if (relax) setRelax(false);
+    if (state.braid && braidEditor) braidEditor.render(Math.max(2, state.braid.n), state.braid.word);
   }
   function drawFromForm() {
     try {
@@ -1759,6 +1794,19 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (btn.dataset.mode === 'torus') showBraid(null);
     else if (!state.braid) drawFromForm();
   }));
+  // The diagram editor: taps change the word, which redraws the model through the form.
+  const braidEditor = window.BraidEditor && document.createElementNS ? window.BraidEditor.mount(document.getElementById('braidEditor'), {
+    document,
+    color: comp => 'var(' + COLOR_VARS[COMP_COLORS[comp % COMP_COLORS.length]] + ')',
+    paper: () => 'var(--panel)',
+    maxStrands: MAX_STRANDS, maxCrossings: MAX_CROSSINGS,
+    onChange(n, word) {
+      braidInput.value = word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ');
+      braidStrandsIn.value = String(n);
+      drawFromForm();
+      logOp('edit diagram', word.slice());
+    }
+  }) : null;
   // Every knot and link in the table, grouped by crossing number, drawn from its braid word.
   const tablePick = document.getElementById('tablePick');
   (function buildTablePicker() {
@@ -2133,6 +2181,50 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     }
   });
 
+  // Relaxing a closed braid into a smooth knot: one tube per component, rebuilt as
+  // the curve moves. relax.js never lets two segments pass through each other.
+  const RX = window.KnotRelax, relaxBtn = document.getElementById('relaxBtn');
+  const relaxTubes = Array.from({ length: 10 }, () => {
+    const m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0 }));
+    m.visible = false; scene.add(m); return m;
+  });
+  let relax = null;   // { S, key, steps, done }
+  const RELAX_STEPS = 1600;
+  const relaxShown = () => !!relax && !!state.braid && !labCut;
+  function setRelax(on) {
+    if (on && state.braid && RX && THREE.TubeGeometry) {
+      seifertBox.checked = false; seifKey = '#';
+      relax = { S: RX.create(RX.fromBraid(KM, state.braid.n, state.braid.word)), key: state.braid.n + ':' + state.braid.word.join(','), done: false, gap: 0 };
+      clearSelection(); revealModel();
+      logOp('relax', relax.key);
+    } else relax = null;
+    relaxBtn.textContent = relax ? 'Back to the braid' : 'Relax into a smooth knot';
+    relaxTubes.forEach(t => { t.visible = false; });
+  }
+  relaxBtn.addEventListener('click', () => setRelax(!relax));
+  function syncRelax(dt) {
+    if (!relaxShown()) { relaxTubes.forEach(t => { t.visible = false; }); return false; }
+    if (relax.key !== state.braid.n + ':' + state.braid.word.join(',')) { setRelax(false); return false; }
+    if (!relax.done) {
+      const per = reduceMotion ? RELAX_STEPS : Math.max(2, Math.round(10 * Math.min(dt, 0.05) / 0.016));
+      for (let k = 0; k < per && relax.S.steps < RELAX_STEPS; k++) relax.gap = RX.step(relax.S).gap;
+      relax.done = relax.S.steps >= RELAX_STEPS;
+      const C = RX.curves(relax.S), r = RX.tubeRadius(relax.S), comps = KM.cycles(KM.permutation(state.braid.n, state.braid.word));
+      C.forEach((pts, k) => {
+        const tube = relaxTubes[k]; if (!tube) return;
+        const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2])), true, 'centripetal');
+        tube.geometry.dispose();
+        tube.geometry = new THREE.TubeGeometry(curve, Math.max(64, pts.length * 2), r, 12, true);
+        const c = pal.c[COMP_COLORS[k % COMP_COLORS.length]];
+        tube.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+        tube.visible = true;
+      });
+      void comps;
+    }
+    return true;
+  }
+  seifertBox.addEventListener('change', () => { if (seifertBox.checked && relax) setRelax(false); });
+
   let seamShown = null, trailShown = null;
   function retint() {
     readPalette();
@@ -2219,7 +2311,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (moved > 6 || !quick) return;
     const rc = canvas.getBoundingClientRect();
     raycaster.setFromCamera(new THREE.Vector2((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height) * 2 + 1), camera);
-    if (seifertShown()) return;
+    if (seifertShown() || relaxShown()) return;
     const hit = raycaster.intersectObject(labCut ? labSurface : surface)[0];
     if (labCut) {
       if (!hit) { clearSelection(); return; }
@@ -2311,17 +2403,23 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     }
     surface.geometry.attributes.color.needsUpdate = true;
   }
+  let renderDt = 0.016;
   function render(showTraveler, trailCount, travelerAt) {
     if (!W || !H) return;
     syncExplore();
     syncCutTips();
     if (labCut) {
-      syncSeifert();
+      syncSeifert(); syncRelax(0);
       surface.visible = false;
       [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
       controls.update(); updateViewShift(); renderer.render(scene, camera); return;
     }
     syncSeifert();
+    if (syncRelax(renderDt)) {
+      surface.visible = false;
+      [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
+      controls.update(); updateViewShift(); renderer.render(scene, camera); return;
+    }
     if (seifertShown()) {
       surface.visible = false;
       [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
@@ -2733,6 +2831,35 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     drawFlatMap();
   }
   const challengeDone = new Set();
+  // the list, grouped by where each challenge is played
+  (function buildChallengeList() {
+    const groups = { torus: 'Cut a twisted torus', braid: 'Draw a braid', lab: 'Cut explorer' }, made = {};
+    EX.CHALLENGES.forEach(c => {
+      if (!made[c.kind]) { made[c.kind] = document.createElement('optgroup'); made[c.kind].label = groups[c.kind]; challengePick.appendChild(made[c.kind]); }
+      const o = document.createElement('option'); o.value = c.id; o.textContent = c.title; made[c.kind].appendChild(o);
+    });
+    challengePick.value = EX.CHALLENGES[0].id;
+  })();
+  // What the braid and cut-explorer challenges check, worked out from the page's state.
+  function braidFacts() {
+    if (!state.braid || labCut) return null;
+    const { n, word } = state.braid, idn = identifyBraid(n, word);
+    if (idn.error) return { error: true };
+    const comps = KM.cycles(KM.permutation(n, word));
+    const apart = (nn, ww) => identifyBraid(nn, ww).matches.some(m => m.name === 'unlink');
+    let pairsApart = comps.length > 1;
+    for (let i = 0; i < comps.length && pairsApart; i++) for (let j = i + 1; j < comps.length && pairsApart; j++) {
+      const sub = KM.keepStrands(n, word, [...comps[i], ...comps[j]]);
+      if (!apart(sub.n, sub.word)) pairsApart = false;
+    }
+    return { n, word, components: comps.length, names: idn.matches.map(m => m.name), labels: idn.matches.map(m => m.label), chiralities: idn.matches.map(m => m.chirality),
+      homogeneous: KM.homogeneous(word), genus: KM.seifertGenus(n, word), pairsApart, allApart: idn.matches.some(m => m.name === 'unlink') };
+  }
+  function labFacts() {
+    if (!labCut || !labModel) return null;
+    const pieces = labModel.data.info ? labModel.data.info.pieces.map(p => p.name) : SL.build('torus', SL.presetPaths('torus', labCut)).info.pieces.map(p => p.name);
+    return { surface: labModel.surface, pieces };
+  }
   function updateChallenge() {
     const task = EX.CHALLENGES.find(c => c.id === challengePick.value) || EX.CHALLENGES[0];
     challengePick.value = task.id;
@@ -2742,19 +2869,38 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   challengePick.addEventListener('change', updateChallenge);
   document.getElementById('challengeStart').addEventListener('click', () => {
-    const task = updateChallenge(); setLabCut(null);
+    const task = updateChallenge(), fb = document.getElementById('challengeFeedback');
+    logOp('challenge', task.id);
+    if (task.kind === 'braid') {
+      setLabCut(null);
+      braidInput.value = task.start.word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ');
+      braidStrandsIn.value = String(task.start.strands);
+      drawFromForm(); revealModel();
+      fb.textContent = 'A starting braid is loaded. Edit it with the diagram or the word, then check.';
+      return;
+    }
+    if (task.kind === 'lab') {
+      labLoops = []; labDraft = [];
+      setLabSurface(task.start.surface, false);
+      labSelect.value = task.start.cut; syncLabTools();
+      setLabCut(task.start.cut);
+      fb.textContent = 'The cut explorer is open. Choose a cut or draw loops on the flat map, then check.';
+      return;
+    }
+    setLabCut(null);
     stopGrow(); state.building = false; uncut();
     applyConstruction({shape:task.start.shape,turn:turnText(task.start.turn)}); if (state.m < 2) setM(2);
-    logOp('challenge',task.id); revealModel();
-    document.getElementById('challengeFeedback').textContent = 'Starting shape loaded. Change the twist or shape, cut the paint lines, then check.';
+    revealModel();
+    fb.textContent = 'Starting shape loaded. Change the twist or shape, cut the paint lines, then check.';
   });
   document.getElementById('challengeHint').addEventListener('click', () => {
     const task = EX.CHALLENGES.find(c => c.id === challengePick.value);
     document.getElementById('challengeFeedback').textContent = task.hint;
   });
   document.getElementById('challengeCheck').addEventListener('click', () => {
-    if (labCut) { document.getElementById('challengeFeedback').textContent = 'Return to your painted construction to check a challenge.'; return; }
-    const result = EX.checkChallenge(challengePick.value,{description:exactInfo(),pieces:shapeOf().colors.length,turn:state.k,cut:state.cutTarget === 1 && state.cut >= 0.999,ready:!labCut && !state.twisting && state.m >= 2 && state.grow === null,ring:!state.braid && !shapeOf().open});
+    const task = EX.CHALLENGES.find(c => c.id === challengePick.value);
+    if (labCut && task.kind === 'torus') { document.getElementById('challengeFeedback').textContent = 'Return to your painted construction to check a challenge.'; return; }
+    const result = EX.checkChallenge(challengePick.value,{description:state.braid ? null : exactInfo(),pieces:shapeOf().colors.length,turn:state.k,cut:state.cutTarget === 1 && state.cut >= 0.999,ready:!labCut && !state.twisting && state.m >= 2 && state.grow === null,ring:!state.braid && !shapeOf().open,braid:braidFacts(),lab:labFacts()});
     document.getElementById('challengeFeedback').textContent = result.message;
     if (result.pass) challengeDone.add(challengePick.value);
     document.getElementById('challengeProgress').textContent = challengeDone.size + ' of ' + EX.CHALLENGES.length + ' solved this session.';
@@ -3007,6 +3153,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       else { state.grow = null; state.growing = false; buildTrail(); restartTraveler(); }
       updatePositions();
     }
+    renderDt = dt;
     let trailCount = 0;
     if (state.cut !== state.cutTarget && !labCut) {
       state.cut = CUT.advance(state.cut,state.cutTarget,dt);
@@ -3038,6 +3185,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncTravelBtn();
     syncStepper();
     updateReadouts();
+    if (state.braid && braidEditor) braidEditor.render(Math.max(2, state.braid.n), state.braid.word);
     resize();
     retint();
     try { render(false, 0, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; }
