@@ -379,6 +379,13 @@ h2 {
 .explore-tools [hidden] { display: none !important; }
 .flat-map { width: 100%; height: auto; display: block; border: 1px solid var(--rule); border-radius: 8px; touch-action: pan-y; cursor: crosshair; }
 .flat-map:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+/* While drawing, a drag on the map draws instead of scrolling the sheet. */
+.flat-map[data-drawing="true"] { touch-action: none; }
+.map-draw { display: grid; gap: 6px; margin: 8px 0 4px; }
+.map-draw[hidden] { display: none !important; }
+.map-draw-status { margin: 0; font-size: 0.82rem; color: var(--muted); min-height: 1.3em; }
+.map-draw-actions { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.map-draw-actions button { min-height: 44px; justify-self: stretch; padding: 8px 6px; }
 .explore-tools .result { font-weight: 500; line-height: 1.55; }
 .lab-slope { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 4px 0 8px; }
 .lab-slope label { display: grid; gap: 4px; font-size: 0.82rem; color: var(--muted); }
@@ -450,6 +457,11 @@ h2 {
     border-top: 1px solid var(--rule);
   }
   .sheet-body .notes { padding-top: 8px; }
+  /* the readout above the model carries the drawing status on a phone */
+  .map-draw-status { display: none; }
+  /* Only the top part of the sheet is on screen when it is half open; this room at
+     the end lets every control be scrolled up into the visible part. */
+  .sheet-body::after { content: ''; display: block; height: var(--sheet-hidden, 0px); }
   .sheet-fab {
     position: fixed; z-index: 11;
     right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
@@ -702,9 +714,7 @@ h2 {
             <label for="labB">b: times around the tube <input type="number" id="labB" min="-6" max="6" value="3"></label>
           </div>
           <div class="lab-draw" id="labDraw" hidden>
-            <p class="note">Tap points on the flat map below. Each step takes the shortest way across the map, wrapping over its edges. Close the loop to cut along it; you can draw several. On the map, arrow keys move a cursor and Enter adds a point.</p>
-            <div class="actions"><button type="button" class="secondary" id="labClose">Close loop and cut</button><button type="button" class="link-btn" id="labUndo">Undo last point</button><button type="button" class="link-btn" id="labClear">Clear all loops</button></div>
-            <p class="note" id="labDrawStatus" aria-live="polite"></p>
+            <p class="note">Draw on the flat map below: drag a finger or the mouse to sketch a loop, or tap points. A loop closes and cuts itself when you finish near where you started, and ending near the start across an edge of the map counts, so one swipe across the map goes around the hole. Each piece takes the shortest way across the map's edges. You can draw several loops. On the map, arrow keys move a cursor and Enter adds a point.</p>
           </div>
           <div class="actions"><button type="button" class="secondary" id="labShow">Show this cut</button><button type="button" class="secondary" id="labReturn" hidden>Return to my construction</button></div>
           <div id="labReadout" hidden aria-live="polite">
@@ -718,6 +728,14 @@ h2 {
           <summary>Open the linked flat map</summary>
           <p class="note" id="mapHelp">Tap the map or the 3D surface to select the same point and stripe. On the map, arrow keys move the point; Escape clears it.</p>
           <canvas class="flat-map" id="flatMap" width="640" height="280" tabindex="0" role="img" aria-label="Flat map of the torus. Arrow keys move a selected point." aria-describedby="mapHelp mapNote"></canvas>
+          <div class="map-draw" id="mapDraw" hidden>
+            <p class="map-draw-status" id="labDrawStatus" aria-live="polite"></p>
+            <div class="map-draw-actions">
+              <button type="button" class="secondary" id="labClose">Close loop and cut</button>
+              <button type="button" class="secondary" id="labUndo" aria-label="Undo last point or loop">Undo</button>
+              <button type="button" class="secondary" id="labClear" aria-label="Clear all loops">Clear</button>
+            </div>
+          </div>
           <p class="note" id="mapNote" aria-live="polite"></p>
           <button type="button" class="link-btn" id="mapClear">Clear map point</button>
         </details>
@@ -1525,7 +1543,13 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncQuick();
   }
   function updateHud() {
-    if (labCut) { hud.textContent = (labModel && labModel.surface === 'klein' ? 'Klein bottle · ' : 'Cut explorer · ') + (labIsDraw() && labDraft.length ? 'drawing loop ' + (labLoops.length + 1) + ', ' + labDraft.length + (labDraft.length === 1 ? ' point' : ' points') : labModel ? labModel.text.result : ''); return; }
+    if (labCut) {
+      // on a phone the readout also carries the drawing status shown under the map elsewhere
+      const drawing = labIsDraw() && labDraft.length ? 'drawing loop ' + (labLoops.length + 1) + ', ' + labDraft.length + (labDraft.length === 1 ? ' point' : ' points') + ' · finish near the start to cut'
+        : labIsDraw() && !labLoops.length ? 'drag on the flat map to draw a loop' : '';
+      hud.textContent = (labModel && labModel.surface === 'klein' ? 'Klein bottle · ' : 'Cut explorer · ') + (drawing || (labModel ? labModel.text.result : ''));
+      return;
+    }
     if (!state.braid && state.cut !== state.cutTarget) {
       const cutting = state.cutTarget === 1;
       hud.textContent = (cutting ? 'Cutting paint boundaries' : 'Gluing paint boundaries') + ' · ' + Math.round(100*(cutting ? state.cut : 1-state.cut)) + '% · follow the moving tips';
@@ -3264,6 +3288,20 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     document.getElementById('cutLabDetails').open = true;
     mapDetails.open = true;
     revealModel();
+    if (labIsDraw()) { if (isPhone()) setSheet(sheet, false); revealInSheet(mapCanvas, document.getElementById('mapDraw')); }
+  }
+  // On a phone, scroll the sheet so these elements sit in its visible part (the sheet
+  // may still be sliding: positions are taken relative to the panel, whose on-screen
+  // top is fixed by its target size).
+  function revealInSheet(first, last = first) {
+    if (!isPhone() || !first) return;
+    const panel = panelEl.getBoundingClientRect(), a = first.getBoundingClientRect(), b = last.getBoundingClientRect();
+    const top = window.innerHeight - sheetVisible, visTop = top + sheetHead.offsetHeight + 6, visBottom = window.innerHeight - 10;
+    const elTop = top + (a.top - panel.top), elBottom = top + (b.bottom - panel.top);
+    let d = 0;
+    if (elBottom > visBottom) d = elBottom - visBottom;
+    if (elTop - d < visTop) d = elTop - visTop;
+    if (d) sheetBody.scrollTop += d;
   }
   const labRing = segments(2.4, { transparent: true, opacity: 0.9, depthTest: false });
   labRing.visible = false; labRing.renderOrder = 6;
@@ -3271,9 +3309,15 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const v = labSelect.value;
     document.getElementById('labSlope').hidden = v !== 'slope';
     document.getElementById('labDraw').hidden = !(v === 'draw' || v === 'k-draw');
+    // the drawing tools sit right under the map, where the drawing happens
+    document.getElementById('mapDraw').hidden = !labIsDraw();
+    mapCanvas.dataset.drawing = String(labIsDraw());
     const st = document.getElementById('labDrawStatus');
-    st.textContent = labDraft.length ? 'Loop ' + (labLoops.length + 1) + ': ' + plural(labDraft.length, 'point', 'points') + ' so far.' : labLoops.length ? plural(labLoops.length, 'loop', 'loops') + ' cut. Tap the map to start another.' : 'Tap the map to start a loop.';
+    st.textContent = labDraft.length ? 'Loop ' + (labLoops.length + 1) + ': ' + plural(labDraft.length, 'point', 'points') + '. Finish near the start, tap the first point, or Close.'
+      : labLoops.length ? plural(labLoops.length, 'loop', 'loops') + ' cut. Draw another, or Undo.' : 'Drag on the map to draw a loop, or tap points.';
     document.getElementById('labClose').disabled = labDraft.length < 2;
+    document.getElementById('labUndo').disabled = !labDraft.length && !labLoops.length;
+    document.getElementById('labClear').disabled = !labDraft.length && !labLoops.length;
   }
   function setLabSurface(name, rebuild = true) {
     if (!LAB_OPTIONS[name]) return;
@@ -3294,13 +3338,14 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     labDraft.push([Math.max(0, Math.min(1, u)), Math.max(0, Math.min(1, v))]);
     mapKey = ''; syncLabTools();
   }
-  document.getElementById('labClose').addEventListener('click', () => {
+  function closeDraftLoop() {
     if (labDraft.length < 2 || !labIsDraw()) return;
     const L = SL.loopPath(labSurfaceName, labDraft);
     labLoops.push(Object.assign({ pts: labDraft.slice() }, L)); labDraft = [];
     logOp('lab loop', { surface: labSurfaceName, a: L.a, b: L.b });
     setLabCut(labCut);
-  });
+  }
+  document.getElementById('labClose').addEventListener('click', closeDraftLoop);
   document.getElementById('labUndo').addEventListener('click', () => {
     if (labDraft.length) { labDraft.pop(); mapKey = ''; syncLabTools(); }
     else if (labLoops.length && labIsDraw()) { labDraft = labLoops.pop().pts.slice(0, -1); setLabCut(labCut); }
@@ -3321,15 +3366,56 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     controls.autoRotate = false; state.userMoved = true;
     mapKey = ''; revealModel();
   }
-  mapCanvas.addEventListener('pointerdown', e => { mapDown = {x:e.clientX,y:e.clientY}; });
-  mapCanvas.addEventListener('pointercancel', () => { mapDown = null; });
+  // Map coordinates of a pointer: [u, v] on the map plus the canvas position.
+  const mapAt = e => {
+    const r = mapCanvas.getBoundingClientRect(), x = (e.clientX - r.left) * 640 / r.width, y = (e.clientY - r.top) * 280 / r.height;
+    return { u: (x - mapRect.x) / mapRect.w, v: 1 - (y - mapRect.y) / mapRect.h, x, y };
+  };
+  const clamp01 = t => Math.max(0, Math.min(1, t));
+  // distance on the surface between two map points, in canvas units (across an edge counts)
+  const surfaceGap = (a, b) => { const q = SL.nearestCopy(labSurfaceName, a, b); return Math.hypot((q[0] - a[0]) * mapRect.w, (q[1] - a[1]) * mapRect.h); };
+  const CLOSE_GAP = 30, STROKE_STEP = 16;
+  // Drawing: a drag sketches the loop (one point every few pixels); lifting near the
+  // start closes it and cuts. A tap adds one point, or closes the loop when it lands
+  // on the first point. Outside drawing, a tap picks a point and a drag scrolls.
+  let mapStroke = null;
+  mapCanvas.addEventListener('pointerdown', e => {
+    mapDown = { x: e.clientX, y: e.clientY };
+    if (!(labCut && labIsDraw()) || (e.button != null && e.button !== 0)) return;
+    e.preventDefault();
+    try { mapCanvas.setPointerCapture?.(e.pointerId); } catch (_) {}
+    mapStroke = { id: e.pointerId, start: mapAt(e), drawing: false, added: 0 };
+  });
+  mapCanvas.addEventListener('pointermove', e => {
+    const st = mapStroke;
+    if (!st || e.pointerId !== st.id) return;
+    const at = mapAt(e);
+    if (!st.drawing) {
+      if (Math.hypot(e.clientX - mapDown.x, e.clientY - mapDown.y) < 8) return;
+      st.drawing = true; addDraftPoint(clamp01(st.start.u), clamp01(st.start.v)); st.added = 1; st.last = st.start;
+    }
+    if (Math.hypot(at.x - st.last.x, at.y - st.last.y) >= STROKE_STEP) { addDraftPoint(clamp01(at.u), clamp01(at.v)); st.added++; st.last = at; }
+  });
+  mapCanvas.addEventListener('pointercancel', () => { mapDown = null; mapStroke = null; });
   mapCanvas.addEventListener('pointerup', e => {
+    const st = mapStroke; mapStroke = null;
+    if (st && e.pointerId === st.id) {
+      const at = mapAt(e), p = [clamp01(at.u), clamp01(at.v)];
+      if (st.drawing) {
+        if (Math.hypot(at.x - st.last.x, at.y - st.last.y) >= 4) addDraftPoint(p[0], p[1]);
+        // finished near the start (on the surface, so across an edge counts): close
+        if (labDraft.length >= 3 && surfaceGap(labDraft[labDraft.length - 1], labDraft[0]) < CLOSE_GAP) closeDraftLoop();
+        else { mapKey = ''; syncLabTools(); }
+      } else if (labDraft.length >= 3 && surfaceGap(p, labDraft[0]) < CLOSE_GAP) closeDraftLoop();
+      else if (at.u >= -0.02 && at.u <= 1.02 && at.v >= -0.02 && at.v <= 1.02) addDraftPoint(p[0], p[1]);
+      mapDown = null;
+      return;
+    }
     if (!mapDown) return;
     const d = Math.hypot(e.clientX-mapDown.x,e.clientY-mapDown.y); mapDown = null;
     if (d > 8) return; // preserve the sheet's vertical scrolling
-    const r = mapCanvas.getBoundingClientRect(), x = (e.clientX-r.left)*640/r.width, y = (e.clientY-r.top)*280/r.height;
-    const u = (x-mapRect.x)/mapRect.w, v = 1-(y-mapRect.y)/mapRect.h;
-    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) { if (labIsDraw()) addDraftPoint(u, v); else chooseMapPoint(u,v); }
+    const { u, v } = mapAt(e);
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) chooseMapPoint(u, v);
   });
   mapCanvas.addEventListener('keydown', e => {
     if (e.key === 'Escape') { if (labIsDraw() && labDraft.length) { labDraft = []; mapKey = ''; syncLabTools(); } else clearSelection(); return; }
@@ -3611,11 +3697,21 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const vh = window.innerHeight, ph = panelEl.getBoundingClientRect().height || vh * 0.9;
     const safe = parseFloat(getComputedStyle(sheetBody).paddingBottom) - 28 || 0;
     const peek = Math.min(ph, sheetHead.offsetHeight + Math.max(0, safe));
-    return { hidden: 0, peek, half: Math.max(peek, Math.min(ph, vh * (isSide() ? 0.62 : 0.5))), full: ph };
+    let half = vh * (isSide() ? 0.62 : 0.5);
+    // While drawing loops, half open is tall enough for the flat map and its tools
+    // together (up to 72% of the screen; a side sheet, which covers no model, may go
+    // to full height).
+    if (labCut && labIsDraw()) {
+      const need = sheetHead.offsetHeight + mapCanvas.offsetHeight + document.getElementById('mapDraw').offsetHeight + 40;
+      half = Math.max(half, Math.min(isSide() ? ph : vh * 0.72, need));
+    }
+    return { hidden: 0, peek, half: Math.max(peek, Math.min(ph, half)), full: ph };
   }
   function applySheet(px) {
     sheetVisible = px;
     panelEl.style.setProperty('--sheet-visible', px + 'px');
+    // the part of the sheet below the screen, kept as room at the end of its content
+    panelEl.style.setProperty('--sheet-hidden', Math.max(0, Math.round((panelEl.getBoundingClientRect().height || 0) - px)) + 'px');
   }
   function setSheet(name, save = true) {
     sheet = name;
@@ -3637,7 +3733,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       setSheet(sheet, false);
     } else {
       if (notesEl.parentElement !== labEl.parentElement) labEl.after(notesEl);
-      panelEl.style.removeProperty('--sheet-visible');
+      panelEl.style.removeProperty('--sheet-visible'); panelEl.style.removeProperty('--sheet-hidden');
       panelEl.removeAttribute('aria-hidden'); panelEl.inert = false;
       sheetFab.hidden = true; sheetVisible = 0;
       syncMobileTools();
