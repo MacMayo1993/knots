@@ -527,7 +527,7 @@ h2 {
           </div>
         </div>
       </div>
-      <p class="hint">Drag to rotate · scroll or pinch to zoom · tap a strip to follow it</p>
+      <p class="hint" id="stageHint">Drag to rotate · scroll or pinch to zoom · tap a strip to follow it</p>
     </div>
 
     <aside class="panel" id="panel" aria-label="Controls">
@@ -2419,6 +2419,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (pullDrag) endPull(true);
     pullMode = false; pullMarker.visible = pullGuide.visible = false;
     controls.enabled = true; canvas.style.cursor = '';
+    document.getElementById('stageHint').textContent = 'Drag to rotate · scroll or pinch to zoom · tap a strip to follow it';
     canvas.setAttribute('aria-label', '3D model. Drag or use the arrow keys to rotate, tap a strip to follow it, press Escape to clear.');
   }
   function enterPull(component = -1) {
@@ -2430,6 +2431,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     pullMode = true; relax.paused = true; relax.dirty = true;
     controls.autoRotate = false; controls.enabled = false;
     canvas.style.cursor = 'crosshair';
+    document.getElementById('stageHint').textContent = 'Drag the rope · choose Rope to rotate · Esc cancels a pull';
     canvas.setAttribute('aria-label', 'Pull rope: drag a section or loop. Escape cancels a drag. Choose Rope to rotate and zoom.');
     const picker = document.getElementById('pullComponent'); picker.textContent = '';
     for (let i = -1; i < relax.S.len.length; i++) {
@@ -2493,7 +2495,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     pullSelected = vertex; relax.done = false;
     canvas.focus({ preventScroll: true });
     canvas.setPointerCapture?.(e.pointerId); canvas.style.cursor = 'grabbing';
-    syncPullControls('Pulling component ' + (relax.S.comp[vertex] + 1) + ' · release to hold.');
+    syncPullControls('Pulling component ' + (relax.S.comp[vertex] + 1) + (relax.paused ? ' · release to hold.' : ' · tightening stays on.'));
   }
   function movePull(e) {
     if (!pullDrag || e.pointerId !== pullDrag.id) return;
@@ -2516,7 +2518,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     }
     if (canvas.hasPointerCapture?.(drag.id)) canvas.releasePointerCapture(drag.id);
     pullGuide.visible = false; canvas.style.cursor = pullMode ? 'crosshair' : '';
-    syncPullControls(cancel ? 'Pull cancelled. Shape restored.' : relax.blocked ? 'Collision limit reached. Undo or Reset to try another pull.' : 'Pulled component ' + (relax.S.comp[drag.handle.vertex] + 1) + '. Tighten to keep shaping.');
+    syncPullControls(cancel ? 'Pull cancelled. Shape restored.' : relax.blocked ? 'Collision limit reached. Undo or Reset to try another pull.' : 'Pulled component ' + (relax.S.comp[drag.handle.vertex] + 1) + (relax.paused ? '. Tighten to keep shaping.' : '. Tightening continues; Pause holds the shape.'));
   }
   canvas.addEventListener('pointerdown', beginPull, true);
   canvas.addEventListener('pointermove', movePull);
