@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Half-Twisted Torus</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Torus">
+<meta name="theme-color" content="#e2e7ed" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141920" media="(prefers-color-scheme: dark)">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -308,7 +317,82 @@ h2 {
 .exact-actions { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 .exact-status { font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
 
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+/* Sheet parts: only used in the phone layout */
+.sheet-head, .sheet-fab { display: none; }
+.sheet-body { display: grid; gap: 20px; min-width: 0; }
+
+/* Phone: the model fills the screen and the panel becomes a bottom sheet */
+@media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body { padding: 0; }
+  .wrap { display: block; max-width: none; padding: 0; }
+  .head { display: none; }
+  .lab { display: block; }
+  .stage {
+    position: fixed; inset: 0; aspect-ratio: auto; max-width: none;
+    border: 0; border-radius: 0;
+  }
+  .hud {
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: calc(env(safe-area-inset-left, 0px) + 10px);
+    max-width: calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    font-size: 0.74rem;
+  }
+  .hint { display: none; }
+  .panel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    height: 90dvh; display: flex; flex-direction: column; gap: 0; padding: 0;
+    border-radius: 18px 18px 0 0; border-bottom: 0;
+    box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.16);
+    transform: translateY(calc(100% - var(--sheet-visible, 140px)));
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: transform;
+  }
+  .panel.dragging { transition: none; }
+  .sheet-head {
+    display: block; flex: none; touch-action: none; cursor: grab; user-select: none;
+    padding: 6px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+  }
+  .sheet-grip { width: 40px; height: 5px; border-radius: 3px; background: var(--rule); margin: 2px auto 6px; }
+  .sheet-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .sheet-title { font-family: var(--f-display); font-weight: 600; font-size: 1rem; }
+  .sheet-tools { display: flex; gap: 2px; }
+  .icon-btn {
+    display: grid; place-items: center; width: 40px; height: 40px; padding: 0;
+    border: 0; border-radius: 10px; background: transparent; color: var(--ink); cursor: pointer;
+  }
+  .icon-btn:active { background: var(--bg); }
+  .quick { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .quick .step { min-width: 46px; min-height: 42px; font-size: 1.1rem; }
+  .q-value { flex: 1; min-width: 0; text-align: center; font-family: var(--f-mono); font-size: 0.95rem; }
+  .q-word { flex: 1; min-width: 0; font-family: var(--f-mono); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .quick .secondary { min-height: 42px; }
+  .panel[data-mode="braid"] .quick.torus-only, .panel:not([data-mode="braid"]) .quick.braid-only { display: none; }
+  .sheet-body {
+    flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    border-top: 1px solid var(--rule);
+  }
+  .sheet-body .notes { padding-top: 8px; }
+  .sheet-fab {
+    position: fixed; z-index: 11;
+    right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    display: flex; align-items: center; gap: 6px;
+    font: 600 0.9rem/1 var(--f-body); padding: 12px 16px; border-radius: 999px;
+    border: 1px solid var(--rule); background: var(--panel); color: var(--ink);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18); cursor: pointer;
+  }
+  .sheet-fab[hidden] { display: none; }
+}
+/* Phone on its side: the sheet sits on the right instead of across the bottom */
+@media (max-height: 520px) and (pointer: coarse) and (orientation: landscape) {
+  .panel { left: auto; width: min(400px, 48vw); height: calc(100dvh - 8px); border-radius: 18px 0 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto; }
+  .panel { transition: none !important; }
+}
 </style>
 </head>
 <body>
@@ -326,7 +410,29 @@ h2 {
       <p class="hint">Drag to rotate · scroll or pinch to zoom · tap a strip to follow it</p>
     </div>
 
-    <aside class="panel" id="panel">
+    <aside class="panel" id="panel" aria-label="Controls">
+      <div class="sheet-head" id="sheetHead">
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <div class="sheet-top">
+          <span class="sheet-title">Half-Twisted Torus</span>
+          <div class="sheet-tools">
+            <button type="button" class="icon-btn" id="fsBtn" aria-label="Full screen" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+            <button type="button" class="icon-btn" id="sheetSize" aria-label="Show more controls" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
+            <button type="button" class="icon-btn" id="sheetHide" aria-label="Hide controls"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19h14"/></svg></button>
+          </div>
+        </div>
+        <div class="quick torus-only">
+          <button type="button" class="step" id="q-minus" aria-label="Subtract a step of twist">−</button>
+          <output class="q-value" id="q-twist" aria-live="polite">½ turn</output>
+          <button type="button" class="step" id="q-plus" aria-label="Add a step of twist">+</button>
+          <button type="button" class="secondary" id="q-cut">Cut</button>
+        </div>
+        <div class="quick braid-only">
+          <span class="q-word" id="q-word"></span>
+          <button type="button" class="secondary" id="q-edit">Edit</button>
+        </div>
+      </div>
+      <div class="sheet-body" id="sheetBody">
       <fieldset>
         <legend>Model</legend>
         <div class="seg" id="modeSeg">
@@ -506,7 +612,9 @@ h2 {
           </div>
         </dl>
       </div>
+      </div>
     </aside>
+    <button type="button" class="sheet-fab" id="sheetShow" aria-label="Show controls" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg><span>Controls</span></button>
   </section>
 
   <section class="notes">
@@ -1102,6 +1210,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       : 'A plain band: two sides and two edges.';
     updateCutReadout();
     updateExact();
+    syncQuick();
   }
   function updateHud() {
     if (sel !== null) {
@@ -1267,7 +1376,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       li.tabIndex = 0; li.setAttribute('role', 'button');
       li.setAttribute('aria-pressed', String(sel === i));
       li.title = 'Show this ' + (state.braid ? 'component' : 'strip') + '\'s route, centerline and edge';
-      const pick = () => select(sel === i ? null : i);
+      const pick = () => { select(sel === i ? null : i); revealModel(); };
       li.addEventListener('click', pick);
       li.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
       list.appendChild(li);
@@ -1430,6 +1539,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (reduceMotion) { state.cut = state.cutTarget; updatePositions(); }
     cutBtn.textContent = on ? 'Glue it back' : 'Cut along the color lines';
     updateCutColors();
+    syncQuick();
   }
   function uncut() { if (state.cut || state.cutTarget) { state.cut = 0; setCut(false); updatePositions(); } }
   cutBtn.addEventListener('click', () => {
@@ -1449,6 +1559,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     minusBtn.setAttribute('aria-label', 'Subtract ' + step + ' turn');
     plusBtn.setAttribute('aria-label', 'Add ' + step + ' turn');
     document.getElementById('twist-value').textContent = twistLabel(state.twistTo);
+    syncQuick();
   }
   function twistTo(target) {
     uncut(); clearSelection();
@@ -1575,9 +1686,13 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const controls = new OrbitControls(camera, canvas);
   controls.enablePan = false;
   controls.enableDamping = !reduceMotion;
-  controls.minDistance = 3.6; controls.maxDistance = 11;
+  controls.minDistance = 3.6; controls.maxDistance = 18;
   controls.autoRotate = !reduceMotion; controls.autoRotateSpeed = 1.1;
-  controls.addEventListener('start', () => { state.userMoved = true; controls.autoRotate = false; });
+  // a drag stops the slow spin; a zoom also stops the phone layout's automatic fit
+  let zoomFrom = 0, userZoomed = false;
+  const camDist = () => camera.position.distanceTo(controls.target);
+  controls.addEventListener('start', () => { state.userMoved = true; controls.autoRotate = false; zoomFrom = camDist(); });
+  controls.addEventListener('end', () => { setTimeout(() => { if (Math.abs(camDist() - zoomFrom) > 0.03 * zoomFrom) userZoomed = true; }, 250); });
 
   // the surface
   const surfMat = new THREE.MeshStandardMaterial({
@@ -1850,7 +1965,155 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       traveler.visible = travelerRing.visible = true;
     } else { trailLine.visible = false; traveler.visible = travelerRing.visible = false; }
     controls.update();
+    updateViewShift();
     renderer.render(scene, camera);
+  }
+
+  // ---------- phone layout: full-screen model with a bottom sheet ----------
+  // On a phone the panel is a sheet with four sizes: hidden, peek (the quick bar),
+  // half and full. Drag its head, tap it, or use its buttons. The model is shifted
+  // up so it stays centered in the part of the screen the sheet leaves free.
+  const phoneMQ = window.matchMedia('(max-width: 760px), (max-height: 520px) and (pointer: coarse)');
+  const sheetHead = document.getElementById('sheetHead'), sheetBody = document.getElementById('sheetBody');
+  const sheetFab = document.getElementById('sheetShow'), sizeBtn = document.getElementById('sheetSize');
+  const notesEl = document.querySelector('.notes'), labEl = document.querySelector('.lab');
+  const SHEET_KEY = 'half-twisted-torus-sheet';
+  let sheet = 'peek';
+  try { const v = localStorage.getItem(SHEET_KEY); if (['hidden', 'peek', 'half', 'full'].includes(v)) sheet = v; } catch (_) {}
+  let sheetVisible = 0, viewShift = 0;   // px of sheet on screen; current camera shift
+  const isPhone = () => phoneMQ.matches;
+  const sideMQ = window.matchMedia('(max-height: 520px) and (pointer: coarse) and (orientation: landscape)');
+  const isSide = () => sideMQ.matches;
+  function sheetHeights() {
+    const vh = window.innerHeight, ph = panelEl.getBoundingClientRect().height || vh * 0.9;
+    const safe = parseFloat(getComputedStyle(sheetBody).paddingBottom) - 28 || 0;
+    const peek = Math.min(ph, sheetHead.offsetHeight + Math.max(0, safe));
+    return { hidden: 0, peek, half: Math.max(peek, Math.min(ph, vh * (isSide() ? 0.62 : 0.5))), full: ph };
+  }
+  function applySheet(px) {
+    sheetVisible = px;
+    panelEl.style.setProperty('--sheet-visible', px + 'px');
+  }
+  function setSheet(name, save = true) {
+    sheet = name;
+    if (!isPhone()) return;
+    applySheet(sheetHeights()[name]);
+    panelEl.setAttribute('aria-hidden', String(name === 'hidden'));
+    panelEl.inert = name === 'hidden';
+    sheetFab.hidden = name !== 'hidden';
+    const up = name === 'peek' || name === 'hidden';
+    sizeBtn.setAttribute('aria-expanded', String(!up));
+    sizeBtn.setAttribute('aria-label', up ? 'Show more controls' : 'Show fewer controls');
+    sizeBtn.firstElementChild.style.transform = up ? '' : 'rotate(180deg)';
+    if (save) try { localStorage.setItem(SHEET_KEY, name); } catch (_) {}
+  }
+  function layoutForDevice() {
+    if (isPhone()) {
+      if (notesEl.parentElement !== sheetBody) sheetBody.appendChild(notesEl);
+      setSheet(sheet, false);
+    } else {
+      if (notesEl.parentElement !== labEl.parentElement) labEl.after(notesEl);
+      panelEl.style.removeProperty('--sheet-visible');
+      panelEl.removeAttribute('aria-hidden'); panelEl.inert = false;
+      sheetFab.hidden = true; sheetVisible = 0;
+    }
+  }
+  if (phoneMQ.addEventListener) phoneMQ.addEventListener('change', layoutForDevice);
+  window.addEventListener('resize', () => { if (isPhone()) setSheet(sheet, false); });
+
+  sizeBtn.addEventListener('click', () => setSheet(sheet === 'peek' || sheet === 'hidden' ? 'half' : sheet === 'half' ? 'full' : 'peek'));
+  document.getElementById('sheetHide').addEventListener('click', () => setSheet('hidden'));
+  sheetFab.addEventListener('click', () => setSheet('peek'));
+  // drag the head; a tap on it toggles peek and half
+  let drag = null;
+  sheetHead.addEventListener('pointerdown', e => {
+    if (!isPhone() || e.target.closest('button, input, output')) return;
+    drag = { y: e.clientY, t: performance.now(), start: sheetVisible, moved: false, last: e.clientY, lt: performance.now(), v: 0 };
+    panelEl.classList.add('dragging');
+    try { sheetHead.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  sheetHead.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dy = e.clientY - drag.y;
+    if (Math.abs(dy) > 4) drag.moved = true;
+    const now = performance.now();
+    drag.v = (e.clientY - drag.last) / Math.max(1, now - drag.lt); drag.last = e.clientY; drag.lt = now;
+    applySheet(Math.max(0, Math.min(sheetHeights().full, drag.start - dy)));
+  });
+  const endSheetDrag = () => {
+    if (!drag) return;
+    panelEl.classList.remove('dragging');
+    const d = drag; drag = null;
+    if (!d.moved) { setSheet(sheet === 'half' ? 'peek' : 'half'); return; }
+    const h = sheetHeights(), order = ['peek', 'half', 'full'];
+    let name = order.reduce((best, k) => Math.abs(h[k] - sheetVisible) < Math.abs(h[best] - sheetVisible) ? k : best, 'peek');
+    const i = order.indexOf(name);
+    if (d.v < -0.6 && sheetVisible > d.start) name = order[Math.min(2, Math.max(i, order.indexOf(sheet) + 1))];   // flick up
+    if (d.v > 0.6 && sheetVisible < d.start) name = order[Math.max(0, Math.min(i, order.indexOf(sheet) - 1))];    // flick down
+    if (sheetVisible < h.peek * 0.55) name = 'hidden';
+    setSheet(name);
+  };
+  sheetHead.addEventListener('pointerup', endSheetDrag);
+  sheetHead.addEventListener('pointercancel', endSheetDrag);
+
+  // quick bar: shortcuts to the panel's own controls
+  document.getElementById('q-minus').addEventListener('click', () => minusBtn.click());
+  document.getElementById('q-plus').addEventListener('click', () => plusBtn.click());
+  document.getElementById('q-cut').addEventListener('click', () => cutBtn.click());
+  document.getElementById('q-edit').addEventListener('click', () => {
+    setSheet('half');
+    setTimeout(() => { braidInput.focus(); braidInput.select(); }, 300);
+  });
+  function syncQuick() {
+    const set = (id, t) => { const el = document.getElementById(id); if (el.textContent !== t) el.textContent = t; };
+    set('q-twist', twistLabel(state.twistTo));
+    const step = fracText(stepFor(shapeOf())).txt;
+    document.getElementById('q-minus').setAttribute('aria-label', 'Subtract ' + step + ' turn');
+    document.getElementById('q-plus').setAttribute('aria-label', 'Add ' + step + ' turn');
+    const qc = document.getElementById('q-cut');
+    set('q-cut', state.cutTarget ? 'Glue' : 'Cut');
+    qc.disabled = cutBtn.disabled;
+    set('q-word', state.braid ? (state.braid.word.length ? KM.wordText(state.braid.word) : 'identity') + ' · ' + state.braid.n + ' strands' : '');
+  }
+  // following a strip from the list: make room to see it
+  function revealModel() { if (isPhone() && sheet === 'full') setSheet('half'); }
+
+  // full screen, where the browser allows it (an installed home-screen app is full screen already)
+  const fsBtn = document.getElementById('fsBtn');
+  if (document.fullscreenEnabled && document.documentElement.requestFullscreen) {
+    fsBtn.hidden = false;
+    fsBtn.addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    });
+    document.addEventListener('fullscreenchange', () => fsBtn.setAttribute('aria-label', document.fullscreenElement ? 'Leave full screen' : 'Full screen'));
+  }
+  // Keep the model centered in the part of the screen the sheet leaves free, and on a
+  // phone, until the viewer zooms, pull the camera back so the whole torus fits.
+  let viewShiftX = 0;
+  const MODEL_RADIUS = 2.35;   // R plus the widest cross-section, with a little room
+  // Distance at which the model fits a free area of w x h px. The field of view spans
+  // the full screen height H (the view offset only slides the picture), so a free
+  // area of w x h sees tan(fov/2) * w/H sideways and tan(fov/2) * h/H vertically.
+  function fitDistance(w, h) {
+    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    return MODEL_RADIUS / (t * Math.max(0.15, Math.min(w, h) / H)) * 1.04;
+  }
+  function updateViewShift() {
+    const ease = reduceMotion ? 1 : 0.18;
+    let tx = 0, ty = 0, freeW = W, freeH = H;
+    if (isPhone()) {
+      if (isSide()) {
+        if (sheetVisible > 1) { const pw = panelEl.getBoundingClientRect().width; tx = pw / 2; freeW = W - pw; }
+      } else { const cover = Math.min(sheetVisible, H * 0.6); ty = cover / 2; freeH = H - cover; }
+      if (!userZoomed) {
+        const off = camera.position.clone().sub(controls.target), d = off.length(), want = fitDistance(freeW, freeH);
+        if (Math.abs(want - d) > 0.01) camera.position.copy(controls.target).add(off.setLength(d + (want - d) * ease));
+      }
+    }
+    viewShiftX += (tx - viewShiftX) * ease; if (Math.abs(tx - viewShiftX) < 0.5) viewShiftX = tx;
+    viewShift += (ty - viewShift) * ease; if (Math.abs(ty - viewShift) < 0.5) viewShift = ty;
+    if (viewShift || viewShiftX) camera.setViewOffset(W, H, viewShiftX, viewShift, W, H); else camera.clearViewOffset();
   }
 
   // ---------- loop ----------
@@ -1911,6 +2174,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
 
   function start() {
+    layoutForDevice();
     readHash();
     loadPaint();
     applyPaint();
