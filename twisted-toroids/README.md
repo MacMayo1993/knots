@@ -273,3 +273,38 @@ Run `node test/appearance.test.cjs` for preference validation, legacy paint migr
 The menus include **Random toroid** (a different shape with a compatible twist), **Shuffle twist** (keep the shape), and **Random braid** with Simple (2–3 strands, 3–7 crossings), Varied (3–5 strands, 8–12 crossings), and Intricate (4–6 strands, 13–18 crossings) options. A dice button beside the phone shape selector runs Random toroid without opening the sheet. Toroid draws match both the cross-section and paint at the seam, use at most two turns either way and 48 braid crossings, and start uncut. Braid draws use every adjacent strand pair and avoid consecutive inverse crossings; they can still represent knots, links, or unknots, and are exploratory samples rather than uniform samples of knot types. Braid Undo/Redo includes random draws. **Random palette** selects another palette and clears custom paint/component overrides while retaining the background, finish, ribbon width, and construction.
 
 **Surface** now constructs the Seifert surface in real time: first every crossing is smoothed, so the knot fades while one Seifert circle per strand draws itself; then each disk fills its circle; then the signed half-twisted bands attach in braid-word order; finally the knot/link boundary is traced in component colors. Disks are shaded by height so the stack reads in depth. The disk or band being built is lit, and while a band attaches, the disks above it turn see-through so it stays visible. The on-screen Surface controls include Pause/Play, Replay, Finish, and a scrub slider; on a phone the readout above them names the stage. Scrubbing pauses the build; Play continues from that stage. Palette/finish changes preserve progress; editing the braid restarts its construction and leaving Surface cancels it. Reduced-motion mode opens the completed surface, with Replay available on request. The animation reveals prefixes of the existing, consistently oriented triangle mesh, without deforming its vertices or changing topology calculations. Numerical invariants and STL exports always describe the completed surface; picture exports capture the current stage.
+
+
+## Sailor’s Knot Book
+
+Open `sailor.html` from the title screen, pause menu, or Explore. The book has
+original 3D threading diagrams for the bowline, figure-eight stopper, clove hitch,
+Carrick bend, and anchor hitch. Each has a practical reference link, numbered
+steps, reversible scrubbing, playback speed, orbit/pinch controls, a face-on view,
+and local bookmarks. Links such as `sailor.html#carrick-bend` open an entry directly.
+The lab’s current experiment is remembered when entering from Explore or Pause.
+
+The book uses a shaded Canvas2D projection of tube geometry, so it works without
+WebGL. It renders on demand when idle, caps device pixel ratio at 2, stops playback
+when hidden, and supports keyboard orbit, keyboard sliders, and reduced motion
+(no automatic playback). Storage failures do not prevent use.
+
+These are spaced **threading diagrams**, not rope mechanics. The working end
+progressively traces an authored path; opening the crossings expands its spacing.
+Tension, friction, dressing, strength, and load capacity are not simulated. The
+Carrick bend is its flat mat form; a round bar represents the anchor attachment.
+
+**Rewind to torus** first reverses the threading diagram, removes any support,
+then draws a new open (2, 3) toroidal winding. Its endpoint gap stays visible.
+The Carrick's two ropes remain separate. This is deliberately not presented as
+an isotopy of a closed knot: a practical knot's loose ends and attachment must be
+specified before assigning a closed-knot type. In particular, the figure-eight
+stopper is not mislabeled as a torus knot. “Explore closed braids” opens a separate
+three-crossing braid example in the lab.
+
+`node test/sailor.test.cjs` checks rope/post clearance, the figure-eight's
+alternating four-crossing Gauss diagram, the Carrick's eight-crossing weave,
+reversible routes, and component counts. `node test/sailor-browser.test.cjs`
+checks actual rendering with WebGL disabled, playback, bookmarks, keyboard and
+pointer cancellation, hash navigation, blocked storage, and layouts from 320 px
+to desktop. Both run in CI alongside the existing lab checks.

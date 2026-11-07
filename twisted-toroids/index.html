@@ -727,6 +727,7 @@ h2 {
 
       <fieldset class="explore-tools" data-tab="explore">
         <legend>Explore</legend>
+        <a class="sailor-explore-link" href="sailor.html" id="sailorBookLink"><span aria-hidden="true">⚓</span><span><strong>Sailor’s Knot Book</strong><small>Five boating knots. Follow the rope, then rewind to a torus.</small></span><span aria-hidden="true">↗</span></a>
         <details id="cutLabDetails">
           <summary>Try different cuts</summary>
           <p class="note">A separate surface for comparing cuts: a round torus, or a Klein bottle. Your painted construction is kept when you return.</p>
@@ -1005,6 +1006,7 @@ h2 {
 <script src="relax.js"></script>
 <script src="braid-studio.js"></script>
 <script src="explore.js"></script>
+<script>document.getElementById('sailorBookLink').addEventListener('click',function(){try{sessionStorage.setItem('twisted-toroids-book-return',location.href);}catch(_){}});</script>
 <script src="game.js"></script>
 <script src="game-ui.js"></script>
 <script src="cut-animation.js"></script>

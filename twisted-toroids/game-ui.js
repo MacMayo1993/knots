@@ -292,6 +292,7 @@
         '<button type="button" class="gm-tile" id="gmTrophies"><span aria-hidden="true">🏆</span>Trophies</button>' +
         '<button type="button" class="gm-tile" id="gmStyle"><span aria-hidden="true">🎨</span>Style</button>' +
         '<button type="button" class="gm-tile" id="gmLearn"><span aria-hidden="true">📖</span>How it works</button></div>' +
+        '<a class="gm-row sailor-book-link" href="sailor.html"><span class="gm-ico" aria-hidden="true">⚓</span><span>Sailor’s Knot Book</span><span aria-hidden="true">↗</span></a>' +
         (fsOK() ? '<button type="button" class="gm-row" id="gmFull"><span class="gm-ico" aria-hidden="true">⛶</span><span>' + (doc.fullscreenElement ? 'Leave full screen' : 'Full screen') + '</span></button>' : '') +
         sw('gmSound', 'Sound effects', state.settings.sound, '🔊') +
         (canBuzz ? sw('gmHaptics', 'Vibration', state.settings.haptics, '📳') : '') +
@@ -303,6 +304,8 @@
       on('gmTrophies', () => { menu.close(); openTrophies('badges'); });
       on('gmStyle', () => { menu.close(); hooks.openTab && hooks.openTab('style'); });
       on('gmLearn', () => { menu.close(); hooks.openTab && hooks.openTab('data'); });
+      const bookLink = menu.querySelector('.sailor-book-link');
+      if (bookLink) bookLink.addEventListener('click', () => { try { root.sessionStorage.setItem('twisted-toroids-book-return', root.location.href); } catch (_) {} });
       on('gmFull', () => { if (doc.fullscreenElement) doc.exitFullscreen().catch(() => {}); else goFull(); menu.close(); });
       on('gmSound', () => { state.settings.sound = !state.settings.sound; save(); renderMenu(); if (state.settings.sound) SFX.badge(); });
       on('gmHaptics', () => { state.settings.haptics = !state.settings.haptics; save(); renderMenu(); buzz(HAPTIC.badge); });
@@ -347,6 +350,7 @@
         '<div class="ts-actions"><button type="button" class="game-btn game-btn-go ts-play" id="tsPlay">' + ICON.play + '<span>' + (started ? 'Continue' : 'Play') + '</span></button>' +
         '<div class="ts-row"><button type="button" class="game-btn game-btn-alt" id="tsQuests"><span aria-hidden="true">🎯</span><span>Quests</span></button>' +
         '<button type="button" class="game-btn game-btn-alt" id="tsBraid"><span aria-hidden="true">🧶</span><span>Braid lab</span></button></div></div>' +
+        '<a class="ts-book-link" href="sailor.html">⚓ Sailor’s Knot Book <span aria-hidden="true">↗</span></a>' +
         '<div class="ts-toggles"><button type="button" class="ts-toggle" id="tsSound" aria-pressed="' + state.settings.sound + '">' + (state.settings.sound ? '🔊' : '🔈') + ' Sound</button>' +
         (canBuzz ? '<button type="button" class="ts-toggle" id="tsHaptics" aria-pressed="' + state.settings.haptics + '">📳 Vibration</button>' : '') + '</div>' +
         (coarse() && fsOK() ? '<p class="ts-foot">Play opens full screen. Hold your phone upright.</p>' : '<p class="ts-foot">Drag to spin the model. Every knot you make joins your collection.</p>') + '</div>';

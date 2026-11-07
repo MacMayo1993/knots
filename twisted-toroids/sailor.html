@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173b42"><meta name="description" content="A hands-on field guide to five boating knots. Follow each working end, rotate the rope, and rewind it into an open toroidal winding.">
+<title>Sailor’s Knot Book · Twisted Toroids</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="sailor.css">
+<script defer src="sailor-data.js"></script><script defer src="sailor-view.js"></script><script defer src="sailor.js"></script>
+</head>
+<body>
+<a class="skip" href="#workspace">Skip to knot viewer</a>
+<header class="masthead"><a class="back" id="backToLab" href="index.html"><span aria-hidden="true">←</span> Twisted Toroids</a><span class="edition">THE ROPE SERIES <span aria-hidden="true">/</span> VOL. 01</span></header>
+<main>
+<section class="intro"><div><p class="eyebrow"><span class="compass" aria-hidden="true">✳</span> AN INTERACTIVE FIELD GUIDE</p><h1>Sailor’s <em>Knot Book</em></h1><p>From a loose end to a familiar knot.<br class="mobile-break"> Follow the rope. Then follow your curiosity.</p></div><div class="book-stamp" aria-hidden="true"><span>05</span>ESSENTIAL<br>BOATING KNOTS</div></section>
+<nav class="shelf" aria-label="Choose a boating knot" id="knotShelf"></nav>
+<section class="workspace" id="workspace" aria-labelledby="knotName">
+  <div class="workspace-head"><div><p class="eyebrow" id="knotKind">01 / LOOP</p><h2 id="knotName">Bowline</h2><p id="knotSummary"></p></div><button id="bookmark" class="bookmark" aria-pressed="false" aria-label="Bookmark Bowline"><span aria-hidden="true">☆</span><span class="bookmark-label">Bookmark</span></button></div>
+  <div class="work-grid">
+    <div class="visual-column">
+      <div class="modes" role="tablist" aria-label="Knot view"><button id="tieMode" role="tab" aria-selected="true" aria-controls="viewerPanel">Tie the knot</button><button id="torusMode" role="tab" aria-selected="false" aria-controls="viewerPanel" tabindex="-1">Rewind to torus <span aria-hidden="true">→</span></button></div>
+      <div class="viewer" id="viewerPanel" role="tabpanel" aria-labelledby="tieMode">
+        <div class="viewer-top"><span class="live-label" id="viewLabel">TYING DIAGRAM</span><span id="ropeCount">1 ROPE · 2 FREE ENDS</span></div>
+        <canvas id="ropeCanvas" tabindex="0" role="img" aria-label="Rotatable 3D bowline diagram" aria-describedby="canvasHelp"></canvas>
+        <div class="view-tools"><button id="frontView" title="Face-on view">Face-on</button><button id="resetView" title="Reset rotation and zoom">Reset view</button></div>
+        <p class="gesture" id="canvasHelp">Drag to rotate · pinch to zoom <span class="keyboard-help">· arrow keys to rotate</span></p>
+        <div class="legend"><span><i class="standing"></i>S standing end</span><span><i class="working"></i>E working end</span></div>
+      </div>
+      <div class="transport">
+        <div class="playback"><button id="previous" class="round" aria-label="Previous step">←</button><button id="play" class="play"><span aria-hidden="true">▷</span> <span id="playLabel">Watch it tie</span></button><button id="next" class="round" aria-label="Next step">→</button><label class="speed"><span class="sr-only">Playback speed</span><select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option></select></label></div>
+        <label class="timeline-label" for="timeline"><span id="progressLabel">Finished knot</span><span id="progressCount">6 / 6</span></label><input id="timeline" type="range" min="0" max="500" value="500" step="1" aria-label="Tying progress">
+        <div class="spacing"><label for="spacing">Open the crossings</label><input id="spacing" type="range" min="100" max="125" value="100" step="1"><output for="spacing" id="spacingValue">1×</output></div>
+      </div>
+    </div>
+    <aside class="instruction-column">
+      <div id="tyingNotes"><div class="instruction-heading"><span class="eyebrow">FOLLOW THE WORKING END</span><button class="text-button" id="restart">Start over ↺</button></div><ol class="steps" id="steps"></ol><p class="diagram-note">A spaced threading diagram: the tip traces each route. Rope tension and dressing are not simulated.</p></div>
+      <div id="torusNotes" hidden><p class="eyebrow">FROM ROPE TO GEOMETRY</p><h3>A different kind of loop.</h3><p>First, retrace the knot and free its ends. Then wind the open rope around a transparent torus.</p><ol class="torus-stages"><li id="phaseUnthread">01 <span>Unthread the knot</span></li><li id="phaseFree">02 <span>Free the rope & remove support</span></li><li id="phaseWind">03 <span>Wind around the torus</span></li></ol><div class="math-note"><strong>The ends stay open.</strong><p>This is a new arrangement of the rope, not a deformation that preserves a closed knot. Joining ends would be an extra choice.</p><p id="torusDetail"></p></div><a class="lab-link" href="index.html?go=braid#strands=2&braid=1,1,1">Explore closed braids <span aria-hidden="true">→</span></a></div>
+      <div class="field-note"><span class="eyebrow">IN THE FIELD</span><p id="use"></p><p id="knotNote"></p><a id="reference" href="https://www.animatedknots.com/bowline-knot" target="_blank" rel="noopener noreferrer">See the practical tying reference →</a></div>
+    </aside>
+  </div>
+</section>
+<footer><p>Made for curious hands & curious minds.</p><p>Original interactive diagrams · <a href="https://www.animatedknots.com/boating" target="_blank" rel="noopener noreferrer">Tying references: Animated Knots by Grog</a></p><p class="small">An exploration of rope paths. Use an appropriate practical guide for knots carrying a load.</p></footer>
+</main>
+<div class="sr-only" id="announcement" aria-live="polite" aria-atomic="true"></div>
+<noscript><p class="noscript">This interactive book needs JavaScript. <a href="https://www.animatedknots.com/boating">Read the boating knot references.</a></p></noscript>
+</body></html>
