@@ -2482,7 +2482,9 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         });
         setPolyline(seifLines[i], arr);
       });
-      seifData = { S, A, idx, source, comp, lineCounts: loops.map(L => L.length), genus: A.pieces.length === 1 ? A.pieces[0].genus : null };
+      let radius = 0;
+      for (let v = 0; v < S.positions.length; v += 3) radius = Math.max(radius, Math.hypot(S.positions[v], S.positions[v + 1], S.positions[v + 2]));
+      seifData = { S, A, idx, source, comp, radius, lineCounts: loops.map(L => L.length), genus: A.pieces.length === 1 ? A.pieces[0].genus : null };
       seifBuild.progress = reduceMotion ? 1 : 0; seifBuild.playing = !reduceMotion; seifBuild.frontierKey = '';
     }
     const sc = (i, m) => { const c = pal.c[i]; m.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace); };
@@ -2515,10 +2517,10 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   seifertBox.addEventListener('change', () => {
     logOp('seifert surface', seifertBox.checked ? 'shown' : 'hidden'); clearSelection(); seifKey = '#'; revealModel();
-    // look from lower down, where the stacked disks and the bands between them show
+    // See the disk faces as well as the bands between their stacked levels.
     if (seifertBox.checked && !state.userMoved) {
       const off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
-      sph.phi = Math.PI / 2 - 0.3; camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
+      sph.phi = Math.PI / 2 - 0.5; camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
     }
   });
 
@@ -3642,7 +3644,10 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   // area of w x h sees tan(fov/2) * w/H sideways and tan(fov/2) * h/H vertically.
   function fitDistance(w, h) {
     const t = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-    return MODEL_RADIUS / (t * Math.max(0.15, Math.min(w, h) / H)) * 1.04;
+    // Fit the complete surface, not the wider toroid envelope or the currently
+    // revealed portion. Its scale stays steady throughout disks/bands/boundary.
+    const radius = seifertShown() && seifData ? seifData.radius : MODEL_RADIUS;
+    return radius / (t * Math.max(0.15, Math.min(w, h) / H)) * 1.04;
   }
   function updateViewShift() {
     if (pullDrag) return;
