@@ -70,12 +70,14 @@ if(animate){
  let clock=0;const tick=n=>{for(let i=0;i<n;i++){clock+=50;p.frame(clock);assert(!get('hud').textContent.includes('failed'),get('hud').textContent);}};
  const sample=u=>{const out=[];p.surfacePoint(0,0,u*Math.PI*2,out,0);return out;};
  const near=sample(.05),far=sample(.5),geometry=p.cutTips[0].geometry;
- get('mapDetails').open=true;get('cutBtn').click();assert.equal(p.state.cut,0);tick(20);
+ get('mapDetails').open=true;get('cutBtn').click();assert.equal(p.state.cut,0);assert(get('q-braid').disabled);get('q-braid').click();assert.equal(p.state.braid,null);tick(20);
  assert(p.state.cut>0&&p.state.cut<.5);assert.notDeepEqual(sample(.05),near);assert.deepEqual(sample(.5),far);
  assert.equal(p.cutTips.filter(t=>t.visible).length,4);assert(get('hud').textContent.includes('Cutting paint boundaries'));assert(get('mapNote').textContent.includes('Cutting'));
  const beforeReverse=sample(.15),progress=p.state.cut;get('cutBtn').click();assert.equal(p.state.cut,progress);assert.deepEqual(sample(.15),beforeReverse);
  tick(1);assert(get('hud').textContent.includes('Gluing paint boundaries'));tick(19);assert.equal(p.state.cut,0);assert.deepEqual(sample(.05),near);assert(p.cutTips.every(t=>!t.visible));
  get('cutBtn').click();tick(72);assert.equal(p.state.cut,1);assert(p.cutTips.every(t=>!t.visible));assert(get('mapNote').textContent.includes('Paint boundaries are now cut'));
+ tick(1);assert.equal(get('q-braid').disabled,false);get('q-braid').click();assert(p.state.braid);get('braidReturnCut').click();
+ assert.equal(p.state.braid,null);assert.equal(p.state.cut,1);assert.equal(p.state.cutTarget,1);assert.equal(p.state.twisting,false);
  get('cutBtn').click();tick(72);assert.equal(p.state.cut,0);assert.deepEqual(sample(.5),far);assert(p.cutTips.every(t=>t.geometry===geometry));
  get('cutBtn').click();tick(10);const paused=p.state.cut;p.setLabCut('patch');tick(10);assert.equal(p.state.cut,paused);assert(p.cutTips.every(t=>!t.visible));p.setLabCut(null);tick(1);assert(p.state.cut>paused);
  p.showBraid({n:2,word:[1,1,1]});tick(1);assert(p.cutTips.every(t=>!t.visible));p.showBraid(null);
@@ -211,6 +213,33 @@ p.showBraid(null);assert.equal(get('mobileTools').hidden,!phone);
 p.setLabCut('patch');assert.equal(get('mobileTools').hidden,true);p.setLabCut(null);assert.equal(get('mobileTools').hidden,!phone);
 assert.equal(p.getSheet(),'hidden');
 console.log('PASS: collapsed/hidden top toolbar, all shape options, shared twist/cut actions, invalid/animating cut guards, view offset, and braid/lab visibility.');
+// Convert completed cuts through the actual controls, preserving link invariants and paint mapping.
+for (const [shape,turn] of [['circle',1.5],['hex',1/3],['square',-.5],['band3',.5],['gear',0]]) {
+ get('shape-'+shape).click();p.twistTo(turn);get('cutBtn').click();checkbox(true);p.setSheet('hidden');
+ const before=p.experiment(), paintBefore=rows(), construction=JSON.stringify(before.construction);
+ const sh=p.getShape(), expectedColors=before.components.map(c=>sh.colors[Math.min(...c.pieces)]);
+ assert.equal(get('q-braid').hidden,false);assert.equal(get('cutToBraid').disabled,false);
+ get(shape==='circle'?'cutToBraid':'q-braid').click();
+ assert.equal(p.state.braid.n,before.braid.strands);assert.deepEqual(p.state.braid.word,before.braid.word);
+ const after=p.experiment();assert.deepEqual(after.linkingMatrix,before.linkingMatrix);assert.deepEqual(after.alexander,before.alexander);
+ assert.equal(after.components.length,before.components.length);paint(expectedColors);
+ assert.equal(get('braidReturnCut').hidden,false);assert.match(get('braidOriginNote').textContent,/centerline/);
+ // An edit must stop claiming the original knot is unchanged; the saved cut stays returnable.
+ if(shape==='circle') {p.showBraid({n:2,word:[1,1]});assert.match(get('braidOriginNote').textContent,/Braid edited/);}
+ if(shape==='square') buttons.find(b=>b.dataset.mode==='torus').click();else get('braidReturnCut').click();
+ assert.equal(p.state.braid,null);assert.equal(p.state.shape,shape);assert.equal(p.state.k,turn);assert.equal(p.state.twisting,false);
+ assert.equal(p.state.cut,1);assert.equal(p.state.cutTarget,1);assert.equal(toggle.checked,true);
+ assert.equal(JSON.stringify(p.experiment().construction),construction);assert.deepEqual(rows(),paintBefore);
+ assert.equal(get('braidReturnCut').hidden,true);get('cutBtn').click();checkbox(false);
+}
+// Gates reject uncut, unfinished, nonclosing and oversized constructions.
+get('shape-circle').click();p.twistTo(.5);assert(get('q-braid').hidden);get('cutToBraid').click();assert.equal(p.state.braid,null);
+get('cutBtn').click();p.state.m=1;p.syncQuick();assert(get('cutToBraid').disabled);p.state.m=2;p.syncQuick();
+p.state.twisting=true;p.syncQuick();assert(get('cutToBraid').disabled);p.state.twisting=false;get('cutBtn').click();
+p.twistTo(.25);assert(get('cutToBraid').disabled);assert.match(get('cutBraidNote').textContent,/meet at the seam/);
+get('shape-gear').click();const oldTurn=p.state.twistTo;p.state.k=p.state.twistTo=12;p.syncQuick();
+assert(get('cutToBraid').disabled);assert.match(get('cutBraidNote').textContent,/400 crossings/);p.state.k=p.state.twistTo=oldTurn;p.twistTo(0);
+console.log('PASS: cut-to-braid controls, readiness/size gates, knots/links and component paint correspondence, edited-source notice, exact return to cut toroid.');
 // The material remains continuous at the original gluing seam during the cut.
 const TAU=2*Math.PI;
 for(const button of buttons.filter(b=>'shape' in b.dataset)){

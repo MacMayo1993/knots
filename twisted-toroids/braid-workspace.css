@@ -79,3 +79,8 @@
 .pull-feedback { grid-template-columns: minmax(0, 1fr) 44px auto; }
 #pullStatus { padding: 4px; font: .73rem/1.35 var(--f-body); color: var(--muted); }
 #pullTighten { background: var(--ink); color: var(--bg); }
+
+.quick-braid { min-height: 44px; width: 100%; font-weight: 650; }
+.quick-braid[hidden], .braid-return-cut[hidden], .braid-origin-note[hidden] { display: none; }
+.braid-toolbar .braid-return-cut { min-height: 44px; text-align: left; background: var(--bg); }
+.braid-origin-note { border-left: 3px solid var(--accent); padding: 8px 10px; background: var(--bg); border-radius: 0 8px 8px 0; }
