@@ -143,9 +143,15 @@
     // ---------- quest board ----------
     const board = doc.getElementById('questBoard');
     let selected = quests[0] && quests[0].id;
+    let boardKey = '';
     function renderBoard() {
       if (!board) return;
+      const key = JSON.stringify([state.quests, state.attempt && !state.attempt.done ? state.attempt.id : null]);
+      if (key === boardKey) return;
+      boardKey = key;
+      const focusedQuest = board.contains(doc.activeElement) ? doc.activeElement.dataset.quest : null;
       const S = G.summary(state, Q, tableSize);
+      const nextQuest = quests.find(q => !state.quests[q.id] || !state.quests[q.id].stars);
       board.textContent = '';
       const head = el('div', 'qb-head', '<span class="qb-stars">' + ICON.star + '<b>' + S.stars + '</b> / ' + S.maxStars + '</span><span class="qb-cleared">' + S.cleared + ' of ' + Q + ' cleared</span>');
       board.appendChild(head);
@@ -168,12 +174,16 @@
           card.setAttribute('aria-label', 'Quest ' + n + ': ' + q.title + '. ' + (stars ? stars + ' of 3 stars' : 'not cleared') + (active ? ', in progress' : ''));
           card.innerHTML = '<span class="qc-num" aria-hidden="true">' + n + '</span><span class="qc-title">' + esc(q.title) + '</span>' +
             '<span class="qc-stars" aria-hidden="true">' + [0, 1, 2].map(i => '<i class="' + (i < stars ? 'on' : '') + '">' + ICON.star + '</i>').join('') + '</span>' +
-            (active ? '<span class="qc-badge">Playing</span>' : !stars ? '<span class="qc-badge qc-new">New</span>' : '');
+            (active ? '<span class="qc-badge">Playing</span>' : nextQuest && q.id === nextQuest.id ? '<span class="qc-badge qc-new">Next</span>' : '');
           card.addEventListener('click', () => { select(q.id); hooks.select && hooks.select(q.id); });
           grid.appendChild(card);
         }
         sec.appendChild(grid);
         board.appendChild(sec);
+      }
+      if (focusedQuest) {
+        const card = [...board.querySelectorAll('.quest-card')].find(c => c.dataset.quest === focusedQuest);
+        if (card) card.focus({ preventScroll: true });
       }
     }
     function select(id) {

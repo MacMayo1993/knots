@@ -464,11 +464,22 @@ const server = http.createServer((req, res) => {
     ok(hudBox.top >= bar.bottom, label + ': the readout is below the bar');
     ok(deck.bottom <= head.top + 1 && deck.top > hudBox.bottom + 100, label + ': the control deck sits above the dock, well below the readout: ' + JSON.stringify({ deck, head }));
     ok(head.bottom <= vh + 1, label + ': the dock is on screen');
-    const targets = await page.evaluate(() => [...document.querySelectorAll('#gameBar button, #mobileTools button, #mobileTools select, #dock button')].filter(e => e.getClientRects().length).map(e => { const r = e.getBoundingClientRect(); return [e.id || e.className, Math.round(r.width), Math.round(r.height)]; }));
+    const targets = await page.evaluate(() => [...document.querySelectorAll('#gameBar button, #mobileTools button, #mobileTools select, #dock button, #viewTools button, .sheet-tools button')].filter(e => e.getClientRects().length).map(e => { const r = e.getBoundingClientRect(); return [e.id || e.className, Math.round(r.width), Math.round(r.height)]; }));
     ok(targets.every(([, w, h]) => w >= 44 && h >= 42), label + ': game controls are thumb-sized: ' + JSON.stringify(targets.filter(([, w, h]) => w < 44 || h < 42)));
     ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), label + ': nothing runs off the side');
     ok(await drawn(page) > 0.08, label + ': the model draws between the bar and the deck');
     await screenshot(page, 'game-play-' + tag);
+    const beforeFocus = await page.evaluate(() => ({ hash: location.hash, sheet: localStorage.getItem('twisted-toroids-sheet'), progress: localStorage.getItem('twisted-toroids-game') }));
+    ok(await page.locator('#sheetBody').evaluate(e => e.inert), label + ': collapsed sheet content is outside keyboard navigation');
+    await page.tap('#viewFocus'); await page.waitForTimeout(450);
+    ok(await page.getAttribute('#viewFocus', 'aria-pressed') === 'true' && await page.locator('#mobileTools').isHidden() && await page.locator('#sheetShow').isHidden(), label + ': focus clears the deck and dock');
+    ok(await page.locator('#panel').evaluate(e => e.inert) && await page.locator('#viewFocus').isVisible(), label + ': focus has an accessible way back');
+    ok(await drawn(page) > 0.08, label + ': focus still draws the model');
+    await page.tap('#viewFit');
+    await screenshot(page, 'game-focus-' + tag);
+    await page.tap('#viewFocus'); await page.waitForTimeout(400);
+    ok(await page.locator('#mobileTools').isVisible() && await page.getAttribute('#panel', 'data-sheet') === 'peek', label + ': focus restores the prior layout');
+    ok(JSON.stringify(await page.evaluate(() => ({ hash: location.hash, sheet: localStorage.getItem('twisted-toroids-sheet'), progress: localStorage.getItem('twisted-toroids-game') }))) === JSON.stringify(beforeFocus), label + ': camera actions preserve construction, preferences and rewards');
     // dock tabs: one page at a time
     await page.tap('#tab-quests'); await page.waitForTimeout(450);
     ok(await page.getAttribute('#tab-quests', 'aria-selected') === 'true', label + ': the Quests tab is selected');
@@ -480,6 +491,22 @@ const server = http.createServer((req, res) => {
     await page.tap('#tab-style'); await page.waitForTimeout(400);
     ok(await page.evaluate(() => document.getElementById('panel').dataset.sheet) === 'peek', label + ': tapping the open tab lowers the sheet');
     if (name !== 'Pixel 8') { await page.context().close(); continue; }
+    // Keyboard navigation reveals the selected page, and each page remembers its place.
+    await page.locator('#tab-style').press('End'); await page.waitForTimeout(350);
+    ok(await page.getAttribute('#panel', 'data-tab') === 'data' && await page.getAttribute('#panel', 'data-sheet') === 'half', 'End opens the last enabled dock page');
+    await page.locator('#tab-data').press('Home'); await page.waitForTimeout(350);
+    ok(await page.getAttribute('#panel', 'data-tab') === 'play' && !await page.locator('#sheetBody').evaluate(e => e.inert), 'Home opens Play and enables its controls');
+    const scroll = await page.locator('#sheetBody').evaluate(e => { e.scrollTop = 240; return e.scrollTop; });
+    await page.tap('#tab-style'); await page.tap('#tab-play');
+    ok(scroll > 0 && Math.abs(await page.locator('#sheetBody').evaluate(e => e.scrollTop) - scroll) <= 1, 'returning to a tab restores its scroll position');
+    await page.tap('#tab-style'); await page.tap('#tab-style'); await page.waitForTimeout(400);
+    const canceled = await page.evaluate(() => {
+      const panel = document.getElementById('panel'), head = document.getElementById('sheetHead');
+      const start = panel.dataset.sheet;
+      for (const [type, y] of [['pointerdown', 700], ['pointermove', 400], ['pointercancel', 400]]) head.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 17, isPrimary: true, clientY: y }));
+      return { start, end: panel.dataset.sheet, dragging: panel.classList.contains('dragging') };
+    });
+    ok(canceled.start === canceled.end && !canceled.dragging, 'an interrupted drag restores its starting snap point');
     // The tabs fill the handle, so a drag that starts on one moves the sheet and is not a tap.
     {
       const tb = await rect(page, '#tab-play'), x = tb.left + tb.width / 2, y = tb.top + tb.height / 2;
@@ -511,7 +538,11 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => !document.getElementById('q-cut').disabled, null, { timeout: 15000 });
     ok(/1 full turn|Full turn/i.test(await page.textContent('#q-twist')), 'four quarter steps make a full turn: ' + await page.textContent('#q-twist'));
     await page.tap('#q-cut');
+    await page.waitForFunction(() => document.getElementById('quickProgress').value > 0 && document.getElementById('quickProgress').value < 100);
+    ok(await page.locator('#quickFeedback').isVisible() && /Cutting/.test(await page.textContent('#quickFeedbackText')), 'cut progress stays next to the thumb controls');
+    await screenshot(page, 'game-cut-progress-pixel8');
     await page.waitForFunction(() => !document.getElementById('cutToBraid').disabled, null, { timeout: 15000 });
+    ok(await page.locator('#quickFeedback').isHidden(), 'completed cut clears the progress meter');
     await page.tap('#qtCheck');
     await page.waitForFunction(() => document.getElementById('questClear').open);
     ok(await page.locator('#questClear .qc-big-stars i.on').count() === 2, 'one miss: two stars');
@@ -554,6 +585,17 @@ const server = http.createServer((req, res) => {
     ok(await drawn(page) > 0.05, 'landscape: the model draws');
     await screenshot(page, 'game-landscape-pixel8');
   }
+  await page.context().close();
+  // Short screens and reduced motion retain the same controls without overflow.
+  page = await open('#shape=tri&turn=2/3', { viewport: { width: 360, height: 640 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, colorScheme: 'dark', reducedMotion: 'reduce' });
+  await page.tap('#q-cut');
+  ok(await page.locator('#quickFeedback').isHidden(), 'reduced-motion cut completes without stale progress');
+  const shortDeck = await rect(page, '#mobileTools'), shortView = await rect(page, '#viewTools');
+  ok(shortDeck.top > shortView.bottom + 80 && shortDeck.bottom < 640, 'short phone leaves a usable model viewport');
+  await screenshot(page, 'game-short-dark');
+  await page.tap('#viewFocus');
+  await page.locator('#viewFocus').press('Escape');
+  ok(await page.getAttribute('#viewFocus', 'aria-pressed') === 'false' && await page.getAttribute('#panel', 'data-sheet') === 'peek', 'Escape exits focus and restores the dock');
   await page.context().close();
   // Wide screens: the player bar is in the page header, the quest board in the panel.
   page = await open();
