@@ -6,7 +6,15 @@
   const hashKnot=()=>KNOTS.find(k=>k.id===location.hash.slice(1))||KNOTS[0];
   let knot=hashKnot(),mode='tie',progress=knot.steps.length-1,playing=false,lastTime=0,frame=0,speed=1,stepIndex=-1;
   const viewer=new RopeView($('ropeCanvas'));
-  try{const back=sessionStorage.getItem('twisted-toroids-book-return');if(back){const url=new URL(back,location.href);if(url.origin===location.origin&&url.pathname.endsWith('/index.html'))$('backToLab').href=url.href;}}catch(_){}
+  try{
+    const back=sessionStorage.getItem('twisted-toroids-book-return');
+    if(back){
+      const url=new URL(back,location.href),labDirectory=new URL('.',location.href);
+      // Both the directory and its index.html open this lab. Keep the saved
+      // URL intact so its query options and construction hash survive return.
+      if(url.origin===labDirectory.origin&&(url.pathname===labDirectory.pathname||url.pathname===labDirectory.pathname+'index.html'))$('backToLab').href=url.href;
+    }
+  }catch(_){}
   const announce=text=>{$('announcement').textContent=text;};
   const shelf=$('knotShelf');
   for(const k of KNOTS){
