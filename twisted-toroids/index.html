@@ -834,7 +834,7 @@ h2 {
       </div>
       <div class="note-block">
         <h3>Still two-sided</h3>
-        <p>Turning a circle spins it but never turns it inside out, so the inside of the tube stays inside. The result is still a torus. Only a mirror flip of the cut end would join inside to outside. That surface is the Klein bottle, which can't be built in 3D without passing through itself.</p>
+        <p>Turning a circle spins it but never turns it inside out, so the inside of the tube stays inside. The result is still a torus. Only a mirror flip of the cut end would join inside to outside. That surface is the Klein bottle, which can't be built in 3D without passing through itself. You can see one under Explore → Try different cuts: a tube whose figure-eight cross-section turns half a turn, which lands the figure-eight on itself traversed the other way.</p>
       </div>
       <div class="note-block">
         <h3>The paint gets shuffled, not flipped</h3>
@@ -851,6 +851,14 @@ h2 {
       <div class="note-block">
         <h3>The antipodal rule</h3>
         <p>On a circle, the antipodal map <span class="mono">x ↦ −x</span> is the same as a half-turn, a rotation, so it keeps orientation and the torus stays two-sided. On a sphere the two come apart. A half-turn about an axis is still a rotation and keeps orientation. The antipodal map <span class="mono">x ↦ −x</span> is not a rotation: it reverses orientation. Gluing each point of the sphere to its antipode gives the projective plane <span class="mono">RP²</span>, which is one-sided.</p>
+      </div>
+      <div class="note-block">
+        <h3>Telling a knot from its mirror image</h3>
+        <p>The Alexander polynomial can't tell a knot from its mirror image: the right- and left-handed trefoils both have <span class="mono">t² − t + 1</span>. The Jones polynomial usually can, because a mirror swaps <span class="mono">t</span> and <span class="mono">1/t</span>: the right-handed trefoil has <span class="mono">t + t³ − t⁴</span>, the left-handed one <span class="mono">t⁻¹ + t⁻³ − t⁻⁴</span>. A knot whose Jones polynomial reads the same both ways may be its own mirror image, like the figure-eight, but not always: 9₄₂ is chiral and its Jones polynomial can't see it.</p>
+      </div>
+      <div class="note-block">
+        <h3>A surface for every knot</h3>
+        <p>Every knot is the edge of a two-sided surface. For a closed braid, Seifert's recipe stacks one disk per strand and joins them with a half-twisted band at each crossing: the edge then runs around each disk and crosses over at the bands. The fewest handles such a surface can have is the knot's genus; for a braid in which each generator appears with one sign only, this recipe already achieves it.</p>
       </div>
       <div class="note-block">
         <h3>Reading the numbers</h3>

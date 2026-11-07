@@ -1,7 +1,7 @@
 {
   "format": "twisted-toroids/experiment",
   "version": 2,
-  "created": "2026-11-07T04:08:07.604Z",
+  "created": "2026-11-07T14:12:43.264Z",
   "construction": {
     "type": "braid",
     "strands": 3,
@@ -12,7 +12,7 @@
     {
       "op": "open link",
       "value": "#braid=1,1,-2,1,-2&strands=3",
-      "at": "2026-11-07T04:08:07.180Z"
+      "at": "2026-11-07T14:12:42.066Z"
     }
   ],
   "braid": {
@@ -49,6 +49,22 @@
     [0, 0]
   ],
   "alexander": [-1, 3, -3, 1],
+  "jones": {
+    "lowestHalfPower": -3,
+    "coefficients": [-1, 0, 1, 0, -2, 0, 1, 0, -2, 0, 1],
+    "text": "t⁷ᐟ² − 2t⁵ᐟ² + t³ᐟ² − 2t¹ᐟ² + t⁻¹ᐟ² − t⁻³ᐟ²",
+    "note": "Coefficient i multiplies t^((lowestHalfPower + i) / 2)."
+  },
+  "tableNames": [
+    "5^2_1"
+  ],
+  "tableMatches": [
+    "mirror image of 5²₁ Whitehead link"
+  ],
+  "seifert": {
+    "genus": 1,
+    "homogeneous": true,
+    "note": "Seifert's algorithm on the closed braid: one disk per strand, one twisted band per crossing. For a homogeneous braid this genus is the genus of the knot or link."
+  },
   "verify": "python verify/verify.py <this file>"
 }
-

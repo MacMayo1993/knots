@@ -36,7 +36,10 @@ The full-screen button hides the browser bars where the browser allows it. iPhon
 Appearance, paint edits, and the phone sheet size are saved on the device when storage is available. Existing saved paint and sheet preferences are read from the former keys. A blocked or malformed storage value falls back to defaults. Palettes are visual options, not a guarantee of color-vision accessibility; piece numbers and the existing solid/dashed selection routes remain available.
 
 - **Model:** *Twisted torus* (everything below) or *Any braid*.
-- **Any braid:** type a braid word and the page draws its closure as flat ribbons running around the loop, one color per component. Words can be written as `s1 S2` (a capital letter means the inverse), `σ1 σ2⁻¹`, `1 -2`, with `(…)^k` for powers. Strands default to one more than the largest generator; set the count higher to add free strands. Limits are 10 strands and 400 crossings. Example buttons load the trefoil, figure-eight, 5₂, 6₃, 8₁₈, Hopf link, Whitehead link and Borromean rings. *Start from the last torus construction* loads the braid of the current twisted torus so you can edit it.
+- **Any braid:** type a braid word, or build it in the diagram editor, and the page draws its closure as flat ribbons running around the loop, one color per component. Words can be written as `s1 S2` (a capital letter means the inverse), `σ1 σ2⁻¹`, `1 -2`, with `(…)^k` for powers. Strands default to one more than the largest generator; set the count higher to add free strands. Limits are 10 strands and 400 crossings. Example buttons load the trefoil, figure-eight, 5₂, 6₃, 8₁₈, Hopf link, Whitehead link and Borromean rings. *Start from the last torus construction* loads the braid of the current twisted torus so you can edit it. *Draw a knot or link from the table* draws any of the 249 prime knots up to 10 crossings or 47 prime links up to 8 crossings, from SnapPy's braid word for it.
+- **Edit the diagram:** the braid as a picture, strands running left to right and colored by component. Tap a crossing to flip it (σᵢ ↔ σᵢ⁻¹) or, with *Tap deletes*, to remove it; the σ buttons add a crossing at the end; − and + change the number of strands. A positive crossing is drawn right-handed, so σ₁σ₁σ₁ is the right-handed trefoil, as in the model. Crossings are keyboard-focusable.
+- **Relax into a smooth knot:** the closed braid pulls tight like rope while its strands push each other apart, and settles into a smooth knot drawn as tubes. The strands never pass through each other (see *Relaxing a knot* below), so it stays the same knot or link.
+- **Show its Seifert surface:** a two-sided surface whose edge is the knot or link, drawn with its two sides in two colors (see *Seifert surfaces*).
 
 - **Tube cross-section:** round, oval, egg, triangle, square, pentagon, hexagon, heptagon, octagon, star, cross, rectangle, diamond, heart, 3-, 4- or 6-point star, gear, or a flat strip with 2 or 3 lanes (a true Möbius band at odd half turns).
 - **Turn the cut end by:** presets from no twist to 4 full turns.
@@ -45,7 +48,8 @@ Appearance, paint edits, and the phone sheet size are saved on the device when s
 - **Grow from the shape:** starts with just the cross-section, which sweeps once around the loop, turning by the chosen twist, and leaves the tube behind it.
 - **Cut along the color lines:** slices along every color boundary and pulls the pieces apart while preserving the original paint. One connected strip can contain several original colors. The readout predicts how many strips you get, how many times each goes around, whether it is knotted (a strip going around q times while turning p times is a (q, p) torus knot), and whether the strips are linked.
 - **Color by connected piece:** after cutting, optionally give each connected strip the color of its first original section. A legend lists the original sections belonging to each strip. Uncheck it to restore the original paint; gluing the model back also restores the paint. Custom paint colors and strip highlighting work in both views.
-- **Exact description:** the braid whose closure is the set of strips you get by cutting (or the braid you typed), each strip's or component's laps, framing and knot data, the linking matrix, and the Alexander polynomial of the whole link. You can copy the braid word, copy a link that reopens this construction (`index.html#shape=tri&turn=2/3` or `index.html#braid=1,-2,1,-2&strands=3`), download the experiment as JSON, or load a saved one.
+- **Exact description:** the braid whose closure is the set of strips you get by cutting (or the braid you typed), each strip's or component's laps, framing and knot data, the linking matrix, the Alexander and Jones polynomials of the whole link, its name in the knot table when it is there, and (for a braid) its Seifert surface's genus. You can copy the braid word, copy a link that reopens this construction (`index.html#shape=tri&turn=2/3` or `index.html#braid=1,-2,1,-2&strands=3`), download the experiment as JSON, or load a saved one.
+- **Save picture (PNG)** saves the model as it is on screen. **Download for 3D printing (STL)** saves what is on screen as a printable solid (see *3D printing*).
 - **Paint colors:** one color picker per painted half or face of the current shape. Your choices are remembered in your browser; **Reset colors** restores the defaults.
 - **Pause / Send a traveler:** a dot rides one stripe until it gets home.
 - **Show the cut:** the dashed ring where the tube was sliced.
@@ -81,6 +85,39 @@ Two independent checks:
 - The geometry test also draws 35 braids the way the page does, five fixed and thirty random, and checks their linking numbers and blackboard framings against the braid word. It also checks the Burau Alexander polynomials of all the torus constructions against the closed formula for torus knots.
 - `python verify/verify.py <experiment.json …>` (after `pip install snappy`) rebuilds the braid from the construction alone. It then uses Spherogram to count the strips and compute the linking numbers and framings, and it uses knot Floer homology to check each strip's genus against the claimed torus knot and its handedness with the τ invariant: τ equals the genus for a right-handed torus knot and minus the genus for a left-handed one. For a braid experiment it uses Spherogram to check the component count, linking numbers and blackboard framings. It checks each knotted component's Alexander polynomial against the Euler characteristic of its knot Floer homology, and prints SnapPy's name for the link when it can find one. For a link with several components, the whole-link polynomial is not checked independently, because that needs Sage. `python verify/verify.py --random 400` runs `knotmath.js` (through Node) on random braids and checks every claim the same way. Run `python verify/verify.py --sweep` to check every preset shape with twists of up to 2 turns each way. That takes about 8 minutes; add `--max-turns 1` for a run of about 10 seconds. `verify/examples/` holds experiments exported from the page.
 
+## Naming knots: the Jones polynomial and the knot table
+
+`knotmath.js` computes the Jones polynomial of any closed braid from the Kauffman bracket in the Temperley–Lieb algebra: each crossing σᵢ is `A·(straight through) + A⁻¹·(cup-cap)`, a state is a planar matching of the braid's endpoints, and closing the braid counts loops, each worth `δ = −A² − A⁻²`. Then `V(t) = (−A³)^(−writhe)·⟨closure⟩` at `A = t^(−1/4)`. Links with an even number of components have half-integer powers. The work grows with the number of strands, so a braid beyond a fixed budget reports *too large to compute here* instead of freezing the page (for example 8 strands with 112 crossings); results are cached.
+
+A mirror image swaps `t` and `1/t`, so unlike the Alexander polynomial the Jones polynomial tells most knots from their mirror images: the right-handed trefoil σ₁³ has `t + t³ − t⁴`, the left-handed one `t⁻¹ + t⁻³ − t⁻⁴`.
+
+`knot-table.js` is SnapPy's copy of the Rolfsen tables: 249 prime knots up to 10 crossings (10₁₆₁ and 10₁₆₂, the Perko pair, are one knot and listed once) and 47 prime links up to 8 crossings, each with a braid word and its Jones and Alexander polynomials. `verify/make_knot_table.py` regenerates it: SnapPy supplies the braid words and decides amphichirality from the symmetry group of each complement, and `knotmath.js` computes the polynomials, so the table and the page can't disagree.
+
+A knot is matched by its exact Jones polynomial (or its mirror) and its Alexander polynomial; sums of two prime knots with ten crossings or fewer in all are matched too (granny and square knots). A link's Jones polynomial depends on the directions of its components, so a link is matched against every choice: reversing a set S of components multiplies `V` by `t^(−3·lk(S, rest))`. The readout says:
+
+- *right-* or *left-handed* for torus knots (3₁, 5₁, 7₁, 9₁, 8₁₉, 10₁₂₄);
+- *mirror image of* for other chiral knots, relative to the diagram in SnapPy's table;
+- nothing extra for the 20 amphichiral knots (4₁, 6₃, 8₃, …), which are their own mirror images;
+- *or its mirror image* for 9₄₂, 10₄₈, 10₇₁, 10₉₁, 10₁₀₄ and 10₁₂₅, chiral knots whose Jones polynomial is symmetric anyway.
+
+A match means equal polynomials. Larger knots can share them (for example 10₁₃₂ shares both with 5₁, so σ₁⁵ lists both), so the page says *matches*, and lists every candidate when there is more than one.
+
+Checks: `node test/jones.test.cjs` compares published values (trefoils, figure-eight, 5₁, 5₂, Hopf, Whitehead, Borromean), checks on random braids that Markov moves (conjugation, stabilization, braid relations) leave `V` unchanged, that `V(1) = (−2)^(components−1)`, that `|V(−1)|` equals the determinant `|Δ(−1)|` from the separate Burau code, and that mirroring gives `V(1/t)`, then recomputes every table entry and names it and its mirror. `python verify/verify.py --named 150` draws random braids until 150 have a table name and checks each against SnapPy's geometry: the complement of the closure must be isometric to the named knot's complement. For a knot that decides the knot up to mirror image (Gordon–Luecke). For a link it is a necessary condition, since different links can share a complement: 7²₈ and the Whitehead link do, and the page tells them apart by their Jones polynomials.
+
+## Seifert surfaces
+
+*Show its Seifert surface* (braid mode) draws the surface from Seifert's algorithm on the closed braid. Smoothing each crossing the oriented way leaves one circle per strand; each bounds a disk, the disks are stacked, and each crossing becomes a band with a half twist joining two neighbouring disks. The surface is orientable, so its two sides get two colors; its edge is the braid closure, drawn in the components' colors. With `n` strands and `c` crossings its Euler characteristic is `n − c` and its genus `(2 − n + c − components)/2`. If every generator appears with one sign only (a homogeneous braid), no surface with this edge has smaller genus (Stallings; Cromwell), so this is the knot's genus; otherwise the readout says *at most*. Neighbouring strands that never cross leave the surface in pieces (a split link).
+
+`node test/seifert.test.cjs` walks the triangle mesh itself to count pieces, the Euler characteristic and boundary loops and to check orientability, and compares the Gauss linking integrals of the boundary curves with the braid's linking matrix (which also fixes the bands' twist direction). `verify.py` checks the genus of homogeneous braids against knot Floer homology.
+
+## Relaxing a knot
+
+`relax.js` treats each component as a closed polygon. Each step pulls every vertex toward the midpoint of its neighbours (the rope tightens) and pushes apart vertices closer than the rope's thickness that are not near each other along the rope. The rule that keeps the knot: no vertex moves as much as half the smallest distance between two segments that share no vertex. A point of a segment moves no more than its endpoints do, so two segments that start apart stay apart, and no strand can pass through another. `node test/editor-relax.test.cjs` checks that rule on every step and compares linking numbers before and after with the Gauss integral.
+
+## 3D printing
+
+*Download for 3D printing (STL)* saves what is on screen: the twisted torus (cut or not), braid ribbons, the Seifert surface, the relaxed knot's tubes, or a cut-explorer surface. Surfaces are thickened to a 1.2 mm wall, and the model is scaled to about 100 mm across (STL has no units; slicers read millimetres). An uncut tube becomes a hollow shell. One-sided pieces such as a Möbius band are slit along the edges where the two faces would swap, so each face is consistent; the slit closes up when printed. Every saved solid is closed: each edge belongs to exactly two triangles (checked in `test/seifert.test.cjs`, `test/app-smoke.cjs` and `test/browser.test.cjs`).
+
 ## Explore: cuts, flat maps, and challenges
 
 ### Watching a cut
@@ -105,7 +142,7 @@ These check the actual timed frame loop, mid-cut reversal, untouched regions ahe
 
 The **Explore** fieldset lives near the top of the existing controls, including inside the phone bottom sheet. Its three disclosures keep the controls compact.
 
-**Try different cuts** opens an independent round-torus surface. It retains the current painted construction for the Return button, including its shape, twist, paint, and cut setting. Choose an uncut reference, a meridian, a longitude, or a rectangular contractible loop. The cut meshes have duplicated boundary vertices and no end caps; their boundaries are highlighted from the actual triangle edges. Gaps and the upward translation of the disk are display deformations. The reference surface is a surface, not a solid torus.
+**Try different cuts** opens an independent surface: a round torus or a Klein bottle. It retains the current painted construction for the Return button, including its shape, twist, paint, and cut setting. Choose an uncut reference, a meridian, a longitude, or a rectangular contractible loop. The cut meshes have duplicated boundary vertices and no end caps; their boundaries are highlighted from the actual triangle edges. Gaps and the upward translation of the disk are display deformations. The reference surface is a surface, not a solid torus.
 
 | Cut | Connected pieces | Boundary loops | Euler characteristic |
 | --- | --- | --- | --- |
@@ -114,22 +151,54 @@ The **Explore** fieldset lives near the top of the existing controls, including 
 | Longitude: around the central hole | One annulus | 2 | 0 |
 | Contractible patch loop | Disk + once-punctured torus | 1 on each | +1 and −1 |
 
-Every piece is orientable. These preset cuts are on the reference torus; they do not yet implement freehand cutting of arbitrary painted shapes. Original construction readouts are hidden while the reference is displayed. On phones the quick bar becomes a Return button; choosing a cut from the full sheet lowers it to half so the model is visible.
+Every piece is orientable.
+
+The other cuts use the general cutting engine in `surfaces.js`, which cuts the torus or Klein bottle grid along any closed path of grid edges and names the pieces from the mesh itself (pieces, Euler characteristic, boundary loops, one- or two-sided):
+
+- **Along an (a, b) curve:** a curve going `a` times around the hole and `b` times around the tube. It leaves one annulus; when `a` and `b` share a factor `g`, the cut is `g` parallel copies and leaves `g` annuli. For coprime `a, b ≥ 2` the curve itself is the torus knot `T(a, b)`.
+- **Draw your own loops on the map:** tap points on the flat map; each step takes the shortest way across the map, wrapping over its edges (and turning over across the Klein bottle's flipped edge). *Close loop and cut* cuts along it; draw as many as you like. The readout gives each loop's class, how many times it goes around the hole and the tube. On the map, arrow keys move a cursor and Enter adds a point.
+- **Klein bottle:** the "figure-eight" bottle, a figure-eight cross-section carried around a circle while it turns half a turn. A half turn maps the figure-eight onto itself traversed the other way, so the left and right edges of its map are glued with a flip (the map's arrows point opposite ways) and the surface is one-sided. In 3D it must pass through itself; the dashed ring is where it does. Red and blue are its two Möbius bands.
+
+| Cut | Result |
+| --- | --- |
+| Klein bottle, uncut | One Klein bottle, one-sided, χ = 0 |
+| Around the tube | One annulus: undoing the flip makes it two-sided |
+| Between its two Möbius bands | Two Möbius bands |
+| Along the center line of one Möbius band | One Möbius band |
+| Torus: a meridian and a longitude together | One disk (the torus's square) |
+| Torus: a small loop | A disk and a torus with one hole |
+
+`node test/surfaces.test.cjs` checks the engine against `explore.js`'s preset table, (a, b) curves up to 4 each way, these Klein bottle cuts, the seams of both 3D surfaces, drawn loop classes, and small loops drawn anywhere on either map. Original construction readouts are hidden while the reference is displayed. On phones the quick bar becomes a Return button; choosing a cut from the full sheet lowers it to half so the model is visible.
 
 **Open the linked flat map** shows the current closed tube's painted parameter domain. With horizontal coordinate `u = theta / (2π)` and vertical coordinate `v = phi / (2π) + 1/(2n)`, painted piece `p` occupies row `[p/n, (p+1)/n]`. The gluing is `(1,v) ~ (0,v + turn mod 1)` and `(u,0) ~ (u,1)`. The latter gluing is removed when the paint boundaries are cut. The reference cut explorer instead uses ordinary, untwisted torus coordinates and shows only its remaining edge identifications. This map is a parameter domain, not an isometric flattening.
 
 Tap the map to highlight a component and locate a point in 3D, or tap the 3D surface to locate its nearest triangle vertex on the map. Points retain the clicked side of cut edges. Arrow keys move the map point; Escape or Clear map point clears it. Vertical swipes scroll the mobile sheet. The map is unavailable for braids, open flat strips, or unfinished build/twist animations. For a proposed gluing whose ends do not fit, the map explicitly labels that limitation. It redraws only when relevant state changes and its disclosure is open.
 
-**Construction challenges** includes three tasks: make three ribbons; make two linked trefoil ribbons; build the left-handed mirror of the starting right-handed trefoil. Start loads a starting construction, Check evaluates the existing `KnotMath` result, and Hint explains the arithmetic. Solutions must be closed tubes with finished cuts. Feedback reports `gcd(n, n × turn)`, component knot types, and the linking number when there are two components. Solved challenges are counted for the current session. They are not a general-purpose knot-equivalence test. Starting a challenge replaces the current construction, as the button indicates; merely opening the disclosure does not.
+**Construction challenges** has twelve tasks in three kinds:
+
+- *Cut a twisted torus:* three strips; two linked trefoils; the mirror trefoil; a Hopf link; a cinquefoil; four strips. Solutions must be closed tubes with finished cuts. Feedback reports `gcd(n, n × turn)`, component knot types, and the linking number when there are two components.
+- *Draw a braid:* the figure-eight knot from an empty braid; a knot that is its own mirror image; a knot of genus two; three loops no two of which are linked but which don't come apart. These use the Jones polynomial and the table, so "comes apart" means "has the Jones polynomial of an unlink".
+- *Cut explorer:* cut the torus into one disk; cut the Klein bottle into two Möbius bands.
+
+Start loads a starting construction (or opens braid mode or the cut explorer), Check evaluates it, and Hint explains the idea. Solved challenges are counted for the current session. They are not a general-purpose knot-equivalence test. Starting a challenge replaces the current construction, as the button indicates; merely opening the disclosure does not.
 
 Additional checks (from this directory):
 
 ```sh
 node test/explore.test.cjs
+node test/jones.test.cjs
+node test/seifert.test.cjs
+node test/surfaces.test.cjs
+node test/editor-relax.test.cjs
 node test/app-smoke.cjs
 node test/app-smoke.cjs --phone
 node test/app-smoke.cjs --phone --landscape
+node test/browser.test.cjs      # needs Playwright: npm install playwright && npx playwright install chromium
 ```
+
+`test/browser.test.cjs` runs the page in Chromium with software WebGL. It covers what the DOM stand-ins can't: the desktop model staying in view while the panel scrolls, WebGL actually drawing (torus, Seifert surface, relaxed knot, Klein bottle, phone), the phone bottom sheet, knot names in the readout, STL downloads that are closed solids, and no console errors.
+
+Every pull request runs all of these, and the SnapPy checks (`verify.py` on the examples, `--sweep --max-turns 1`, `--random 80`, `--named 150`), in GitHub Actions: `.github/workflows/twisted-toroids.yml`.
 
 The topology test independently traverses the generated indexed triangle meshes to count connected components, boundary loops and Euler characteristics, and checks consistent orientation. It also tests map seam identifications and positive/negative challenge cases. The integration harness executes the application's actual script with DOM and renderer stand-ins, exercising cut restoration, paint, picking, maps, challenges, and desktop/phone sheet state. It does **not** test CSS layout or real WebGL rendering; those need a WebGL 2 browser. The existing geometry suite remains the independent check of the knot calculations.
 
@@ -138,9 +207,15 @@ The topology test independently traverses the generated indexed triangle meshes 
 - `vendor/three/`: Three.js r186.1 (MIT), with OrbitControls and the fat-line addons.
 - `knotmath.js`: braid words, reading a braid (components, linking matrix, writhe), `describe()` for a torus construction, `parseBraid()`, `describeBraid()`, the Burau `alexander()` and `braidLayout()`, the geometry the page draws for a braid. Works as a browser script (`window.KnotMath`) and as a Node module.
 - `explore.js`: cut meshes, flat-map coordinates, and challenge definitions/checks. Browser global `TorusExplore` or a Node module; no renderer dependencies.
+- `knot-table.js`: the knot and link table, generated by `verify/make_knot_table.py`. `knotmath.js` also holds the Kauffman bracket, Jones polynomial and `identify()`.
+- `meshkit.js`: triangle-mesh topology (pieces, Euler characteristic, boundary loops, orientability), cutting along edges, thickening and STL.
+- `seifert.js`: the Seifert surface of a closed braid.
+- `surfaces.js`: the cut explorer's torus and Klein bottle, cutting along any grid path, drawn loops and their classes.
+- `braid-editor.js`: the braid diagram (pure geometry in `diagram()`, SVG and taps in `mount()`).
+- `relax.js`: relaxing a closed braid into a smooth knot without strands passing through each other.
 - `appearance.js`: preset palettes, finishes, validation and persistence of appearance settings, and pre-paint application of the saved theme.
 - `cut-animation.js`: the periodic spatial opening profile, moving cut-front coordinates, and reversible timing used by the surface and flat map.
-- `test/explore.test.cjs`, `test/app-smoke.cjs`: topology/coordinate tests and application integration checks described above.
+- `test/explore.test.cjs`, `test/app-smoke.cjs`: topology/coordinate tests and application integration checks described above. `test/jones.test.cjs`, `test/seifert.test.cjs`, `test/surfaces.test.cjs`, `test/editor-relax.test.cjs` and `test/browser.test.cjs` check the newer modules and the page in a real browser.
 - `test/geometry.test.mjs`, `verify/verify.py`: the checks above.
 
 Everything else is inside `index.html`:

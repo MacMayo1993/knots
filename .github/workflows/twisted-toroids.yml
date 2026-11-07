@@ -1,0 +1,75 @@
+name: Twisted Toroids checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: twisted-toroids
+
+jobs:
+  node:
+    name: Node checks (math, topology, app integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node test/geometry.test.mjs
+      - run: node test/jones.test.cjs
+      - run: node test/seifert.test.cjs
+      - run: node test/surfaces.test.cjs
+      - run: node test/editor-relax.test.cjs
+      - run: node test/explore.test.cjs
+      - run: node test/cut-animation.test.cjs
+      - run: node test/appearance.test.cjs
+      - run: node test/app-smoke.cjs
+      - run: node test/app-smoke.cjs --phone
+      - run: node test/app-smoke.cjs --phone --landscape
+      - run: node test/app-smoke.cjs --animate --phone
+      - run: node test/app-smoke.cjs --animate --phone --landscape
+
+  browser:
+    name: Real browser (Chromium, software WebGL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - run: node test/browser.test.cjs
+
+  snappy:
+    name: Independent checks with SnapPy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install snappy
+      - name: Exported experiments
+        run: python verify/verify.py verify/examples/*.json
+      - name: Every preset shape, twists up to one turn each way
+        run: python verify/verify.py --sweep --max-turns 1
+      - name: Random braids against knotmath.js
+        run: python verify/verify.py --random 80
+      - name: Knot-table names against SnapPy's geometry
+        run: python verify/verify.py --named 150
