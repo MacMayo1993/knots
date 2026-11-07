@@ -1,0 +1,2558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Twisted Toroids</title>
+<meta name="description" content="An interactive knot and surface lab. Twist, cut, and trace painted toroids, explore their flat maps, and build knots and links.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Twisted Toroids">
+<meta name="application-name" content="Twisted Toroids">
+<script src="appearance.js"></script>
+<script>
+try { window.ToroidAppearance.bootstrap(document.documentElement, window.localStorage); }
+catch (_) { window.ToroidAppearance.bootstrap(document.documentElement, null); }
+</script>
+<meta name="theme-color" content="#e2e7ed" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141920" media="(prefers-color-scheme: dark)">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a lab bench — the 3D model on the left, an instrument panel on the right, field notes below */
+:root {
+  --bg: #eceff3;
+  --panel: #f8f9fb;
+  --stage: #e2e7ed;
+  --ink: #141a24;
+  --muted: #566172;
+  --rule: #d0d7e0;
+  --accent: #2a55c9;
+  --on-accent: #ffffff;
+  --trace: #141a24;
+  --red: #cf3f3a;
+  --blue: #2d63c8;
+  --ochre: #d39322;
+  --green: #2b9467;
+  --violet: #7b5cc4;
+  --teal: #2a9aa6;
+  --rose: #d9668f;
+  --lime: #8fb83a;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --panel: #181d25; --stage: #141920; --ink: #e7ebf1; --muted: #9aa5b5;
+    --rule: #2b323d; --accent: #8fb0ff; --on-accent: #0f1420; --trace: #f4f6f9;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --panel: #181d25; --stage: #141920; --ink: #e7ebf1; --muted: #9aa5b5;
+  --rule: #2b323d; --accent: #8fb0ff; --on-accent: #0f1420; --trace: #f4f6f9;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-block: 28px 56px;
+  display: grid;
+  gap: 28px;
+}
+
+/* Header */
+.head { display: grid; gap: 8px; }
+.eyebrow {
+  margin: 0;
+  font-family: var(--f-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h1 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 750;
+  font-size: clamp(2rem, 4.4vw, 3.1rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.lede { margin: 0; max-width: 62ch; color: var(--muted); font-size: 1.04rem; }
+
+/* Lab */
+.lab {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 880px) { .lab { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 881px) { .stage { position: sticky; top: 16px; } }   /* keep the model in view while using the panel */
+
+.stage {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 4 / 3;
+  max-width: 100%;
+  background: radial-gradient(ellipse at 24% 22%, rgba(var(--scene-a, 207,63,58), 0.13), transparent 62%), radial-gradient(ellipse at 80% 76%, rgba(var(--scene-b, 45,99,200), 0.12), transparent 60%), var(--stage);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  overflow: hidden;
+}
+@media (max-width: 560px) { .stage { aspect-ratio: 1 / 1; } }
+#c {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+}
+#c:active { cursor: grabbing; }
+#c:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  font-family: var(--f-mono);
+  font-size: 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 6px 10px;
+  pointer-events: none;
+}
+.hint {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  margin: 0;
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.panel {
+  display: grid;
+  gap: 20px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  padding: 18px;
+  min-width: 0;
+}
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+legend, .label {
+  padding: 0;
+  margin-bottom: 8px;
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button {
+  font: 500 0.9rem/1 var(--f-body);
+  padding: 9px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.seg button:hover { border-color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.secondary {
+  font: 600 0.92rem/1 var(--f-body);
+  padding: 11px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  justify-self: start;
+}
+.secondary:hover { border-color: var(--muted); }
+.secondary:disabled { opacity: 0.45; cursor: not-allowed; }
+.build { display: grid; gap: 8px; }
+.build-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.build input[type="range"] { width: 100%; accent-color: var(--accent); }
+.build-scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.paints { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-bottom: 8px; }
+.paint { display: grid; justify-items: center; gap: 4px; font-family: var(--f-mono); font-size: 0.72rem; color: var(--muted); cursor: pointer; }
+.paint input[type="color"] {
+  width: 44px; height: 34px; padding: 2px;
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: transparent; cursor: pointer;
+}
+.link-btn {
+  font: 500 0.82rem/1.2 var(--f-body);
+  padding: 2px 0; border: 0; background: none;
+  color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.link-btn:hover { color: var(--ink); }
+.link-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.stepper { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.step {
+  font: 600 0.9rem/1 var(--f-body);
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.step:hover { border-color: var(--muted); }
+.step-value {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-family: var(--f-mono);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+}
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.primary {
+  font: 600 0.92rem/1 var(--f-body);
+  padding: 11px 16px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+.check { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+.readout { margin: 0; display: grid; }
+.readout > div {
+  display: grid;
+  gap: 2px;
+  padding-block: 11px;
+  border-top: 1px solid var(--rule);
+}
+.readout dt { font-size: 0.82rem; color: var(--muted); }
+.readout dd {
+  margin: 0;
+  font-family: var(--f-mono);
+  font-size: 1rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.readout .note { font-size: 0.8rem; color: var(--muted); font-family: var(--f-body); font-weight: 400; }
+.swatches { display: inline-flex; gap: 4px; margin-right: 8px; vertical-align: -1px; }
+.swatches i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.cut-legend { list-style: none; margin: 0; padding: 0; font-size: 0.82rem; }
+.cut-legend li { display: flex; align-items: baseline; gap: 4px; margin-top: 5px; }
+.cut-legend .swatches { flex: none; }
+
+/* Notes */
+.notes { display: grid; gap: 14px; }
+h2 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: 1.45rem;
+  letter-spacing: -0.01em;
+}
+.notes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 28px;
+}
+@media (max-width: 720px) { .notes-grid { grid-template-columns: minmax(0, 1fr); } }
+.note-block { display: grid; gap: 4px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--rule); }
+.note-block h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.note-block p { margin: 0; color: var(--muted); max-width: 60ch; }
+.mono { font-family: var(--f-mono); font-size: 0.92em; }
+.panel[data-mode="braid"] .torus-only, .panel:not([data-mode="braid"]) .braid-only { display: none; }
+.braid-form { display: grid; gap: 8px; }
+.braid-row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.braid-row label { display: grid; gap: 4px; font-size: 0.82rem; color: var(--muted); }
+.braid-row .grow { flex: 1 1 180px; min-width: 0; }
+.braid-form input[type="text"], .braid-form input[type="number"] {
+  font: 500 0.95rem/1.2 var(--f-mono); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 9px 10px; width: 100%;
+}
+.braid-form input[type="number"] { width: 5.5em; }
+.braid-help { margin: 0; font-size: 0.8rem; color: var(--muted); }
+.braid-error { margin: 0; font-size: 0.85rem; color: var(--red); min-height: 1.2em; }
+.exact { display: grid; gap: 10px; }
+.exact .readout dd { font-size: 0.9rem; overflow-wrap: anywhere; }
+.stripes { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.stripes li { font-family: var(--f-mono); font-size: 0.85rem; cursor: pointer; border-radius: 6px; padding: 2px 6px; margin-inline: -6px; }
+.stripes li:hover { background: var(--bg); }
+.stripes li[aria-pressed="true"] { background: var(--ink); color: var(--bg) !important; }
+.stripes li:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.matrix { margin: 0; font-family: var(--f-mono); font-size: 0.85rem; line-height: 1.35; white-space: pre; overflow-x: auto; }
+.exact-actions { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.exact-status { font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
+
+/* Sheet parts: only used in the phone layout */
+.sheet-head, .sheet-fab { display: none; }
+.sheet-body { display: grid; gap: 20px; min-width: 0; }
+.appearance-tools { min-width: 0; }
+.appearance-tools summary { cursor: pointer; font-weight: 600; min-height: 36px; }
+.appearance-tools .label { margin-top: 16px; }
+.palette-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.palette-choice { min-width: 0; min-height: 72px; padding: 10px; display: grid; gap: 8px; text-align: left; border: 1px solid var(--rule); border-radius: 12px; background: var(--bg); color: var(--ink); cursor: pointer; font: 500 .88rem var(--f-body); }
+.palette-choice[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.palette-choice[aria-pressed="true"] .palette-name::after { content: ' ✓'; }
+.palette-preview { display: flex; height: 17px; overflow: hidden; border-radius: 5px; }
+.palette-preview i { flex: 1; }
+.appearance-tools .seg button { min-height: 44px; }
+.appearance-status { margin: 8px 0 0; min-height: 2.8em; }
+.explore-tools { min-width: 0; }
+.explore-tools details { border-top: 1px solid var(--rule); padding: 12px 0; }
+.explore-tools summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.explore-tools select { width: 100%; min-height: 44px; margin: 8px 0; padding: 8px; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
+.explore-tools .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.explore-tools .actions button { min-height: 44px; }
+.explore-tools p { overflow-wrap: anywhere; }
+.explore-tools [hidden] { display: none !important; }
+.flat-map { width: 100%; height: auto; display: block; border: 1px solid var(--rule); border-radius: 8px; touch-action: pan-y; cursor: crosshair; }
+.flat-map:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.explore-tools .result { font-weight: 500; line-height: 1.55; }
+.panel[data-exploring="true"] .sheet-body > :not(.explore-tools):not(.appearance-tools) { display: none; }
+.panel:not([data-exploring="true"]) .lab-only { display: none; }
+.panel[data-exploring="true"] .quick.torus-only, .panel[data-exploring="true"] .quick.braid-only { display: none; }
+
+/* Phone: the model fills the screen and the panel becomes a bottom sheet */
+@media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body { padding: 0; }
+  .wrap { display: block; max-width: none; padding: 0; }
+  .head { display: none; }
+  .lab { display: block; }
+  .stage {
+    position: fixed; inset: 0; aspect-ratio: auto; max-width: none;
+    border: 0; border-radius: 0;
+  }
+  .hud {
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: calc(env(safe-area-inset-left, 0px) + 10px);
+    max-width: calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    font-size: 0.74rem;
+  }
+  .hint { display: none; }
+  .panel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    height: 90dvh; display: flex; flex-direction: column; gap: 0; padding: 0;
+    border-radius: 18px 18px 0 0; border-bottom: 0;
+    box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.16);
+    transform: translateY(calc(100% - var(--sheet-visible, 140px)));
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: transform;
+  }
+  .panel.dragging { transition: none; }
+  .sheet-head {
+    display: block; flex: none; touch-action: none; cursor: grab; user-select: none;
+    padding: 6px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+  }
+  .sheet-grip { width: 40px; height: 5px; border-radius: 3px; background: var(--rule); margin: 2px auto 6px; }
+  .sheet-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .sheet-title { font-family: var(--f-display); font-weight: 600; font-size: 1rem; }
+  .sheet-tools { display: flex; gap: 2px; }
+  .icon-btn {
+    display: grid; place-items: center; width: 40px; height: 40px; padding: 0;
+    border: 0; border-radius: 10px; background: transparent; color: var(--ink); cursor: pointer;
+  }
+  .icon-btn:active { background: var(--bg); }
+  .quick { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .quick .step { min-width: 46px; min-height: 42px; font-size: 1.1rem; }
+  .q-value { flex: 1; min-width: 0; text-align: center; font-family: var(--f-mono); font-size: 0.95rem; }
+  .q-word { flex: 1; min-width: 0; font-family: var(--f-mono); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .quick .secondary { min-height: 42px; }
+  .panel[data-mode="braid"] .quick.torus-only, .panel:not([data-mode="braid"]) .quick.braid-only { display: none; }
+  .sheet-body {
+    flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    border-top: 1px solid var(--rule);
+  }
+  .sheet-body .notes { padding-top: 8px; }
+  .sheet-fab {
+    position: fixed; z-index: 11;
+    right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    display: flex; align-items: center; gap: 6px;
+    font: 600 0.9rem/1 var(--f-body); padding: 12px 16px; border-radius: 999px;
+    border: 1px solid var(--rule); background: var(--panel); color: var(--ink);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18); cursor: pointer;
+  }
+  .sheet-fab[hidden] { display: none; }
+}
+/* Phone on its side: the sheet sits on the right instead of across the bottom */
+@media (max-height: 520px) and (pointer: coarse) and (orientation: landscape) {
+  .panel { left: auto; width: min(400px, 48vw); height: calc(100dvh - 8px); border-radius: 18px 0 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto; }
+  .panel { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="head">
+    <p class="eyebrow">Knots · surfaces · discovery</p>
+    <h1>Twisted Toroids</h1>
+    <p class="lede">Twist, cut, and trace painted surfaces. Explore how a gluing rule turns stripes into ribbons, knots, and links.</p>
+  </header>
+
+  <section class="lab" aria-label="Interactive model">
+    <div class="stage" id="stage">
+      <canvas id="c" tabindex="0" aria-label="3D model. Drag or use the arrow keys to rotate, tap a strip to follow it, press Escape to clear."></canvas>
+      <div class="hud" id="hud" aria-live="polite">Drawing the model</div>
+      <p class="hint">Drag to rotate · scroll or pinch to zoom · tap a strip to follow it</p>
+    </div>
+
+    <aside class="panel" id="panel" aria-label="Controls">
+      <div class="sheet-head" id="sheetHead">
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <div class="sheet-top">
+          <span class="sheet-title">Twisted Toroids</span>
+          <div class="sheet-tools">
+            <button type="button" class="icon-btn" id="fsBtn" aria-label="Full screen" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+            <button type="button" class="icon-btn" id="sheetSize" aria-label="Show more controls" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
+            <button type="button" class="icon-btn" id="sheetHide" aria-label="Hide controls"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19h14"/></svg></button>
+          </div>
+        </div>
+        <div class="quick torus-only">
+          <button type="button" class="step" id="q-minus" aria-label="Subtract a step of twist">−</button>
+          <output class="q-value" id="q-twist" aria-live="polite">½ turn</output>
+          <button type="button" class="step" id="q-plus" aria-label="Add a step of twist">+</button>
+          <button type="button" class="secondary" id="q-cut">Cut</button>
+        </div>
+        <div class="quick braid-only">
+          <span class="q-word" id="q-word"></span>
+          <button type="button" class="secondary" id="q-edit">Edit</button>
+        </div>
+        <div class="quick lab-only"><span class="q-word" id="q-lab">Cut explorer</span><button type="button" class="secondary" id="q-return">Return</button></div>
+      </div>
+      <div class="sheet-body" id="sheetBody">
+      <fieldset>
+        <legend>Model</legend>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="torus" aria-pressed="true">Twisted torus</button>
+          <button type="button" data-mode="braid" aria-pressed="false">Any braid</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="appearance-tools">
+        <legend>Appearance</legend>
+        <details id="appearanceDetails">
+          <summary>Palettes &amp; surface style</summary>
+          <p class="note">Choose a paint palette, then fine-tune individual colors below. A new palette replaces your custom paint.</p>
+          <div class="palette-grid" role="group" aria-label="Paint palette">
+            <button type="button" class="palette-choice" id="palette-classic" aria-pressed="true">Classic</button>
+            <button type="button" class="palette-choice" id="palette-aurora" aria-pressed="false">Aurora</button>
+            <button type="button" class="palette-choice" id="palette-sunset" aria-pressed="false">Sunset</button>
+            <button type="button" class="palette-choice" id="palette-lagoon" aria-pressed="false">Lagoon</button>
+            <button type="button" class="palette-choice" id="palette-candy" aria-pressed="false">Candy</button>
+            <button type="button" class="palette-choice" id="palette-bold" aria-pressed="false">Bold</button>
+          </div>
+          <div class="label" id="backgroundLabel">Background</div>
+          <div class="seg" role="group" aria-labelledby="backgroundLabel">
+            <button type="button" id="look-system" aria-pressed="true">System</button>
+            <button type="button" id="look-light" aria-pressed="false">Light</button>
+            <button type="button" id="look-dark" aria-pressed="false">Dark</button>
+          </div>
+          <div class="label" id="finishLabel">Surface finish</div>
+          <div class="seg" role="group" aria-labelledby="finishLabel">
+            <button type="button" id="finish-matte" aria-pressed="false">Matte</button>
+            <button type="button" id="finish-satin" aria-pressed="true">Satin</button>
+            <button type="button" id="finish-gloss" aria-pressed="false">Gloss</button>
+          </div>
+          <p class="note appearance-status" id="appearanceStatus" aria-live="polite"></p>
+        </details>
+      </fieldset>
+
+      <fieldset class="explore-tools">
+        <legend>Explore</legend>
+        <details id="cutLabDetails">
+          <summary>Try different cuts</summary>
+          <p class="note">A separate round-torus surface for comparing cuts. Your painted construction is kept when you return.</p>
+          <label for="labCut">Cut path</label>
+          <select id="labCut">
+            <option value="closed">Uncut torus</option>
+            <option value="meridian">Around the tube · meridian</option>
+            <option value="longitude">Around the central hole · longitude</option>
+            <option value="patch">Around a small patch · contractible loop</option>
+          </select>
+          <div class="actions"><button type="button" class="secondary" id="labShow">Show this cut</button><button type="button" class="secondary" id="labReturn" hidden>Return to my construction</button></div>
+          <div id="labReadout" hidden aria-live="polite">
+            <p class="result" id="labResult"></p>
+            <dl class="readout"><div><dt>Connected pieces</dt><dd id="labPieces"></dd></div><div><dt>Boundary loops, total</dt><dd id="labBoundaries"></dd></div><div><dt>Orientability</dt><dd>Every piece is two-sided</dd></div><div><dt>Euler characteristic, total</dt><dd id="labEuler"></dd></div></dl>
+            <p class="note" id="labWhy"></p>
+            <p class="note">Bright lines mark the new boundaries. Gaps and the lifted patch make the cuts visible; no caps are added. The gold patch keeps its color.</p>
+          </div>
+        </details>
+        <details id="mapDetails">
+          <summary>Open the linked flat map</summary>
+          <p class="note" id="mapHelp">Tap the map or the 3D surface to select the same point and stripe. On the map, arrow keys move the point; Escape clears it.</p>
+          <canvas class="flat-map" id="flatMap" width="640" height="280" tabindex="0" role="img" aria-label="Flat map of the torus. Arrow keys move a selected point." aria-describedby="mapHelp mapNote"></canvas>
+          <p class="note" id="mapNote" aria-live="polite"></p>
+          <button type="button" class="link-btn" id="mapClear">Clear map point</button>
+        </details>
+        <details id="challengeDetails">
+          <summary>Construction challenges</summary>
+          <label for="challengePick">Choose a challenge</label>
+          <select id="challengePick"><option value="three">Make exactly three strips</option><option value="trefoils">Make two linked trefoils</option><option value="mirror">Build the mirror trefoil</option></select>
+          <p class="result" id="challengeGoal"></p>
+          <div class="actions"><button type="button" class="secondary" id="challengeStart">Start challenge</button><button type="button" class="secondary" id="challengeCheck">Check construction</button><button type="button" class="link-btn" id="challengeHint">Show hint</button></div>
+          <p class="note" id="challengeFeedback" aria-live="polite">Choose a challenge, then start or check your current construction.</p>
+          <p class="note" id="challengeProgress" aria-live="polite"></p>
+        </details>
+      </fieldset>
+
+      <fieldset class="braid-only">
+        <legend>Braid word</legend>
+        <form class="braid-form" id="braidForm" novalidate>
+          <div class="braid-row">
+            <label class="grow" for="braidInput">Word
+              <input type="text" id="braidInput" value="s1 S2 s1 S2" autocomplete="off" spellcheck="false" aria-describedby="braidHelp">
+            </label>
+            <label for="braidStrands">Strands
+              <input type="number" id="braidStrands" min="1" max="10" placeholder="auto">
+            </label>
+            <button type="submit" class="secondary">Draw</button>
+          </div>
+          <p class="braid-help" id="braidHelp">Write generators as <span class="mono">s1 s2 S1</span> (capital for the inverse), <span class="mono">σ1 σ2⁻¹</span> or <span class="mono">1 2 -1</span>. Use <span class="mono">(s1 s2)^3</span> for powers. Up to 10 strands.</p>
+          <p class="braid-error" id="braidError" role="alert"></p>
+        </form>
+        <div class="seg" id="braidExamples">
+          <button type="button" data-word="s1^3">Trefoil</button>
+          <button type="button" data-word="(s1 S2)^2">Figure-eight</button>
+          <button type="button" data-word="s1^3 s2 S1 s2">5₂</button>
+          <button type="button" data-word="s1^2 S2 s1 S2^2">6₃</button>
+          <button type="button" data-word="(s1 S2)^4">8₁₈</button>
+          <button type="button" data-word="s1^2">Hopf link</button>
+          <button type="button" data-word="s1^2 S2 s1 S2">Whitehead link</button>
+          <button type="button" data-word="(s1 S2)^3">Borromean rings</button>
+        </div>
+        <button type="button" class="link-btn" id="braidFromTorus">Start from the last torus construction</button>
+      </fieldset>
+
+      <fieldset class="torus-only">
+        <legend>Tube cross-section</legend>
+        <div class="seg" id="shapeSeg">
+          <button type="button" id="shape-circle" data-shape="circle" aria-pressed="true">Round</button>
+          <button type="button" id="shape-oval" data-shape="oval" aria-pressed="false">Oval</button>
+          <button type="button" id="shape-egg" data-shape="egg" aria-pressed="false">Egg</button>
+          <button type="button" id="shape-tri" data-shape="tri" aria-pressed="false">Triangle</button>
+          <button type="button" id="shape-square" data-shape="square" aria-pressed="false">Square</button>
+          <button type="button" id="shape-pent" data-shape="pent" aria-pressed="false">Pentagon</button>
+          <button type="button" id="shape-hex" data-shape="hex" aria-pressed="false">Hexagon</button>
+          <button type="button" id="shape-hept" data-shape="hept" aria-pressed="false">Heptagon</button>
+          <button type="button" id="shape-oct" data-shape="oct" aria-pressed="false">Octagon</button>
+          <button type="button" id="shape-star" data-shape="star" aria-pressed="false">Star</button>
+          <button type="button" id="shape-cross" data-shape="cross" aria-pressed="false">Cross</button>
+          <button type="button" id="shape-rect" data-shape="rect" aria-pressed="false">Rectangle</button>
+          <button type="button" id="shape-diamond" data-shape="diamond" aria-pressed="false">Diamond</button>
+          <button type="button" id="shape-heart" data-shape="heart" aria-pressed="false">Heart</button>
+          <button type="button" id="shape-star3" data-shape="star3" aria-pressed="false">3-point star</button>
+          <button type="button" id="shape-star4" data-shape="star4" aria-pressed="false">4-point star</button>
+          <button type="button" id="shape-star6" data-shape="star6" aria-pressed="false">6-point star</button>
+          <button type="button" id="shape-gear" data-shape="gear" aria-pressed="false">Gear</button>
+          <button type="button" id="shape-band2" data-shape="band2" aria-pressed="false">Flat strip, 2 lanes</button>
+          <button type="button" id="shape-band3" data-shape="band3" aria-pressed="false">Flat strip, 3 lanes</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="torus-only">
+        <legend>Turn the cut end by</legend>
+        <div class="seg" id="twistSeg">
+          <button type="button" id="twist-0" data-k="0" aria-pressed="false">Nothing</button>
+          <button type="button" id="twist-q" data-k="0.25" aria-pressed="false">¼ turn</button>
+          <button type="button" id="twist-h" data-k="0.5" aria-pressed="true">½ turn</button>
+          <button type="button" id="twist-f" data-k="1" aria-pressed="false">Full turn</button>
+          <button type="button" id="twist-2" data-k="2" aria-pressed="false">2 full turns</button>
+          <button type="button" id="twist-4" data-k="4" aria-pressed="false">4 full turns</button>
+        </div>
+        <div class="stepper">
+          <button type="button" class="step" id="twist-minus" aria-label="Subtract a quarter turn">− ¼ turn</button>
+          <output class="step-value" id="twist-value" for="twist-minus twist-plus" aria-live="polite">½ turn</output>
+          <button type="button" class="step" id="twist-plus" aria-label="Add a quarter turn">+ ¼ turn</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="torus-only">
+        <legend>Build it</legend>
+        <div class="build">
+          <div class="build-buttons">
+            <button type="button" class="secondary" id="buildBtn">Build from a flat sheet</button>
+            <button type="button" class="secondary" id="growBtn">Grow from the shape</button>
+          </div>
+          <input type="range" id="build" min="0" max="200" step="1" value="200" aria-label="Sheet to tube to torus">
+          <div class="build-scale" aria-hidden="true"><span>Sheet</span><span>Tube</span><span>Torus</span></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="torus-only">
+        <legend>Cut it</legend>
+        <div class="build">
+          <button type="button" class="secondary" id="cutBtn">Cut along the color lines</button>
+          <label class="check" for="cutColors"><input type="checkbox" id="cutColors" aria-describedby="cutColorNote" disabled> Color by connected piece</label>
+          <p class="note" id="cutColorNote" aria-live="polite">Original paint is preserved when you cut.</p>
+          <ul class="cut-legend" id="cutColorLegend" aria-label="Connected pieces" hidden></ul>
+          <dl class="readout">
+            <div><dt>Pieces after cutting</dt><dd id="c-pieces">–</dd></div>
+            <div><dt>Each piece</dt><dd id="c-each">–</dd></div>
+            <div><dt>Linked together?</dt><dd id="c-link">–</dd></div>
+          </dl>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Exact description</legend>
+        <div class="exact">
+          <dl class="readout">
+            <div>
+              <dt id="x-braid-dt">Braid whose closure is the cut strips</dt>
+              <dd id="x-braid">–</dd>
+              <dd class="note" id="x-braid-note"></dd>
+            </div>
+            <div>
+              <dt id="x-stripes-dt">Strips: laps, turns around the core, knot, framing</dt>
+              <dd><ul class="stripes" id="x-stripes"></ul></dd>
+              <dd class="note" id="x-framing-note">Framing: how many times a strip's edge winds around its own centerline.</dd>
+            </div>
+            <div>
+              <dt>Linking matrix</dt>
+              <dd><pre class="matrix" id="x-matrix">–</pre></dd>
+            </div>
+            <div>
+              <dt>Alexander polynomial of the whole link</dt>
+              <dd id="x-alex">–</dd>
+              <dd class="note">Written as in knot tables: lowest term a constant, leading coefficient positive. It is 0 for a split link.</dd>
+            </div>
+          </dl>
+          <div class="exact-actions">
+            <button type="button" class="link-btn" id="x-copy">Copy braid word</button>
+            <button type="button" class="link-btn" id="x-download">Download experiment</button>
+            <button type="button" class="link-btn" id="x-link">Copy link</button>
+            <button type="button" class="link-btn" id="x-load-btn">Load experiment</button>
+            <input type="file" id="x-load" accept="application/json,.json" hidden>
+          </div>
+          <p class="exact-status" id="x-status" aria-live="polite"></p>
+        </div>
+      </fieldset>
+
+      <fieldset class="torus-only">
+        <legend>Paint colors</legend>
+        <div class="paints" id="paints"></div>
+        <button type="button" class="link-btn" id="resetPaint">Reset to palette colors</button>
+      </fieldset>
+
+      <div class="actions torus-only">
+        <button type="button" class="primary" id="travel">Pause traveler</button>
+        <label class="check" for="seam"><input type="checkbox" id="seam" checked> Show the cut</label>
+      </div>
+
+      <div class="torus-only">
+        <div class="label">What changed</div>
+        <dl class="readout">
+          <div>
+            <dt>Sides of the surface</dt>
+            <dd id="r-sides">2</dd>
+            <dd class="note" id="r-sides-note">Turning the tube never swaps inside and outside.</dd>
+          </div>
+          <div>
+            <dt>Cut ends fit back together</dt>
+            <dd id="r-fit">Yes</dd>
+          </div>
+          <div>
+            <dt>Painted pieces</dt>
+            <dd id="r-bands">2 halves → 1 stripe</dd>
+          </div>
+          <div>
+            <dt>Laps for a line to come home</dt>
+            <dd id="r-laps">2</dd>
+          </div>
+          <div>
+            <dt>Turns around the tube per trip home</dt>
+            <dd id="r-wind">1 turn</dd>
+            <dd class="note">A whole number that no motion in space can change.</dd>
+          </div>
+        </dl>
+      </div>
+      </div>
+    </aside>
+    <button type="button" class="sheet-fab" id="sheetShow" aria-label="Show controls" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg><span>Controls</span></button>
+  </section>
+
+  <section class="notes">
+    <h2>What the model shows</h2>
+    <div class="notes-grid">
+      <div class="note-block">
+        <h3>Building it two ways</h3>
+        <p>The build animation is the gluing rule in motion. First the flat sheet rolls up until its long dashed edges meet, which makes a tube. Then the tube bends until its two solid ends meet, and one end turns by the chosen twist so the paint lines up the way the gluing rule says. That turn is the slide of the sheet's edge in the flat picture. Growing from the shape tells the same story the other way round: the cross-section sweeps once around the loop, turning as it goes, and the tube is the trail it leaves. When it gets back to the start it has turned by exactly the twist, which is why only certain twists let a flat-sided shape land on itself.</p>
+      </div>
+      <div class="note-block">
+        <h3>Cutting along the color lines</h3>
+        <p>Every color boundary is a cut line. After the cut, each strip is a chain of pieces that the twist hands on from one lap to the next, so the number of strips and their lengths come straight from the twist. A strip that goes around <span class="mono">q</span> times while turning <span class="mono">p</span> times around the core is a <span class="mono">(q, p)</span> torus knot: a triangle tube with a ⅔ turn cuts into a right-handed trefoil, and turning the other way gives the left-handed one, its mirror image. The two can't be deformed into each other, so the readouts always say which. The flat strips reproduce the classic Möbius experiments: down the middle of a ½-turn strip gives one strip twice as long, in thirds gives a long strip linked with a smaller Möbius band, and down the middle of a 1½-turn strip gives a trefoil.</p>
+      </div>
+      <div class="note-block">
+        <h3>The cut</h3>
+        <p>The dashed ring marks where the tube was sliced. One end is turned about the tube's own axis before it is glued back, the same half-twist a Möbius band gets.</p>
+      </div>
+      <div class="note-block">
+        <h3>Still two-sided</h3>
+        <p>Turning a circle spins it but never turns it inside out, so the inside of the tube stays inside. The result is still a torus. Only a mirror flip of the cut end would join inside to outside. That surface is the Klein bottle, which can't be built in 3D without passing through itself.</p>
+      </div>
+      <div class="note-block">
+        <h3>The paint gets shuffled, not flipped</h3>
+        <p>Paint applied before the twist can't match at the cut: the red half runs straight into the blue half. Follow the traveler and it rides red for one lap, blue for the next, and only then gets home. The twist permutes the painted pieces at the cut, and a stripe needs as many laps as its piece's cycle is long. That looks like the Möbius band's "go around twice" but it is not the same thing: every stripe on the tube is still two-sided, and cutting along the color lines gives ordinary orientable ribbons. Only the flat strip with an odd number of half turns is a true Möbius band, one-sided with a single edge.</p>
+      </div>
+      <div class="note-block">
+        <h3>Why flat-sided tubes show it best</h3>
+        <p>An end with <span class="mono">n</span> flat sides only fits back at steps of <span class="mono">1/n</span> of a turn, its symmetry group <span class="mono">Cₙ</span>. The step buttons move by exactly that much. A single step joins all <span class="mono">n</span> faces into one face that takes <span class="mono">n</span> laps to come home. The oval fits only at half turns, and a round tube fits at any angle, so there only the paint shows the twist. A star or a cross turns like the polygon with the same number of points or arms. The rectangle and diamond fit at half turns, like the oval, and the gear steps tooth by tooth in eighths. The egg and the heart have no turning symmetry at all, so they only fit back after whole turns.</p>
+      </div>
+      <div class="note-block">
+        <h3>Do whole turns undo themselves?</h3>
+        <p>With 2 or 4 full turns the paint lines up again and every stripe comes home in one lap. But each stripe now winds around the tube 2 or 4 times before it closes, and that count is its linking number with the tube's core circle. No motion of the torus in space can change it, so the torus is not back to normal. The belt trick is different: a belt's turning only matters up to 720°, because its free end can swing around. A closed stripe has no free end, so it keeps every turn.</p>
+      </div>
+      <div class="note-block">
+        <h3>The antipodal rule</h3>
+        <p>On a circle, the antipodal map <span class="mono">x ↦ −x</span> is the same as a half-turn, a rotation, so it keeps orientation and the torus stays two-sided. On a sphere the two come apart. A half-turn about an axis is still a rotation and keeps orientation. The antipodal map <span class="mono">x ↦ −x</span> is not a rotation: it reverses orientation. Gluing each point of the sphere to its antipode gives the projective plane <span class="mono">RP²</span>, which is one-sided.</p>
+      </div>
+      <div class="note-block">
+        <h3>Reading the numbers</h3>
+        <p>A turn of <span class="mono">p/q</span> of a full rotation sends a line home after <span class="mono">q</span> laps. With <span class="mono">n</span> painted pieces shifted by <span class="mono">s</span> places at the cut, the paint forms <span class="mono">gcd(s, n)</span> separate stripes.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="knotmath.js"></script>
+<script src="explore.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+<script>
+window.addEventListener('error', function (e) {
+  var hud = document.getElementById('hud');
+  if (hud) hud.textContent = 'Error: ' + (e.message || 'script failed');
+});
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+(function () {
+  const TAU = Math.PI * 2;
+  const AP = window.ToroidAppearance;
+  const appearance = (() => { try { return AP.load(localStorage); } catch (_) { return AP.normalize(null); } })();
+  const R = 1.6;          // distance from centre of hole to centre of tube
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const canvas = document.getElementById('c');
+  const stage = document.getElementById('stage');
+  const hud = document.getElementById('hud');
+  try { const gl = document.createElement('canvas').getContext('webgl2'); if (!gl) throw 0; }
+  catch (_) { hud.textContent = 'This browser cannot draw the model: it needs WebGL 2.'; return; }
+
+  // ---------- colors ----------
+  const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888888';
+  function hexRgb(hx) {
+    hx = hx.replace('#', '');
+    if (hx.length === 3) hx = hx.split('').map(c => c + c).join('');
+    const n = parseInt(hx, 16);
+    return Number.isFinite(n) ? [(n >> 16) & 255, (n >> 8) & 255, n & 255] : [136, 136, 136];
+  }
+  const COLOR_VARS = ['--red', '--ochre', '--blue', '--green', '--violet', '--teal', '--rose', '--lime'];
+  const COLOR_NAMES = ['red', 'ochre', 'blue', 'green', 'violet', 'teal', 'rose', 'lime'];
+  let pal = {};
+  function readPalette() {
+    pal = { c: COLOR_VARS.map(v => hexRgb(token(v))), trace: token('--trace'), stage: token('--stage'), panel: token('--panel') };
+  }
+  readPalette();
+
+  // ---------- shapes ----------
+  function regularVerts(n, apothem) {
+    const w = TAU / n, rc = apothem / Math.cos(w / 2), v = [];
+    for (let p = 0; p < n; p++) v.push([rc * Math.cos(w / 2 + p * w), rc * Math.sin(w / 2 + p * w)]);
+    return v;
+  }
+  function starVerts(n, ro, ri) {
+    const w = TAU / n, v = [];
+    for (let p = 0; p < n; p++) {
+      v.push([ro * Math.cos(p * w), ro * Math.sin(p * w)]);
+      v.push([ri * Math.cos(p * w + w / 2), ri * Math.sin(p * w + w / 2)]);
+    }
+    return v;
+  }
+  function crossVerts(L, a) {
+    const v = [];
+    for (let p = 0; p < 4; p++) {
+      const c = Math.cos(p * TAU / 4), s = Math.sin(p * TAU / 4);
+      for (const [x, y] of [[L, -a], [L, a], [a, a]]) v.push([x * c - y * s, x * s + y * c]);
+    }
+    return v;
+  }
+  function heartVerts(size) {
+    const v = [];
+    for (let i = 0; i < 48; i++) {
+      const t = i / 48 * TAU;
+      const x = 16 * Math.sin(t) ** 3, y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+      v.push([x * size / 17, y * size / 17]);
+    }
+    return v;
+  }
+  function gearVerts(n, rRoot, rTip) {
+    const w = TAU / n, v = [];
+    for (let p = 0; p < n; p++) {
+      for (const [f, r] of [[-0.36, rRoot], [-0.18, rTip], [0.18, rTip], [0.36, rRoot]]) {
+        v.push([r * Math.cos((p + f) * w), r * Math.sin((p + f) * w)]);
+      }
+    }
+    return v;
+  }
+  // sym: rotational symmetry of the cross-section (0 = any angle). colors: one paint slot per piece.
+  const SHAPES = {
+    circle: { label: 'round', sym: 0, colors: [0, 2], kind: 'half' },
+    oval:   { label: 'oval', sym: 2, colors: [0, 2], kind: 'half' },
+    egg:    { label: 'egg', sym: 1, colors: [0, 2], kind: 'half' },
+    tri:    { label: 'triangle', sym: 3, colors: [0, 1, 2], kind: 'face', verts: regularVerts(3, 0.36) },
+    square: { label: 'square', sym: 4, colors: [0, 1, 2, 3], kind: 'face', verts: regularVerts(4, 0.56) },
+    pent:   { label: 'pentagon', sym: 5, colors: [0, 1, 2, 3, 4], kind: 'face', verts: regularVerts(5, 0.53) },
+    hex:    { label: 'hexagon', sym: 6, colors: [0, 1, 2, 3, 4, 5], kind: 'face', verts: regularVerts(6, 0.56) },
+    hept:   { label: 'heptagon', sym: 7, colors: [0, 1, 2, 3, 4, 5, 6], kind: 'face', verts: regularVerts(7, 0.56) },
+    oct:    { label: 'octagon', sym: 8, colors: [0, 1, 2, 3, 4, 5, 6, 7], kind: 'face', verts: regularVerts(8, 0.58) },
+    star:   { label: 'star', sym: 5, colors: [0, 1, 2, 3, 4], kind: 'arm', verts: starVerts(5, 0.74, 0.33) },
+    cross:  { label: 'cross', sym: 4, colors: [0, 1, 2, 3], kind: 'arm', verts: crossVerts(0.70, 0.25) },
+    rect:   { label: 'rectangle', sym: 2, colors: [0, 2], kind: 'half', verts: [[0.72, 0.34], [-0.72, 0.34], [-0.72, -0.34], [0.72, -0.34]] },
+    diamond:{ label: 'diamond', sym: 2, colors: [0, 2], kind: 'half', verts: [[0.76, 0], [0, 0.40], [-0.76, 0], [0, -0.40]] },
+    heart:  { label: 'heart', sym: 1, colors: [6, 0], kind: 'half', verts: heartVerts(0.70) },
+    star3:  { label: 'three-point star', sym: 3, colors: [0, 1, 2], kind: 'arm', verts: starVerts(3, 0.74, 0.25) },
+    star4:  { label: 'four-point star', sym: 4, colors: [0, 1, 2, 3], kind: 'arm', verts: starVerts(4, 0.74, 0.28) },
+    star6:  { label: 'six-point star', sym: 6, colors: [0, 1, 2, 3, 4, 5], kind: 'arm', verts: starVerts(6, 0.72, 0.40) },
+    gear:   { label: 'gear', sym: 8, colors: [0, 1, 2, 3, 4, 5, 6, 7], kind: 'tooth', verts: gearVerts(8, 0.50, 0.68) },
+    band2:  { label: 'flat strip', sym: 2, colors: [0, 2], kind: 'lane', open: true, half: 0.62 },
+    band3:  { label: 'flat strip', sym: 2, colors: [0, 1, 2], kind: 'lane', open: true, half: 0.62 }
+  };
+  // For flat-sided shapes: corners sorted by angle, and where each piece needs mesh lines (its corners).
+  Object.values(SHAPES).forEach(sh => {
+    const w = TAU / sh.colors.length;
+    if (sh.open) { sh.offsets = [0, 2 * sh.half / sh.colors.length]; return; }
+    if (sh.verts) {
+      sh.poly = sh.verts.map(([x, y]) => ({ x, y, a: ((Math.atan2(y, x) % TAU) + TAU) % TAU })).sort((A, B) => A.a - B.a);
+      const inner = sh.verts.map(([x, y]) => Math.atan2(y, x))
+        .filter(a => a > -w / 2 + 1e-9 && a < w / 2 - 1e-9).sort((a, b) => a - b).map(a => a + w / 2);
+      sh.offsets = [0, ...inner, w];
+    } else {
+      sh.offsets = Array.from({ length: 9 }, (_, j) => j / 8 * w);
+    }
+  });
+  const shapeOf = () => SHAPES[state.shape];
+  const customHex = [null, null, null, null, null, null, null, null];
+  const kindOf = sh => sh.kind;
+  const pieceNames = sh => sh.colors.map((i, p) => customHex[i] || appearance.palette !== 'classic' ? kindOf(sh) + ' ' + (p + 1) : 'the ' + COLOR_NAMES[i] + ' ' + kindOf(sh));
+  const stepFor = sh => sh.sym ? 1 / sh.sym : 0.25;
+  const near = x => Math.abs(x - Math.round(x)) < 1e-6;
+
+  // ---------- fractions ----------
+  const GLYPH = { '1/2': '½', '1/3': '⅓', '2/3': '⅔', '1/4': '¼', '3/4': '¾', '1/5': '⅕', '2/5': '⅖', '3/5': '⅗', '4/5': '⅘', '1/6': '⅙', '5/6': '⅚', '1/7': '⅐', '1/8': '⅛', '3/8': '⅜', '5/8': '⅝', '7/8': '⅞' };
+  function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+  function fracText(x) {
+    for (let q = 1; q <= 12; q++) {
+      if (!near(x * q)) continue;
+      const p = Math.round(x * q), a = Math.abs(p), whole = Math.floor(a / q), rem = a % q;
+      let txt = whole ? String(whole) : '';
+      if (rem) { const g = gcd(rem, q); const key = rem / g + '/' + q / g; txt += GLYPH[key] || (whole ? ' ' : '') + key; }
+      return { sign: p < 0 ? '−' : '', txt: txt || '0', whole, rem, value: a / q };
+    }
+    return { sign: x < 0 ? '−' : '', txt: Math.abs(x).toFixed(2), whole: 1, rem: 1, value: Math.abs(x) };
+  }
+  function twistLabel(k) {
+    if (Math.abs(k) < 1e-9) return 'No twist';
+    const f = fracText(k);
+    if (!f.rem) return f.sign + f.whole + ' full turn' + (f.whole === 1 ? '' : 's');
+    return f.sign + f.txt + (f.value < 1 ? ' turn' : ' turns');
+  }
+
+  // ---------- state ----------
+  const state = {
+    shape: 'circle',
+    k: 0.5,
+    twistFrom: 0.5, twistTo: 0.5, twistStart: 0, twistDur: 1500, twisting: false,
+    traveling: !reduceMotion,
+    progress: reduceMotion ? 1e9 : 0,
+    hold: 0,
+    userMoved: false,
+    m: 2,               // build stage: 0 flat sheet, 1 straight tube, 2 finished torus
+    building: false, buildT: 0,
+    cut: 0, cutTarget: 0,   // 0 joined, 1 cut along the color lines and pulled apart
+    grow: null,         // sweep progress 0..1 while growing from the shape; null when off
+    growing: false, growT: 0,
+    braid: null         // { n, word, text } while showing an arbitrary closed braid
+  };
+  const EX = window.TorusExplore;
+  let labCut = null, labMeshData = null, labColorKey = '', mapPick = null, mapKey = '';
+
+  // ---------- geometry ----------
+  let thetaArr, phiArr, pos, qIdx, qPiece, nQuads = 0, nVerts = 0;
+  let sampleIdx, arc = null, mesh = { segU: 0, segV: 0, per: 0, n: 0 }, vPiece = null, pieceDir = [];
+  const ARC_SAMPLES = 840;   // divisible by 2..8, so polygon corners fall on samples
+  const smooth = t => t * t * (3 - 2 * t);
+  const mod = (x, p) => ((x % p) + p) % p;
+  function section(shape, phi) {
+    if (SHAPES[shape].open) return [phi, 0];
+    const c = Math.cos(phi), s = Math.sin(phi);
+    if (shape === 'circle') return [0.62 * c, 0.62 * s];
+    if (shape === 'oval') return [0.74 * c, 0.40 * s];
+    if (shape === 'egg') { const r = 0.55 + 0.17 * c; return [r * c, r * s]; }
+    // flat-sided: where the ray at angle phi crosses the edge between two neighbouring corners
+    const V = SHAPES[shape].poly, ang = mod(phi, TAU);
+    let i = V.length - 1;
+    for (let j = 0; j < V.length; j++) { if (V[j].a <= ang) i = j; else break; }
+    const P = V[i], Q = V[(i + 1) % V.length], dx = Q.x - P.x, dy = Q.y - P.y;
+    const t = (P.x * dy - P.y * dx) / (c * dy - s * dx);
+    return [t * c, t * s];
+  }
+  function place(theta, a, b, out, i) {
+    const rr = R + a;
+    out[i] = rr * Math.cos(theta);
+    out[i + 1] = b;
+    out[i + 2] = rr * Math.sin(theta);
+  }
+  // A closed braid: each strand is a flat ribbon carried once around the loop.
+  // Ribbons stay level (their width is radial), which is the blackboard framing.
+  function buildBraidMesh() {
+    const { n, word } = state.braid;
+    const lay = KM.braidLayout(n, word);
+    const perm = KM.permutation(n, word);
+    const comps = KM.cycles(perm), compOf = new Array(n);
+    comps.forEach((c, i) => c.forEach(p => { compOf[p] = i; }));
+    const hw = KM.laneWidth(n) * 0.28;
+    const segU = Math.min(1200, Math.max(160, Math.max(word.length, 1) * 28)), segV = 1;
+    const per = (segU + 1) * (segV + 1);
+    nVerts = per * n;
+    thetaArr = new Float32Array(nVerts); phiArr = new Float32Array(nVerts);
+    pos = new Float32Array(nVerts * 3);
+    nQuads = segU * segV * n;
+    qIdx = new Int32Array(nQuads * 4); qPiece = new Uint8Array(nQuads);
+    mesh = { segU, segV, per, n };
+    vPiece = new Uint8Array(nVerts);
+    meshVersion++; markPositions(); sel = null;
+    let q = 0;
+    for (let st = 0; st < n; st++) {
+      const base = st * per, f = lay[st];
+      vPiece.fill(compOf[st], base, base + per);
+      for (let i = 0; i <= segU; i++) {
+        const th = (i / segU) * TAU, [a, b] = f(Math.min(th, TAU - 1e-9));
+        for (let j = 0; j <= segV; j++) {
+          const v = base + i * (segV + 1) + j;
+          thetaArr[v] = th;
+          place(th, a + (j ? hw : -hw), b, pos, v * 3);
+        }
+      }
+      for (let i = 0; i < segU; i++) {
+        const a = base + i * (segV + 1), b = a + segV + 1;
+        qIdx[q * 4] = a; qIdx[q * 4 + 1] = b; qIdx[q * 4 + 2] = b + 1; qIdx[q * 4 + 3] = a + 1;
+        qPiece[q] = compOf[st] % COMP_COLORS.length;
+        q++;
+      }
+    }
+  }
+  function buildMesh() {
+    if (state.braid) { buildBraidMesh(); return; }
+    meshVersion++; sel = null;
+    const sh = shapeOf();
+    const n = sh.colors.length;
+    const segU = 150, segV = sh.offsets.length - 1;
+    const per = (segU + 1) * (segV + 1);
+    nVerts = per * n;
+    thetaArr = new Float32Array(nVerts);
+    phiArr = new Float32Array(nVerts);
+    pos = new Float32Array(nVerts * 3);
+    nQuads = segU * segV * n;
+    qIdx = new Int32Array(nQuads * 4);
+    qPiece = new Uint8Array(nQuads);
+    const width = TAU / n;
+    mesh = { segU, segV, per, n };
+    // Arc-length table for unrolling the cross-section into a flat strip.
+    // The strip is cut at the corner where piece 1 starts, so every piece unrolls in one piece.
+    const phiStart = width / 2;
+    const Mn = ARC_SAMPLES;
+    arc = { phiStart, pts: new Float64Array((Mn + 1) * 2), len: new Float64Array(Mn), ang: new Float64Array(Mn), cx: 0, cy: 0 };
+    for (let i = 0; i <= Mn; i++) {
+      const s = section(state.shape, phiStart + TAU * i / Mn);
+      arc.pts[2 * i] = s[0]; arc.pts[2 * i + 1] = s[1];
+    }
+    let prev = null;
+    for (let i = 0; i < Mn; i++) {
+      const dx = arc.pts[2 * i + 2] - arc.pts[2 * i], dy = arc.pts[2 * i + 3] - arc.pts[2 * i + 1];
+      arc.len[i] = Math.hypot(dx, dy);
+      let a = Math.atan2(dy, dx);
+      if (prev !== null) { while (a - prev > Math.PI) a -= TAU; while (a - prev < -Math.PI) a += TAU; }
+      arc.ang[i] = a; prev = a;
+      arc.cx += arc.pts[2 * i] / Mn; arc.cy += arc.pts[2 * i + 1] / Mn;
+    }
+    sampleIdx = new Float32Array(nVerts);
+    vPiece = new Uint8Array(nVerts);
+    pieceDir = [];
+    for (let p = 0; p < n; p++) {
+      if (sh.open) { pieceDir.push([0, 0]); continue; }
+      const c = section(state.shape, p * width), l = Math.hypot(c[0], c[1]) || 1;
+      pieceDir.push([c[0] / l, c[1] / l]);
+    }
+    let q = 0;
+    for (let p = 0; p < n; p++) {
+      const base = p * per;
+      const start = sh.open ? -sh.half + p * (2 * sh.half / n) : p * width - width / 2;
+      const unrolledStart = phiStart + mod(start - phiStart, TAU);
+      for (let i = 0; i <= segU; i++) for (let j = 0; j <= segV; j++) {
+        const v = base + i * (segV + 1) + j;
+        thetaArr[v] = (i / segU) * TAU;
+        phiArr[v] = start + sh.offsets[j];
+        vPiece[v] = p;
+        sampleIdx[v] = (unrolledStart + sh.offsets[j] - phiStart) / TAU * Mn;
+      }
+      for (let i = 0; i < segU; i++) for (let j = 0; j < segV; j++) {
+        const a = base + i * (segV + 1) + j, b = a + segV + 1;
+        qIdx[q * 4] = a; qIdx[q * 4 + 1] = b; qIdx[q * 4 + 2] = b + 1; qIdx[q * 4 + 3] = a + 1;
+        qPiece[q] = p;
+        q++;
+      }
+    }
+    updatePositions();
+  }
+  // A point of the finished model: piece p, cross-section parameter phi, loop angle th.
+  // `off` lifts the point off the surface for lines drawn on it: a scale factor for
+  // a closed cross-section, a sideways offset for a flat strip.
+  function surfacePoint(p, phi, th, out, i, off) {
+    const sh = shapeOf(), nc = sh.colors.length, e = smooth(Math.max(0, Math.min(1, state.cut)));
+    let s = section(state.shape, phi);
+    if (off !== undefined) s = sh.open ? [s[0], s[1] + off] : [s[0] * off, s[1] * off];
+    if (e > 0) {
+      if (sh.open) s = [s[0] + e * 0.17 * (p - (nc - 1) / 2), s[1]];
+      else s = [s[0] + e * 0.2 * pieceDir[p][0], s[1] + e * 0.2 * pieceDir[p][1]];
+    }
+    const al = state.k * th, ca = Math.cos(al), sa = Math.sin(al);
+    place(th, s[0] * ca - s[1] * sa, s[0] * sa + s[1] * ca, out, i);
+  }
+  function updatePositions() {
+    if (state.braid) return;   // a braid's ribbons are built once in buildBraidMesh
+    markPositions();
+    const k = state.k, m = state.m;
+    if (m >= 2 - 1e-9) {
+      const growTh = state.grow === null ? Infinity : state.grow * TAU;
+      for (let v = 0; v < nVerts; v++) surfacePoint(vPiece[v], phiArr[v], Math.min(thetaArr[v], growTh), pos, v * 3);
+      return;
+    }
+    // Stage 1 (s1): roll the flat strip into the cross-section by scaling its turning angle.
+    const s1 = Math.max(0, Math.min(1, m)), s2 = Math.max(0, Math.min(1, m - 1));
+    const Mn = arc.len.length, cur = new Float64Array((Mn + 1) * 2);
+    let x = arc.pts[0], y = arc.pts[1], mx = 0, my = 0;
+    const a0 = arc.ang[0];
+    cur[0] = x; cur[1] = y;
+    for (let i = 0; i < Mn; i++) {
+      mx += x / Mn; my += y / Mn;
+      const a = a0 + s1 * (arc.ang[i] - a0);
+      x += arc.len[i] * Math.cos(a); y += arc.len[i] * Math.sin(a);
+      cur[2 * i + 2] = x; cur[2 * i + 3] = y;
+    }
+    const ox = arc.cx - mx, oy = arc.cy - my;   // keep the strip centred on the tube's centre
+    const openShape = !!shapeOf().open;
+    // Stage 2 (s2): bend the straight tube into the ring and turn its far end by the twist.
+    const rho = s2 > 1e-6 ? R / s2 : Infinity;
+    const g = 1;
+    const shiftX = (1 - s2) * R;
+    for (let v = 0; v < nVerts; v++) {
+      let a, b;
+      if (openShape) { a = phiArr[v]; b = 0; }
+      else {
+        const idx = sampleIdx[v];
+        let i0 = Math.floor(idx); if (i0 >= Mn) i0 = Mn - 1; if (i0 < 0) i0 = 0;
+        const f = idx - i0;
+        a = cur[2 * i0] + (cur[2 * i0 + 2] - cur[2 * i0]) * f + ox;
+        b = cur[2 * i0 + 1] + (cur[2 * i0 + 3] - cur[2 * i0 + 1]) * f + oy;
+      }
+      const th = thetaArr[v];
+      const al = k * th * s2, ca = Math.cos(al), sa = Math.sin(al);
+      const ar = a * ca - b * sa, br = a * sa + b * ca;
+      const ell = (th - Math.PI) * R;
+      let cxp, czp, nx, nz;
+      if (rho === Infinity) { cxp = -R; czp = -ell; nx = -1; nz = 0; }
+      else {
+        const beta = ell / rho, cb = Math.cos(beta), sb = Math.sin(beta), sh = Math.sin(beta / 2);
+        cxp = -R + 2 * rho * sh * sh; czp = -rho * sb; nx = -cb; nz = -sb;
+      }
+      pos[v * 3] = (cxp + ar * nx + shiftX) * g;
+      pos[v * 3 + 1] = br * g;
+      pos[v * 3 + 2] = (czp + ar * nz) * g;
+    }
+    // keep the half-built shape centred in view (the finished torus is already centred)
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let v = 0; v < nVerts; v++) {
+      const X = pos[v * 3], Y = pos[v * 3 + 1], Z = pos[v * 3 + 2];
+      if (X < x0) x0 = X; if (X > x1) x1 = X;
+      if (Y < y0) y0 = Y; if (Y > y1) y1 = Y;
+      if (Z < z0) z0 = Z; if (Z > z1) z1 = Z;
+    }
+    const gx = (x0 + x1) / 2, gy = (y0 + y1) / 2, gz = (z0 + z1) / 2;
+    const fade = 1 - smooth(s2);
+    // shrink to fit while the shape is bigger than the finished torus (rotation-proof: use the farthest point)
+    let far = 0;
+    for (let v = 0; v < nVerts; v++) {
+      const dx = pos[v * 3] - gx, dy = pos[v * 3 + 1] - gy * fade, dz = pos[v * 3 + 2] - gz;
+      const d = dx * dx + dy * dy + dz * dz;
+      if (d > far) far = d;
+    }
+    const fitRaw = Math.min(1, 2.2 / Math.sqrt(far));
+    const settle = Math.pow(smooth(s2), 4);
+    const fit = fitRaw + (1 - fitRaw) * settle;
+    for (let v = 0; v < nVerts; v++) {
+      pos[v * 3] = (pos[v * 3] - gx) * fit;
+      pos[v * 3 + 1] = (pos[v * 3 + 1] - gy * fade) * fit;
+      pos[v * 3 + 2] = (pos[v * 3 + 2] - gz) * fit;
+    }
+  }
+
+  // ---------- traveler and seam ----------
+  const PER_LAP = 160;
+  let laps = 2, trailPts = null, seamPts = null;
+  function lapsFor(k) {
+    for (let L = 1; L <= 12; L++) if (near(k * L)) return L;
+    return null;
+  }
+  function travelerPoint(T, out, i) {
+    const sh = shapeOf();
+    const s = sh.open ? [-sh.half + sh.half / sh.colors.length, 0.012] : section(state.shape, 0);
+    const a0 = sh.open ? s[0] : s[0] * 1.05, b0 = sh.open ? s[1] : s[1] * 1.05;
+    const al = state.k * T, ca = Math.cos(al), sa = Math.sin(al);
+    place(T, a0 * ca - b0 * sa, a0 * sa + b0 * ca, out, i);
+  }
+  function buildTrail() {
+    laps = lapsFor(state.k) || 1;
+    const n = laps * PER_LAP + 1;
+    trailPts = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) travelerPoint((i / PER_LAP) * TAU, trailPts, i * 3);
+  }
+  function buildSeam() {
+    const n = 120;
+    seamPts = new Float32Array((n + 1) * 3);
+    const sh = shapeOf();
+    for (let i = 0; i <= n; i++) {
+      if (sh.open) { seamPts[i * 3] = R - sh.half + 2 * sh.half * i / n; seamPts[i * 3 + 1] = 0.02; seamPts[i * 3 + 2] = 0; continue; }
+      const s = section(state.shape, (i / n) * TAU);
+      seamPts[i * 3] = R + s[0] * 1.07; seamPts[i * 3 + 1] = s[1] * 1.07; seamPts[i * 3 + 2] = 0;
+    }
+  }
+
+  // ---------- readouts ----------
+  function analysis() {
+    const sh = shapeOf(), k = state.k;
+    const n = sh.colors.length;
+    const fits = !sh.sym || near(k * sh.sym);
+    const L = lapsFor(k);
+    let sigma = null, offset = false;
+    if (fits) {
+      if (sh.open) { const h = Math.abs(Math.round(2 * k)); sigma = j => (h % 2 ? n - 1 - j : j); }   // a half-turn swaps the lanes
+      else if (near(k * n)) { const sft = mod(Math.round(k * n), n); sigma = p => (p + sft) % n; }  // a turn shifts the pieces
+      else offset = true;
+    }
+    let cycles = null;
+    if (sigma) {
+      cycles = [];
+      const seen = new Array(n).fill(false);
+      for (let p = 0; p < n; p++) {
+        if (seen[p]) continue;
+        const c = []; let q = p;
+        do { c.push(q); seen[q] = true; q = sigma(q); } while (q !== p);
+        cycles.push(c);
+      }
+    }
+    return { n, fits, L, bands: cycles ? cycles.length : null, offset, cycles, sigma };
+  }
+  // Name a (q, p) torus knot with its handedness: a mirror image is a different knot.
+  function knotName(q, p) {
+    const kn = KnotMath.torusKnot(q, p);
+    if (!kn.chirality) return 'unknotted';
+    if (!kn.name.startsWith('T(')) return 'tied in a ' + kn.name + ' knot';
+    return 'tied in a ' + kn.chirality + ' (' + kn.torus[0] + ', ' + Math.abs(kn.torus[1]) + ') torus knot';
+  }
+  // What cutting along every color line produces: one strip per cycle of pieces.
+  function cutInfo() {
+    const a = analysis(), sh = shapeOf(), k = state.k;
+    if (!a.cycles) return { ok: false, a };
+    const n = a.n, h = Math.abs(Math.round(2 * k));
+    const strips = a.cycles.map(c => {
+      const L = c.length, p = Math.round(Math.abs(k * L)), pSigned = Math.round(k * L);
+      let radius = 1, center = false;
+      if (sh.open) {
+        const lw = 2 * sh.half / n, x = -sh.half + lw * (c[0] + 0.5);
+        radius = Math.abs(x); center = radius < 1e-9;
+      }
+      const oneSided = !!sh.open && L === 1 && h % 2 === 1;
+      // a strip that goes around L times and turns p times around the core is a (L, p) torus knot
+      return { pieces: c, L, p: center ? 0 : p, radius, oneSided, knot: center ? 'unknotted' : knotName(L, pSigned) };
+    });
+    const links = [];
+    for (let i = 0; i < strips.length; i++) for (let j = i + 1; j < strips.length; j++) {
+      const A = strips[i], B = strips[j];
+      if (!sh.open || Math.abs(A.radius - B.radius) < 1e-9) links.push(A.L * A.p);   // parallel curves on one torus
+      else { const outer = A.radius > B.radius ? A : B, inner = outer === A ? B : A; links.push(outer.p * inner.L); }
+    }
+    const rep = new Array(n);
+    strips.forEach(st => { const r0 = Math.min(...st.pieces); st.pieces.forEach(p => { rep[p] = r0; }); });
+    return { ok: true, a, strips, links, rep };
+  }
+  const timesWord = t => t === 1 ? 'once' : t === 2 ? 'twice' : t + ' times';
+  function updateCutColors(ci = cutInfo()) {
+    const active = !state.braid && !!state.cutTarget && ci.ok;
+    cutColorBox.disabled = !active;
+    const byPiece = active && cutColorBox.checked;
+    document.getElementById('cutColorNote').textContent = byPiece
+      ? 'Each connected piece uses one color. Uncheck to restore the original paint.'
+      : 'Original paint is preserved when you cut. One connected piece may contain several colors.';
+    const legend = document.getElementById('cutColorLegend');
+    legend.hidden = !byPiece;
+    legend.textContent = '';
+    if (!byPiece) return;
+    ci.strips.forEach((strip, i) => {
+      const row = document.createElement('li');
+      const swatch = document.createElement('span');
+      swatch.className = 'swatches';
+      swatch.setAttribute('aria-hidden', 'true');
+      const chip = document.createElement('i');
+      const representative = ci.rep[strip.pieces[0]];
+      chip.style.background = 'var(' + COLOR_VARS[shapeOf().colors[representative]] + ')';
+      swatch.appendChild(chip);
+      const label = document.createElement('span');
+      const sections = strip.pieces.slice().sort((a, b) => a - b).map(p => p + 1);
+      label.textContent = 'Piece ' + (i + 1) + ' · original section' + (sections.length === 1 ? ' ' : 's ') + sections.join(', ');
+      row.appendChild(swatch); row.appendChild(label); legend.appendChild(row);
+    });
+  }
+  function updateCutReadout() {
+    const ci = cutInfo();
+    updateCutColors(ci);
+    const set = (id, t) => { document.getElementById(id).textContent = t; };
+    if (!ci.ok) {
+      set('c-pieces', !ci.a.fits ? 'The ends don\'t fit yet' : 'The color lines don\'t meet at the cut');
+      set('c-each', '–'); set('c-link', '–');
+      cutBtn.disabled = true;
+      return;
+    }
+    cutBtn.disabled = false;
+    const N = ci.strips.length;
+    set('c-pieces', N === 1 ? (ci.strips[0].L > 1 ? '1 strip, ' + (ci.strips[0].L === 2 ? 'twice' : ci.strips[0].L + ' times') + ' as long' : '1 strip') : N + ' separate strips');
+    const desc = st => 'goes around ' + timesWord(st.L) + (st.oneSided ? ' · a Möbius band' : '') + ' · ' + st.knot;
+    const counts = new Map();
+    ci.strips.forEach(st => counts.set(desc(st), (counts.get(desc(st)) || 0) + 1));
+    set('c-each', [...counts.entries()].map(([d, c]) => (N > 1 && counts.size > 1 ? c + ' ' + (c === 1 ? 'strip ' : 'strips ') : (N > 1 ? 'Each ' : '')) + d).join('; '));
+    if (N === 1) set('c-link', 'Only one piece');
+    else {
+      const u = [...new Set(ci.links)];
+      set('c-link', u.every(x => x === 0) ? 'No, they come apart' : 'Yes, ' + (u.length === 1 ? 'each pair links ' + timesWord(u[0]) : 'linked ' + u.join(' or ') + ' times'));
+    }
+  }
+  function updateReadouts() {
+    const a = analysis();
+    const sh = shapeOf();
+    const step = fracText(stepFor(sh)).txt;
+    document.getElementById('r-fit').textContent = a.fits ? 'Yes'
+      : (sh.sym === 1 ? 'Not yet. ' + (/^[aeiou]/.test(sh.label) ? 'An ' : 'A ') + sh.label + ' has no turning symmetry, so it only fits back after whole turns.'
+                       : 'Not yet. ' + (/^[aeiou]/.test(sh.label) ? 'An ' : 'A ') + sh.label + ' end only fits at ' + step + '-turn steps.');
+    const pieceWord = { half: 'halves', face: 'faces', arm: 'arms', tooth: 'teeth', lane: 'lanes' }[sh.kind];
+    const sw = '<span class="swatches" aria-hidden="true">' +
+      sh.colors.map(i => '<i style="background:var(' + COLOR_VARS[i] + ')"></i>').join('') + '</span>';
+    let txt;
+    if (!a.fits) txt = 'Ends are still apart';
+    else if (a.offset) txt = a.n + ' ' + pieceWord + ' meet out of line';
+    else txt = a.n + ' ' + pieceWord + ' → ' + a.bands + ' ' + (a.bands === 1 ? 'stripe' : 'stripes');
+    document.getElementById('r-bands').innerHTML = sw + txt;
+    document.getElementById('r-laps').textContent = (a.fits && a.L) ? String(a.L) : '–';
+    const wind = (a.fits && a.L && !state.twisting) ? Math.round(state.k * a.L) : null;
+    document.getElementById('r-wind').textContent = wind === null ? '–'
+      : String(wind).replace('-', '−') + (Math.abs(wind) === 1 ? ' turn' : ' turns') + (wind < 0 ? ' (the other way)' : '');
+    const oneSide = !!sh.open && a.fits && Math.abs(Math.round(2 * state.k)) % 2 === 1;
+    document.getElementById('r-sides').textContent = oneSide ? '1' : '2';
+    document.getElementById('r-sides-note').textContent = !sh.open ? 'Turning the tube never swaps inside and outside.'
+      : oneSide ? 'A Möbius band: one side and one edge. Paint one face and you have painted both.'
+      : 'A plain band: two sides and two edges.';
+    updateCutReadout();
+    updateExact();
+    syncQuick();
+  }
+  function updateHud() {
+    if (labCut) { hud.textContent = 'Cut explorer · ' + EX.CUTS[labCut].result; return; }
+    if (sel !== null) {
+      const d = exactInfo(), c = d.ok && d.components[sel];
+      if (c) {
+        const what = state.braid ? 'Component' : 'Strip', N = d.components.length;
+        const name = state.braid ? '' : ' · ' + (c.knot.chirality ? c.knot.name : 'unknot');
+        const fr = c.oneSided ? ' · a Möbius band, so it has one edge and no framing'
+          : ' · its edge (dashed) winds ' + minus(c.framing) + (Math.abs(c.framing) === 1 ? ' time' : ' times') + ' around its centerline';
+        hud.textContent = what + ' ' + (sel + 1) + ' of ' + N + ' · ' + c.laps + (c.laps === 1 ? (state.braid ? ' strand' : ' lap') : (state.braid ? ' strands' : ' laps')) + name + fr;
+        return;
+      }
+    }
+    if (state.braid) {
+      const d = exactInfo(), N = d.components.length;
+      hud.textContent = 'Closed braid on ' + state.braid.n + (state.braid.n === 1 ? ' strand' : ' strands') + ' · ' + N + (N === 1 ? ' component' : ' components');
+      return;
+    }
+    if (state.grow !== null) {
+      if (state.grow < 1e-6) { hud.textContent = 'The ' + shapeOf().label + ' cross-section, before it moves'; return; }
+      const turned = state.k * state.grow;
+      const tw = Math.abs(state.twistTo) < 1e-9 ? '' : ' · turned ' + Math.round(Math.abs(turned) * 360) + '° so far';
+      hud.textContent = 'Sweeping the shape around the loop · ' + Math.round(state.grow * 100) + '%' + tw;
+      return;
+    }
+    if (state.cut > 0.02) {
+      const ci = cutInfo();
+      if (ci.ok) {
+        const N = ci.strips.length, u = [...new Set(ci.links)].filter(x => x > 0);
+        hud.textContent = 'Cut along the color lines · ' + N + (N === 1 ? ' strip' : ' strips') + (N > 1 ? (u.length ? ', linked' : ', free to come apart') : '');
+      }
+      return;
+    }
+    if (state.m < 1) {
+      hud.textContent = shapeOf().open ? 'The flat strip, before it bends' : 'Step 1 of 2 · roll the sheet so its top edge meets its bottom edge';
+      return;
+    }
+    if (state.m < 2) {
+      const tw = Math.abs(state.twistTo) < 1e-9 ? '' : ', turning one end by ' + twistLabel(state.twistTo);
+      hud.textContent = (shapeOf().open ? 'Bend the strip until its ends meet' : 'Step 2 of 2 · bend the tube until its ends meet') + tw;
+      return;
+    }
+    if (state.twisting) { hud.textContent = 'Turning the cut end'; return; }
+    const a = analysis();
+    if (!a.fits) { hud.textContent = 'The cut ends do not fit yet'; return; }
+    const names = pieceNames(shapeOf());
+    const lap = Math.max(0, Math.min(Math.floor(state.progress), laps - 1));
+    let pc = 0;
+    if (a.sigma) for (let i = 0; i < lap; i++) pc = a.sigma(pc);
+    const onPiece = a.sigma ? names[pc] : null;
+    if (!state.traveling && state.progress >= laps) {
+      hud.textContent = 'Full path: ' + laps + (laps === 1 ? ' lap' : ' laps') + ' to come home';
+      return;
+    }
+    let t = 'Lap ' + (lap + 1) + ' of ' + laps;
+    if (onPiece) t += ' · riding ' + onPiece;
+    hud.textContent = t;
+  }
+
+  // ---------- exact description and experiments ----------
+  const KM = window.KnotMath;
+  const ops = [];   // every operation since the page opened, for the experiment record
+  function logOp(op, value) { ops.push({ op, value, at: new Date().toISOString() }); if (ops.length > 500) ops.shift(); }
+  const minus = x => String(x).replace('-', '−');
+  // exact fraction for a twist, e.g. 0.666… -> "2/3"
+  function turnText(x) {
+    for (let q = 1; q <= 24; q++) if (near(x * q)) { const p = Math.round(x * q); return q === 1 ? String(p) : p + '/' + q; }
+    return String(x);
+  }
+  function parseTurn(t) {
+    const m = /^\s*(-?\d+)(?:\/(\d+))?\s*$/.exec(String(t));
+    if (!m) return null;
+    const q = m[2] ? Number(m[2]) : 1;
+    return q ? Number(m[1]) / q : null;
+  }
+  function torusInfo() {
+    const sh = shapeOf(), k = state.twistTo;
+    if (sh.sym && !near(k * sh.sym)) return { ok: false, reason: 'The cut ends don\'t fit yet, so there is no closed surface to describe.' };
+    const d = KM.describe({ kind: sh.open ? 'line' : 'ring', pieces: sh.colors.length, turn: k });
+    if (d.ok) d.alexander = KM.alexander(d.braid.strands, d.braid.word);
+    return d;
+  }
+  let braidCache = null;
+  function exactInfo() {
+    if (!state.braid) return torusInfo();
+    const b = state.braid;
+    if (!braidCache || braidCache.key !== b.n + ':' + b.word.join(',')) braidCache = Object.assign(KM.describeBraid(b.n, b.word), { key: b.n + ':' + b.word.join(',') });
+    return braidCache;
+  }
+  const CONVENTION = 'Generator +i is a positive crossing of strands i and i+1 (SnapPy/Spherogram braid_closure).';
+  function experiment() {
+    const d = exactInfo();
+    if (!d.ok) return null;
+    const base = { format: 'twisted-toroids/experiment', version: 2, created: new Date().toISOString() };
+    if (state.braid) {
+      return Object.assign(base, {
+        construction: { type: 'braid', strands: d.strands, word: d.word, text: state.braid.text },
+        operations: ops.slice(),
+        braid: { strands: d.strands, word: d.word, convention: 'Closure is the link drawn. ' + CONVENTION },
+        ribbonBraid: Object.assign({ note: 'Blackboard ribbon: every strand doubled by an edge on one side, so a component\'s framing is the linking number of its core strand with its edge strand (equal to its writhe in the braid). Positions are 0-based.' }, d.ribbonBraid),
+        components: d.components.map(c => ({ braidStrands: c.braidStrands, laps: c.laps, framing: c.framing, writhe: c.writhe, alexander: c.alexander })),
+        linkingMatrix: d.linking,
+        alexander: d.alexander,
+        verify: 'python verify/verify.py <this file>'
+      });
+    }
+    return Object.assign(base, {
+      construction: { type: 'torus', shape: state.shape, label: shapeOf().label, kind: d.kind, pieces: d.pieces, turn: turnText(state.twistTo), steps: d.steps },
+      operations: ops.slice(),
+      braid: { strands: d.braid.strands, word: d.braid.word, formula: KM.wordFormula(d.kind, d.pieces, d.steps), convention: 'Closure is the strips left after cutting along the color lines. ' + CONVENTION + ' A positive twist gives positive generators.' },
+      ribbonBraid: Object.assign({ note: 'Adds one edge beside each strip. A strip\'s framing is the linking number of its core strand with its edge strand. Positions are 0-based.' }, d.ribbonBraid),
+      components: d.components.map(c => ({ pieces: c.pieces, braidStrands: c.braidStrands, laps: c.laps, turns: c.turns, knot: c.knot, framing: c.framing, oneSided: c.oneSided, alexander: c.alexander })),
+      linkingMatrix: d.linking,
+      alexander: d.alexander,
+      verify: 'python verify/verify.py <this file>'
+    });
+  }
+  const matrixText = M => {
+    const cells = M.map(r => r.map(minus));
+    const w = Math.max(...cells.flat().map(c => c.length));
+    return cells.map(r => r.map(c => c.padStart(w)).join('  ')).join('\n');
+  };
+  const hashFor = () => state.braid
+    ? '#braid=' + state.braid.word.join(',') + '&strands=' + state.braid.n
+    : '#shape=' + state.shape + '&turn=' + turnText(state.twistTo);
+  let exactKey = '';
+  function updateExact() {
+    const key = state.braid ? 'b|' + state.braid.n + '|' + state.braid.word.join(',') : state.shape + '|' + state.twistTo;
+    if (key === exactKey) return;
+    exactKey = key;
+    const set = (id, t) => { document.getElementById(id).textContent = t; };
+    const list = document.getElementById('x-stripes');
+    list.textContent = '';
+    const d = exactInfo();
+    ['x-copy', 'x-download'].forEach(id => { document.getElementById(id).disabled = !d.ok; });
+    try { history.replaceState(null, '', hashFor()); } catch (_) {}
+    set('x-braid-dt', state.braid ? 'Braid word' : 'Braid whose closure is the cut strips');
+    set('x-stripes-dt', state.braid ? 'Components: strands, framing, Alexander polynomial' : 'Strips: laps, turns around the core, knot, framing');
+    set('x-framing-note', state.braid
+      ? 'Framing: the blackboard framing of the flat ribbon drawn, which equals the component\'s writhe in the braid.'
+      : 'Framing: how many times a strip\'s edge winds around its own centerline.');
+    if (!d.ok) { set('x-braid', '–'); set('x-braid-note', d.reason); set('x-matrix', '–'); set('x-alex', '–'); return; }
+    const n = d.braid.strands, m = d.braid.word.length;
+    const counts = n + (n === 1 ? ' strand' : ' strands') + ' · ' + m + (m === 1 ? ' crossing' : ' crossings');
+    if (state.braid) {
+      set('x-braid', KM.wordText(d.word));
+      set('x-braid-note', counts + ' · ' + d.components.length + (d.components.length === 1 ? ' component' : ' components'));
+    } else {
+      set('x-braid', KM.wordFormula(d.kind, d.pieces, d.steps));
+      set('x-braid-note', counts + ' · ' + (d.kind === 'ring' ? 'δ turns ' + d.pieces + ' points 1/' + d.pieces + ' of a turn' : 'Δ turns the strip half a turn'));
+    }
+    d.components.forEach((c, i) => {
+      const li = document.createElement('li');
+      if (state.braid) {
+        li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' strand' : ' strands') + ' · framing ' + minus(c.framing) + ' · Δ = ' + KM.polyText(c.alexander);
+      } else {
+        const knot = c.knot.name === 'unknot' ? 'unknot'
+          : (c.knot.name.startsWith('T(') ? c.knot.chirality + ' ' : c.knot.name + ' ') + 'T(' + c.knot.torus.map(minus).join(',') + ')';
+        li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' lap, ' : ' laps, ') + minus(c.turns) + (Math.abs(c.turns) === 1 ? ' turn · ' : ' turns · ') + knot +
+          ' · ' + (c.oneSided ? 'Möbius, no framing' : 'framing ' + minus(c.framing));
+      }
+      if (state.braid) li.style.color = 'var(' + COLOR_VARS[COMP_COLORS[i % COMP_COLORS.length]] + ')';
+      li.tabIndex = 0; li.setAttribute('role', 'button');
+      li.setAttribute('aria-pressed', String(sel === i));
+      li.title = 'Show this ' + (state.braid ? 'component' : 'strip') + '\'s route, centerline and edge';
+      const pick = () => { select(sel === i ? null : i); revealModel(); };
+      li.addEventListener('click', pick);
+      li.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      list.appendChild(li);
+    });
+    set('x-matrix', matrixText(d.linking));
+    set('x-alex', KM.polyText(d.alexander));
+  }
+  function flash(msg) { document.getElementById('x-status').textContent = msg; }
+  async function copyText(t, what) {
+    try { await navigator.clipboard.writeText(t); flash(what + ' copied.'); }
+    catch (_) { flash('Copy failed. Here it is: ' + t); }
+  }
+  document.getElementById('x-copy').addEventListener('click', () => {
+    const d = exactInfo(); if (!d.ok) return;
+    copyText('[' + d.braid.word.join(', ') + ']', 'Braid word');
+  });
+  document.getElementById('x-link').addEventListener('click', () => copyText(location.href, 'Link'));
+  document.getElementById('x-download').addEventListener('click', () => {
+    const e = experiment(); if (!e) return;
+    // indented, but with number lists (braid words, matrix rows) kept on one line
+    const json = JSON.stringify(e, null, 2).replace(/\[\s+(-?\d+(?:,\s+-?\d+)*)\s+\]/g, (m, inner) => '[' + inner.split(/,\s+/).join(', ') + ']');
+    const blob = new Blob([json + '\n'], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = state.braid
+      ? 'twisted-toroids-braid-' + state.braid.n + '-' + (state.braid.word.length ? state.braid.word.join('_').replace(/-/g, 'm') : 'identity').slice(0, 60) + '.json'
+      : 'twisted-toroids-' + state.shape + '-turn-' + e.construction.turn.replace('/', 'over') + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    flash('Saved ' + a.download + '.');
+  });
+
+  // ---------- braid mode ----------
+  const MAX_STRANDS = 10, MAX_CROSSINGS = 400;
+  const COMP_COLORS = [0, 2, 1, 3, 4, 5, 6, 7];   // red, blue, ochre, green, …
+  const panelEl = document.getElementById('panel');
+  const braidInput = document.getElementById('braidInput'), braidStrandsIn = document.getElementById('braidStrands');
+  const braidError = document.getElementById('braidError');
+  // Check a word and strand count; returns { n, word } or throws with a message for the reader.
+  function checkBraid(word, strands) {
+    const need = word.reduce((a, g) => Math.max(a, Math.abs(g) + 1), 1);
+    const n = strands ? strands : Math.max(need, 1);
+    if (!Number.isInteger(n) || n < 1) throw new Error('The number of strands must be a whole number.');
+    if (n < need) throw new Error('σ' + (need - 1) + ' needs at least ' + need + ' strands.');
+    if (n > MAX_STRANDS) throw new Error('Up to ' + MAX_STRANDS + ' strands, please.');
+    if (word.length > MAX_CROSSINGS) throw new Error('Up to ' + MAX_CROSSINGS + ' crossings, please.');
+    return { n, word };
+  }
+  function setMode(mode) {
+    panelEl.dataset.mode = mode;
+    document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  }
+  // Show a braid (or return to the torus with null).
+  function showBraid(b, text) {
+    if (b) {
+      stopGrow(); state.building = false; uncut();
+      state.twisting = false; state.k = state.twistTo;
+      if (state.m < 2) setM(2);
+      state.braid = { n: b.n, word: b.word.slice(), text: text || KM.wordText(b.word) };
+      logOp('braid', { strands: b.n, word: b.word.slice() });
+      setMode('braid');
+    } else {
+      if (!state.braid) return;
+      state.braid = null;
+      logOp('torus', state.shape + ' turn ' + turnText(state.twistTo));
+      setMode('torus');
+    }
+    buildMesh(); buildSeam(); buildTrail(); restartTraveler(); updateReadouts();
+  }
+  function drawFromForm() {
+    try {
+      const word = KM.parseBraid(braidInput.value);
+      const sv = braidStrandsIn.value.trim();
+      const b = checkBraid(word, sv ? Number(sv) : 0);
+      braidError.textContent = '';
+      showBraid(b, braidInput.value.trim());
+    } catch (err) { braidError.textContent = err.message; }
+  }
+  document.getElementById('braidForm').addEventListener('submit', ev => { ev.preventDefault(); drawFromForm(); });
+  document.querySelectorAll('#braidExamples button').forEach(btn => btn.addEventListener('click', () => {
+    braidInput.value = btn.dataset.word; braidStrandsIn.value = '';
+    drawFromForm();
+  }));
+  document.querySelectorAll('#modeSeg button').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.dataset.mode === 'torus') showBraid(null);
+    else if (!state.braid) drawFromForm();
+  }));
+  document.getElementById('braidFromTorus').addEventListener('click', () => {
+    const d = torusInfo();
+    if (!d.ok) { braidError.textContent = 'The last torus construction has no closed stripes (' + twistLabel(state.twistTo).toLowerCase() + ' on the ' + shapeOf().label + ').'; return; }
+    if (d.braid.strands > MAX_STRANDS || d.braid.word.length > MAX_CROSSINGS) { braidError.textContent = 'That construction is too big to edit here.'; return; }
+    braidInput.value = d.braid.word.length ? d.braid.word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ') : '';
+    braidStrandsIn.value = String(d.braid.strands);
+    drawFromForm();
+  });
+
+  // Apply a construction, from a link or a saved experiment.
+  function applyConstruction(c) {
+    if (c && c.type === 'braid') {
+      const b = checkBraid((c.word || []).map(Number).filter(g => Number.isInteger(g) && g !== 0), Number(c.strands) || 0);
+      braidInput.value = c.text || KM.wordText(b.word); braidStrandsIn.value = String(b.n);
+      showBraid(b, c.text);
+      return true;
+    }
+    const shape = c && c.shape, turn = c && parseTurn(c.turn);
+    if (!Object.prototype.hasOwnProperty.call(SHAPES, shape) || turn === null || !isFinite(turn)) return false;
+    showBraid(null);
+    if (shape !== state.shape) document.getElementById('shape-' + shape).click();
+    twistTo(turn);
+    return true;
+  }
+  document.getElementById('x-load-btn').addEventListener('click', () => document.getElementById('x-load').click());
+  document.getElementById('x-load').addEventListener('change', async ev => {
+    const f = ev.target.files[0]; ev.target.value = '';
+    if (!f) return;
+    try {
+      const e = JSON.parse(await f.text());
+      if (!applyConstruction(e && e.construction)) throw new Error('no construction in it');
+      logOp('load', f.name);
+      flash('Loaded ' + f.name + '.');
+    } catch (err) { flash('Could not load ' + f.name + ': ' + err.message); }
+  });
+  function readHash() {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (h.has('braid')) {
+      try {
+        const word = h.get('braid').split(',').filter(x => x.trim()).map(x => Number(x));
+        if (word.some(g => !Number.isInteger(g) || g === 0)) throw new Error('bad word');
+        const b = checkBraid(word, Number(h.get('strands')) || 0);
+        state.braid = { n: b.n, word: b.word, text: KM.wordText(b.word) };
+        braidInput.value = word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ');
+        braidStrandsIn.value = String(b.n);
+        setMode('braid');
+        logOp('open link', location.hash);
+      } catch (err) { braidError.textContent = 'The link\'s braid could not be read: ' + err.message; }
+      return;
+    }
+    if (h.has('shape') || h.has('turn')) {
+      const shape = h.get('shape') || state.shape, turn = h.has('turn') ? parseTurn(h.get('turn')) : state.twistTo;
+      if (!Object.prototype.hasOwnProperty.call(SHAPES, shape) || turn === null || Math.abs(turn) > 12) return;
+      state.shape = shape;
+      document.querySelectorAll('#shapeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.shape === shape)));
+      state.k = state.twistTo = turn;
+      document.querySelectorAll('#twistSeg button').forEach(b => b.setAttribute('aria-pressed', String(Math.abs(parseFloat(b.dataset.k) - turn) < 1e-9)));
+      logOp('open link', location.hash);
+    }
+  }
+
+  // ---------- controls ----------
+  function restartTraveler() { state.progress = 0; state.hold = 0; }
+  const cutBtn = document.getElementById('cutBtn');
+  const cutColorBox = document.getElementById('cutColors');
+  cutColorBox.checked = false;
+  cutColorBox.addEventListener('change', () => {
+    logOp('cut colors', cutColorBox.checked ? 'connected pieces' : 'original paint');
+    updateCutColors();
+  });
+  function setCut(on) {
+    state.cutTarget = on ? 1 : 0;
+    if (reduceMotion) { state.cut = state.cutTarget; updatePositions(); }
+    cutBtn.textContent = on ? 'Glue it back' : 'Cut along the color lines';
+    updateCutColors();
+    syncQuick();
+  }
+  function uncut() { if (state.cut || state.cutTarget) { state.cut = 0; setCut(false); updatePositions(); } }
+  cutBtn.addEventListener('click', () => {
+    if (state.cutTarget) { setCut(false); return; }
+    if (!cutInfo().ok) return;
+    logOp('cut', 'along the color lines');
+    stopGrow(); state.building = false;
+    if (state.m < 2) setM(2);
+    setCut(true);
+  });
+  const minusBtn = document.getElementById('twist-minus');
+  const plusBtn = document.getElementById('twist-plus');
+  function syncStepper() {
+    const step = fracText(stepFor(shapeOf())).txt;
+    minusBtn.textContent = '− ' + step + ' turn';
+    plusBtn.textContent = '+ ' + step + ' turn';
+    minusBtn.setAttribute('aria-label', 'Subtract ' + step + ' turn');
+    plusBtn.setAttribute('aria-label', 'Add ' + step + ' turn');
+    document.getElementById('twist-value').textContent = twistLabel(state.twistTo);
+    syncQuick();
+  }
+  function twistTo(target) {
+    uncut(); clearSelection();
+    logOp('twist', turnText(target));
+    document.querySelectorAll('#twistSeg button').forEach(b =>
+      b.setAttribute('aria-pressed', String(Math.abs(parseFloat(b.dataset.k) - target) < 1e-9)));
+    document.getElementById('twist-value').textContent = twistLabel(target);
+    if (reduceMotion) {
+      state.k = target; state.twistTo = target;
+      updatePositions(); buildTrail(); restartTraveler(); updateReadouts();
+      return;
+    }
+    state.twistFrom = state.k; state.twistTo = target;
+    state.twistDur = 1200 + 500 * Math.min(4, Math.abs(target - state.k));
+    state.twistStart = performance.now(); state.twisting = true;
+  }
+  document.querySelectorAll('#shapeSeg button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (state.shape === btn.dataset.shape) return;
+      state.shape = btn.dataset.shape;
+      logOp('shape', state.shape);
+      document.querySelectorAll('#shapeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+      state.twisting = false;
+      state.k = state.twistTo;
+      uncut();
+      buildMesh(); buildSeam(); buildTrail(); restartTraveler(); syncStepper(); updateReadouts(); buildPaintInputs();
+    });
+  });
+  document.querySelectorAll('#twistSeg button').forEach(btn => {
+    btn.addEventListener('click', () => twistTo(parseFloat(btn.dataset.k)));
+  });
+  minusBtn.addEventListener('click', () => {
+    const step = stepFor(shapeOf());
+    twistTo((Math.ceil(state.twistTo / step - 1e-9) - 1) * step);
+  });
+  plusBtn.addEventListener('click', () => {
+    const step = stepFor(shapeOf());
+    twistTo((Math.floor(state.twistTo / step + 1e-9) + 1) * step);
+  });
+  const travelBtn = document.getElementById('travel');
+  function syncTravelBtn() { travelBtn.textContent = state.traveling ? 'Pause traveler' : 'Send a traveler'; }
+  travelBtn.addEventListener('click', () => {
+    if (state.traveling) state.traveling = false;
+    else { if (state.progress >= laps) restartTraveler(); state.traveling = true; }
+    syncTravelBtn();
+  });
+  const seamBox = document.getElementById('seam');
+  const PAINT_KEY = AP.PAINT_KEY;
+  const root = document.documentElement;
+  const toHex = c => '#' + c.map(x => Math.round(x).toString(16).padStart(2, '0')).join('');
+  function applyPaint() {
+    AP.apply(root, appearance, customHex);
+    readPalette();
+    updateReadouts();
+    syncAppearanceControls();
+  }
+  function savePaint() { try { localStorage.setItem(PAINT_KEY, JSON.stringify(customHex)); } catch (_) {} }
+  function loadPaint() {
+    try {
+      AP.loadPaint(localStorage).forEach((h,i) => { customHex[i] = h; });
+    } catch (_) {}
+  }
+  function buildPaintInputs() {
+    const box = document.getElementById('paints');
+    box.textContent = '';
+    const sh = shapeOf();
+    sh.colors.forEach((ci, p) => {
+      const label = document.createElement('label');
+      label.className = 'paint';
+      const input = document.createElement('input');
+      input.type = 'color';
+      input.id = 'paint-' + p;
+      input.value = toHex(pal.c[ci]);
+      input.setAttribute('aria-label', 'Color of ' + kindOf(sh) + ' ' + (p + 1));
+      input.addEventListener('input', () => { customHex[ci] = input.value; applyPaint(); savePaint(); });
+      const name = document.createElement('span');
+      name.textContent = sh.kind[0].toUpperCase() + sh.kind.slice(1) + ' ' + (p + 1);
+      label.append(input, name);
+      box.appendChild(label);
+    });
+  }
+  document.getElementById('resetPaint').addEventListener('click', () => {
+    customHex.fill(null);
+    applyPaint(); savePaint(); buildPaintInputs();
+  });
+  const buildSlider = document.getElementById('build');
+  function setM(m) {
+    if (m < 2) clearSelection();
+    const wasDone = state.m >= 2;
+    state.m = Math.max(0, Math.min(2, m));
+    buildSlider.value = String(Math.round(state.m * 100));
+    updatePositions();
+    if (state.m >= 2 && !wasDone) { buildTrail(); restartTraveler(); }
+  }
+  function stopGrow() { if (state.grow !== null) { state.grow = null; state.growing = false; updatePositions(); } }
+  buildSlider.addEventListener('input', () => { state.building = false; stopGrow(); setM(Number(buildSlider.value) / 100); });
+  document.getElementById('growBtn').addEventListener('click', () => {
+    state.building = false; uncut(); clearSelection();
+    if (state.m < 2) setM(2);
+    state.grow = 0; state.growT = 0; state.growing = true;
+    updatePositions();
+  });
+  document.getElementById('buildBtn').addEventListener('click', () => {
+    stopGrow(); uncut(); clearSelection(); state.building = true;
+    if (shapeOf().open) { state.buildT = 4.2; setM(1); }   // a flat strip is already flat: go straight to bending
+    else { state.buildT = 0; setM(0); }
+  });
+
+  // ---------- three.js scene ----------
+  // The model's geometry (pos, qIdx, vPiece) is built exactly as before; this
+  // section only hands it to WebGL, adds lines for the seam, traveler and build
+  // edges, and draws the selected strip's centerline and edge.
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+  camera.position.setFromSpherical(new THREE.Spherical(6.2, Math.PI / 2 - 0.62, 0.5));
+  scene.add(camera);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 1.3));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  keyLight.position.set(2, 3, 4);
+  camera.add(keyLight);   // the light follows the view, like the old renderer's
+
+  const controls = new OrbitControls(camera, canvas);
+  controls.enablePan = false;
+  controls.enableDamping = !reduceMotion;
+  controls.minDistance = 3.6; controls.maxDistance = 18;
+  controls.autoRotate = !reduceMotion; controls.autoRotateSpeed = 1.1;
+  // a drag stops the slow spin; a zoom also stops the phone layout's automatic fit
+  let zoomFrom = 0, userZoomed = false;
+  const camDist = () => camera.position.distanceTo(controls.target);
+  controls.addEventListener('start', () => { state.userMoved = true; controls.autoRotate = false; zoomFrom = camDist(); });
+  controls.addEventListener('end', () => { setTimeout(() => { if (Math.abs(camDist() - zoomFrom) > 0.03 * zoomFrom) userZoomed = true; }, 250); });
+
+  // the surface
+  const surfMat = new THREE.MeshStandardMaterial({
+    vertexColors: true, side: THREE.DoubleSide, roughness: 0.62, metalness: 0,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1   // keep lines drawn on it in front
+  });
+  const surface = new THREE.Mesh(new THREE.BufferGeometry(), surfMat);
+  scene.add(surface);
+  let meshVersion = 0, shownVersion = -1, posVersion = 0, shownPos = -1, colorKey = '';
+  const markPositions = () => { posVersion++; };
+
+  // fat lines (pixel widths) for everything drawn on top
+  const lineMats = [];
+  function lineMat(width, opts = {}) {
+    const m = new LineMaterial(Object.assign({ color: 0xffffff, linewidth: width, worldUnits: false }, opts));
+    lineMats.push(m);
+    return m;
+  }
+  function segments(width, opts) { const o = new LineSegments2(new LineSegmentsGeometry(), lineMat(width, opts)); o.frustumCulled = false; scene.add(o); return o; }
+  function polyline(width, opts) { const o = new Line2(new LineGeometry(), lineMat(width, opts)); o.frustumCulled = false; scene.add(o); return o; }
+  function setSegments(obj, arr) {
+    if (!arr.length) { obj.visible = false; return; }
+    obj.geometry.dispose(); obj.geometry = new LineSegmentsGeometry().setPositions(arr); obj.visible = true;
+  }
+  function setPolyline(obj, arr) {
+    if (arr.length < 6) { obj.visible = false; return; }
+    obj.geometry.dispose(); obj.geometry = new LineGeometry().setPositions(arr); obj.visible = true;
+    if (obj.material.dashed) obj.computeLineDistances();
+  }
+  const seamLine = segments(1.6, { transparent: true, opacity: 0.85 });
+  const sheetSolid = segments(2.2), sheetDashed = segments(1.6, { transparent: true, opacity: 0.6 });
+  const trailLine = polyline(2.6);
+  const growOutline = segments(4);
+  growOutline.material.vertexColors = true;
+  const growFill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false }));
+  scene.add(growFill);
+  const traveler = new THREE.Mesh(new THREE.SphereGeometry(0.075, 24, 16), new THREE.MeshBasicMaterial());
+  const travelerRing = new THREE.Mesh(new THREE.SphereGeometry(0.095, 24, 16), new THREE.MeshBasicMaterial({ side: THREE.BackSide }));
+  scene.add(traveler, travelerRing);
+  // the selected strip: centerline and edge, solid where visible and faint behind the surface
+  // centerline solid, edge dashed, so both read on any paint color
+  const DASH = { dashed: true, dashSize: 0.07, gapSize: 0.05 };
+  const selCore = polyline(3.4), selEdge = polyline(2.6, DASH);
+  const selCoreHidden = polyline(2, { transparent: true, opacity: 0.28, depthTest: false });
+  const selEdgeHidden = polyline(1.6, Object.assign({ transparent: true, opacity: 0.28, depthTest: false }, DASH));
+  selCoreHidden.renderOrder = selEdgeHidden.renderOrder = 5;
+
+  let seamShown = null, trailShown = null;
+  function retint() {
+    readPalette();
+    Object.assign(surfMat, AP.FINISHES[appearance.finish]);
+    const trace = new THREE.Color(pal.trace);
+    [seamLine, sheetSolid, sheetDashed, trailLine, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => o.material.color.copy(trace));
+    traveler.material.color.copy(trace);
+    travelerRing.material.color.set(pal.stage);
+    growFill.material.color.set(pal.panel);
+    colorKey = '';
+    syncAppearanceControls();
+  }
+
+  // ---------- selecting a strip ----------
+  // sel: index into exactInfo().components, or null
+  let sel = null;
+  // pieces (torus) or component (braid) of each mesh piece, for picking
+  function componentOfPiece(piece) {
+    if (state.braid) return piece;
+    const d = exactInfo();
+    if (!d.ok) return null;
+    const i = d.components.findIndex(c => c.pieces.includes(piece));
+    return i < 0 ? null : i;
+  }
+  function select(i) {
+    sel = i;
+    colorKey = '';
+    exactKey = ''; updateExact();
+    buildSelectionLines();
+    mapKey = '';
+  }
+  const clearSelection = () => { mapPick = null; mapKey = ''; if (sel !== null) select(null); };
+  // Route of a torus strip on the finished model, lap by lap: each lap is one painted
+  // piece, at a fixed point of its cross-section, carried around once (as the mesh is).
+  function torusRoute(comp, edge) {
+    const sh = shapeOf(), n = sh.colors.length, width = TAU / n, a = analysis();
+    if (!a.sigma) return [];
+    const out = [], v = [0, 0, 0], N = 220;
+    let p = comp.pieces[0];
+    for (let lap = 0; lap < comp.laps; lap++) {
+      const phi = sh.open ? -sh.half + (2 * sh.half / n) * (p + (edge ? 0.85 : 0.5)) : p * width + (edge ? 0.4 * width : 0);
+      for (let i = 0; i <= N; i++) {
+        if (lap && !i) continue;
+        surfacePoint(p, phi, (i / N) * TAU, v, 0, sh.open ? 0.012 : 1.015);
+        out.push(v[0], v[1], v[2]);
+      }
+      p = a.sigma(p);
+    }
+    return out;
+  }
+  function braidRoute(comp, edge) {
+    const { n, word } = state.braid, lay = KM.braidLayout(n, word), hw = KM.laneWidth(n) * 0.28, out = [], v = [0, 0, 0];
+    const N = Math.max(160, word.length * 24);
+    comp.braidStrands.forEach((st, k) => {
+      for (let i = 0; i <= N; i++) {
+        if (k && !i) continue;
+        const th = (i / N) * TAU, [a, b] = lay[st](Math.min(th, TAU - 1e-9));
+        place(th, a + (edge ? hw * 0.85 : 0), b + 0.012, v, 0);
+        out.push(v[0], v[1], v[2]);
+      }
+    });
+    return out;
+  }
+  function buildSelectionLines() {
+    const d = exactInfo();
+    const comp = sel !== null && d.ok ? d.components[sel] : null;
+    const ready = comp && (state.braid || (state.m >= 2 && state.grow === null && !state.twisting));
+    const core = ready ? (state.braid ? braidRoute(comp, false) : torusRoute(comp, false)) : [];
+    const edge = ready && !comp.oneSided ? (state.braid ? braidRoute(comp, true) : torusRoute(comp, true)) : [];
+    setPolyline(selCore, core); setPolyline(selCoreHidden, core);
+    setPolyline(selEdge, edge); setPolyline(selEdgeHidden, edge);
+  }
+
+  // ---------- input ----------
+  const raycaster = new THREE.Raycaster();
+  let downAt = null;
+  canvas.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  canvas.addEventListener('pointerup', e => {
+    if (!downAt) return;
+    const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y), quick = performance.now() - downAt.t < 600;
+    downAt = null;
+    if (moved > 6 || !quick) return;
+    const rc = canvas.getBoundingClientRect();
+    raycaster.setFromCamera(new THREE.Vector2((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height) * 2 + 1), camera);
+    const hit = raycaster.intersectObject(labCut ? labSurface : surface)[0];
+    if (labCut) {
+      if (!hit) { clearSelection(); return; }
+      // Choose the closest triangle vertex; all samples are points of this exact cut mesh.
+      const v = closestHitVertex(hit, labSurface);
+      mapPick = { u: labMeshData.params[2*v], v: labMeshData.params[2*v+1], component: labMeshData.components[v] };
+      mapKey = ''; return;
+    }
+    if (!hit || state.m < 2 || state.grow !== null || state.twisting) { clearSelection(); return; }
+    const c = componentOfPiece(vPiece[hit.face.a]);
+    if (c === null) flash('These paint boundaries do not close up yet; the map still shows the selected point.');
+    select(c === sel ? null : c);
+    const v = closestHitVertex(hit, surface);
+    if (!shapeOf().open) {
+      const n = shapeOf().colors.length, piece = vPiece[v];
+      // Keep the clicked side of a cut edge, even at a rounded Float32 boundary.
+      mapPick = { u: thetaArr[v] / TAU, v: Math.max(piece/n,Math.min((piece+1)/n,phiArr[v]/TAU+0.5/n)), piece, phi: phiArr[v] };
+    }
+    mapKey = '';
+  });
+  canvas.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { clearSelection(); return; }
+    const step = 0.12, off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
+    if (e.key === 'ArrowLeft') sph.theta -= step;
+    else if (e.key === 'ArrowRight') sph.theta += step;
+    else if (e.key === 'ArrowUp') sph.phi = Math.max(0.15, sph.phi - step);
+    else if (e.key === 'ArrowDown') sph.phi = Math.min(Math.PI - 0.15, sph.phi + step);
+    else return;
+    camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
+    state.userMoved = true; controls.autoRotate = false; e.preventDefault();
+  });
+
+  let W = 0, H = 0;
+  function resize() {
+    const rc = stage.getBoundingClientRect();
+    const w = Math.round(rc.width), h = Math.round(rc.height);
+    if (!w || !h || (w === W && h === H)) return;
+    W = w; H = h;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(W, H, false);
+    camera.aspect = W / H; camera.updateProjectionMatrix();
+    lineMats.forEach(m => m.resolution.set(W, H));
+  }
+  if ('ResizeObserver' in window) new ResizeObserver(resize).observe(stage);
+  window.addEventListener('resize', resize);
+  if (window.matchMedia) {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', retint);
+  }
+  new MutationObserver(retint).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // ---------- drawing a frame ----------
+  function syncSurface() {
+    const geo = surface.geometry;
+    if (shownVersion !== meshVersion) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nVerts * 3), 3));
+      const idx = new Uint32Array(nQuads * 6);
+      for (let q = 0; q < nQuads; q++) {
+        const a = qIdx[q * 4], b = qIdx[q * 4 + 1], c = qIdx[q * 4 + 2], d = qIdx[q * 4 + 3];
+        idx.set([a, b, c, a, c, d], q * 6);
+      }
+      g.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.dispose(); surface.geometry = g;
+      shownVersion = meshVersion; shownPos = -1; colorKey = '';
+    }
+    if (shownPos !== posVersion) {
+      const g = surface.geometry;
+      g.attributes.position.needsUpdate = true;
+      g.computeVertexNormals(); g.computeBoundingSphere();
+      shownPos = posVersion;
+    }
+    // Cutting preserves paint; component recoloring is optional. Selection dims the other pieces in either view.
+    const ci = !state.braid && state.cutTarget && cutColorBox.checked && state.cut > 0.02 ? cutInfo() : null;
+    const rep = ci && ci.ok ? ci.rep : null;
+    const d = sel !== null ? exactInfo() : null;
+    const selPieces = d && d.ok && d.components[sel] ? new Set(state.braid ? [sel] : d.components[sel].pieces) : null;
+    const key = [state.braid ? 'b' : state.shape, rep ? rep.join(',') : '', sel, pal.c.map(c => c.join(',')).join(';'), pal.stage].join('|');
+    if (key === colorKey) return;
+    colorKey = key;
+    const col = surface.geometry.attributes.color.array, bg = new THREE.Color(pal.stage), tmpC = new THREE.Color();
+    const pieces = state.braid ? COMP_COLORS : shapeOf().colors;
+    for (let v = 0; v < nVerts; v++) {
+      const p = vPiece[v], ci0 = state.braid ? COMP_COLORS[p % COMP_COLORS.length] : pieces[rep ? rep[p] : p], c = pal.c[ci0];
+      tmpC.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+      if (selPieces && !selPieces.has(p)) tmpC.lerp(bg, 0.72);
+      col[v * 3] = tmpC.r; col[v * 3 + 1] = tmpC.g; col[v * 3 + 2] = tmpC.b;
+    }
+    surface.geometry.attributes.color.needsUpdate = true;
+  }
+  function render(showTraveler, trailCount, travelerAt) {
+    if (!W || !H) return;
+    syncExplore();
+    if (labCut) {
+      surface.visible = false;
+      [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
+      controls.update(); updateViewShift(); renderer.render(scene, camera); return;
+    }
+    if (!surface.visible) { surface.visible = true; seamShown = null; buildSelectionLines(); }
+    syncSurface();
+    // seam: the dashed ring where the tube was cut
+    const showSeam = !!seamPts && !state.braid && ((state.m >= 2 && seamBox.checked) || state.grow !== null) && state.cut < 0.02;
+    if (showSeam !== !!seamShown || (showSeam && seamShown !== seamPts)) {
+      const arr = [];
+      if (showSeam) for (let i = 0; i + 1 < seamPts.length / 3; i += 2) arr.push(...seamPts.subarray(i * 3, i * 3 + 6));
+      setSegments(seamLine, arr); seamShown = showSeam ? seamPts : null;
+    }
+    // the sheet's edges while it is being built
+    if (state.m < 2 && !state.braid) {
+      const { segU, segV, per, n } = mesh, solid = [], dashed = [];
+      const P = v => [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]];
+      for (let p = 0; p < n; p++) {
+        const base = p * per;
+        for (let j = 0; j < segV; j++) {
+          solid.push(...P(base + j), ...P(base + j + 1));
+          solid.push(...P(base + segU * (segV + 1) + j), ...P(base + segU * (segV + 1) + j + 1));
+        }
+      }
+      if (state.m < 1.999 && !shapeOf().open) {
+        const p1 = (1 % n) * per, p0 = 0;
+        for (let i = 0; i < segU; i += 2) {
+          dashed.push(...P(p1 + i * (segV + 1)), ...P(p1 + (i + 1) * (segV + 1)));
+          dashed.push(...P(p0 + i * (segV + 1) + segV), ...P(p0 + (i + 1) * (segV + 1) + segV));
+        }
+      }
+      setSegments(sheetSolid, solid); setSegments(sheetDashed, dashed);
+    } else { sheetSolid.visible = false; sheetDashed.visible = false; }
+    // the cross-section at the front of the sweep
+    if (state.grow !== null && !state.braid) {
+      const th = state.grow * TAU, al = state.k * th, ca = Math.cos(al), sa = Math.sin(al);
+      const sh = shapeOf(), n = sh.colors.length, open = !!sh.open, Np = open ? 60 : 120, pts = [], pcs = [];
+      for (let i = 0; i < Np; i++) {
+        const phi = open ? -sh.half + 2 * sh.half * i / (Np - 1) : i / Np * TAU, sc = section(state.shape, phi);
+        const a = sc[0] * ca - sc[1] * sa, b = sc[0] * sa + sc[1] * ca, rr = R + a;
+        pts.push([rr * Math.cos(th), b, rr * Math.sin(th)]);
+        pcs.push(open ? Math.min(n - 1, Math.floor((phi + sh.half) / (2 * sh.half / n))) : mod(Math.round(phi / (TAU / n)), n));
+      }
+      const seg = [], cols = [];
+      for (let i = 0; i < pts.length - (open ? 1 : 0); i++) {
+        const c = pal.c[sh.colors[pcs[i]]], c3 = new THREE.Color().setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+        seg.push(...pts[i], ...pts[(i + 1) % pts.length]);
+        cols.push(c3.r, c3.g, c3.b, c3.r, c3.g, c3.b);
+      }
+      growOutline.geometry.dispose();
+      growOutline.geometry = new LineSegmentsGeometry().setPositions(seg).setColors(cols);
+      growOutline.visible = true;
+      if (!open) {
+        const cx = pts.reduce((s, p) => [s[0] + p[0] / Np, s[1] + p[1] / Np, s[2] + p[2] / Np], [0, 0, 0]), fan = [];
+        for (let i = 0; i < Np; i++) fan.push(...cx, ...pts[i], ...pts[(i + 1) % Np]);
+        growFill.geometry.dispose();
+        growFill.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(fan, 3));
+        growFill.visible = true;
+      } else growFill.visible = false;
+    } else { growOutline.visible = false; growFill.visible = false; }
+    // traveler and its trail
+    if (showTraveler && trailPts) {
+      if (trailShown !== trailPts) { setPolyline(trailLine, Array.from(trailPts)); trailShown = trailPts; }
+      trailLine.geometry.instanceCount = Math.max(0, trailCount - 1);
+      trailLine.visible = trailCount > 1;
+      traveler.position.set(travelerAt[0], travelerAt[1], travelerAt[2]);
+      travelerRing.position.copy(traveler.position);
+      traveler.visible = travelerRing.visible = true;
+    } else { trailLine.visible = false; traveler.visible = travelerRing.visible = false; }
+    controls.update();
+    updateViewShift();
+    renderer.render(scene, camera);
+  }
+
+  // ---------- cut explorer, linked map, and construction challenges ----------
+  const labSurface = new THREE.Mesh(new THREE.BufferGeometry(), surfMat);
+  labSurface.visible = false; scene.add(labSurface);
+  const labBoundary = segments(3.2);
+  labBoundary.visible = false;
+  const mapMarker = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 12), new THREE.MeshBasicMaterial());
+  mapMarker.visible = false; scene.add(mapMarker);
+  const mapDetails = document.getElementById('mapDetails'), mapCanvas = document.getElementById('flatMap');
+  const mapContext = mapCanvas.getContext('2d'), mapNote = document.getElementById('mapNote');
+  const labSelect = document.getElementById('labCut'), challengePick = document.getElementById('challengePick');
+  const mapRect = { x: 36, y: 28, w: 568, h: 212 };
+  let mapConstruction = '', mapDown = null;
+  function closestHitVertex(hit, object) {
+    const a = object.geometry.attributes.position.array;
+    return [hit.face.a, hit.face.b, hit.face.c].reduce((best, v) => {
+      const dist = i => (a[3*i]-hit.point.x)**2 + (a[3*i+1]-hit.point.y)**2 + (a[3*i+2]-hit.point.z)**2;
+      return dist(v) < dist(best) ? v : best;
+    }, hit.face.a);
+  }
+  function setLabCut(kind) {
+    if (kind !== null && !Object.prototype.hasOwnProperty.call(EX.CUTS, kind)) return;
+    labCut = kind; mapPick = null; mapKey = ''; labColorKey = '';
+    panelEl.dataset.exploring = String(!!kind);
+    document.getElementById('labReturn').hidden = !kind;
+    document.getElementById('labReadout').hidden = !kind;
+    labSurface.visible = !!kind; labBoundary.visible = false;
+    if (!kind) { syncQuick(); return; }
+    clearSelection();
+    labSelect.value = kind;
+    labMeshData = EX.makeCutMesh(kind);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(labMeshData.positions, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(labMeshData.positions.length), 3));
+    g.setIndex(new THREE.BufferAttribute(new Uint32Array(labMeshData.indices), 1));
+    g.computeVertexNormals(); g.computeBoundingSphere();
+    labSurface.geometry.dispose(); labSurface.geometry = g;
+    // Derive the displayed boundaries from edges belonging to exactly one face.
+    const counts = new Map(), ids = labMeshData.indices, p = labMeshData.positions;
+    for (let i = 0; i < ids.length; i += 3) for (const [a,b] of [[ids[i],ids[i+1]],[ids[i+1],ids[i+2]],[ids[i+2],ids[i]]]) {
+      const key = Math.min(a,b) + ':' + Math.max(a,b);
+      const e = counts.get(key); if (e) e.count++; else counts.set(key,{a,b,count:1});
+    }
+    const edges = [];
+    counts.forEach(e => { if (e.count === 1) edges.push(...p.slice(e.a*3,e.a*3+3),...p.slice(e.b*3,e.b*3+3)); });
+    setSegments(labBoundary, edges);
+    const info = EX.CUTS[kind];
+    for (const [id,value] of Object.entries({labResult:info.result,labPieces:info.components,labBoundaries:info.boundaries,labEuler:info.euler,labWhy:info.why,'q-lab':info.label})) document.getElementById(id).textContent = String(value);
+    document.getElementById('cutLabDetails').open = true;
+    mapDetails.open = true;
+    revealModel();
+  }
+  document.getElementById('labShow').addEventListener('click', () => setLabCut(labSelect.value));
+  labSelect.addEventListener('change', () => { if (labCut) setLabCut(labSelect.value); });
+  document.getElementById('labReturn').addEventListener('click', () => setLabCut(null));
+  document.getElementById('q-return').addEventListener('click', () => setLabCut(null));
+  function mapReady() { return !!labCut || (!state.braid && !shapeOf().open && state.m >= 2 && state.grow === null && !state.twisting); }
+  function chooseMapPoint(u, v) {
+    if (!mapReady()) return;
+    if (labCut) mapPick = { u, v, component: EX.cutComponent(labCut,u,v) };
+    else {
+      mapPick = EX.mapPoint(u,v,shapeOf().colors.length);
+      select(componentOfPiece(mapPick.piece));
+    }
+    controls.autoRotate = false; state.userMoved = true;
+    mapKey = ''; revealModel();
+  }
+  mapCanvas.addEventListener('pointerdown', e => { mapDown = {x:e.clientX,y:e.clientY}; });
+  mapCanvas.addEventListener('pointercancel', () => { mapDown = null; });
+  mapCanvas.addEventListener('pointerup', e => {
+    if (!mapDown) return;
+    const d = Math.hypot(e.clientX-mapDown.x,e.clientY-mapDown.y); mapDown = null;
+    if (d > 8) return; // preserve the sheet's vertical scrolling
+    const r = mapCanvas.getBoundingClientRect(), x = (e.clientX-r.left)*640/r.width, y = (e.clientY-r.top)*280/r.height;
+    const u = (x-mapRect.x)/mapRect.w, v = 1-(y-mapRect.y)/mapRect.h;
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) chooseMapPoint(u,v);
+  });
+  mapCanvas.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { clearSelection(); return; }
+    const moves = {ArrowLeft:[-0.025,0],ArrowRight:[0.025,0],ArrowUp:[0,0.025],ArrowDown:[0,-0.025]};
+    const d = moves[e.key]; if (!d) return;
+    e.preventDefault(); const p = mapPick || {u:0.5,v:0.5};
+    chooseMapPoint(Math.max(0,Math.min(1,p.u+d[0])),Math.max(0,Math.min(1,p.v+d[1])));
+  });
+  document.getElementById('mapClear').addEventListener('click', clearSelection);
+  mapDetails.addEventListener('toggle', () => { mapKey = ''; });
+  function drawFlatMap() {
+    if (!mapContext || !mapDetails.open) return;
+    const ready = mapReady(), sh = shapeOf(), n = sh.colors.length;
+    const key = [labCut,state.shape,state.braid ? 'braid' : '',state.k,state.cutTarget,cutColorBox.checked,sel,ready,JSON.stringify(mapPick),pal.stage,JSON.stringify(pal.c)].join('|');
+    if (key === mapKey) return; mapKey = key;
+    const c = mapContext, {x,y,w,h} = mapRect;
+    const ink = token('--ink'), stageColor = token('--stage');
+    c.clearRect(0,0,640,280); c.fillStyle = stageColor; c.fillRect(0,0,640,280);
+    c.font = '16px sans-serif'; c.textAlign = 'center'; c.fillStyle = ink;
+    if (!ready) {
+      c.fillText('Finish a closed tube to use its flat map.',320,140);
+      mapNote.textContent = 'The linked map supports closed tube surfaces. Finish the build or return from braid / flat-strip mode.';
+      return;
+    }
+    const paint = i => 'rgb(' + pal.c[i].join(',') + ')';
+    c.lineWidth = 2;
+    if (labCut) {
+      c.fillStyle = paint(5); c.fillRect(x,y,w,h);
+      c.fillStyle = paint(1); c.fillRect(x+w*3/8,y+h*5/8,w/4,h/4);
+    } else {
+      const ci = cutInfo(), rep = ci.ok && state.cutTarget && cutColorBox.checked ? ci.rep : null;
+      const selected = sel !== null && ci.ok ? ci.strips[sel]?.pieces : null;
+      for (let p = 0; p < n; p++) {
+        c.globalAlpha = selected && !selected.includes(p) ? 0.25 : 1;
+        c.fillStyle = paint(sh.colors[rep ? rep[p] : p]); c.fillRect(x,y+h*(1-(p+1)/n),w,h/n);
+      }
+      c.globalAlpha = 1;
+      c.strokeStyle = ink; c.setLineDash([5,5]);
+      for (let p = 1; p < n; p++) { c.beginPath(); c.moveTo(x,y+h*p/n); c.lineTo(x+w,y+h*p/n); c.stroke(); }
+      c.setLineDash([]);
+    }
+    c.strokeStyle = ink; c.strokeRect(x,y,w,h);
+    // Matching arrows mark the direction of the gluing; the text gives its shift.
+    const arrow = (ax,ay,bx,by) => {
+      c.beginPath(); c.moveTo(ax,ay); c.lineTo(bx,by);
+      const a = Math.atan2(by-ay,bx-ax); c.moveTo(bx-8*Math.cos(a-0.5),by-8*Math.sin(a-0.5)); c.lineTo(bx,by); c.lineTo(bx-8*Math.cos(a+0.5),by-8*Math.sin(a+0.5)); c.stroke();
+    };
+    if (labCut !== 'meridian' && (labCut || analysis().fits)) { arrow(x-16,y+h*.6,x-16,y+h*.4); arrow(x+w+16,y+h*.6,x+w+16,y+h*.4); }
+    if (labCut !== 'longitude' && (labCut || !state.cutTarget)) { arrow(x+w*.45,y-14,x+w*.55,y-14); arrow(x+w*.45,y+h+14,x+w*.55,y+h+14); }
+    if (labCut && labCut !== 'closed') {
+      c.strokeStyle = ink; c.lineWidth = 4;
+      if (labCut === 'patch') c.strokeRect(x+w*3/8,y+h*5/8,w/4,h/4);
+      if (labCut === 'meridian') { c.beginPath(); c.moveTo(x,y); c.lineTo(x,y+h); c.moveTo(x+w,y); c.lineTo(x+w,y+h); c.stroke(); }
+      if (labCut === 'longitude') { c.beginPath(); c.moveTo(x,y); c.lineTo(x+w,y); c.moveTo(x,y+h); c.lineTo(x+w,y+h); c.stroke(); }
+    }
+    if (mapPick) {
+      const dot = (u,v) => { const px=x+w*u,py=y+h*(1-v); c.beginPath(); c.arc(px,py,6,0,TAU); c.fillStyle=ink; c.fill(); c.strokeStyle=stageColor; c.lineWidth=2; c.stroke(); };
+      dot(mapPick.u,mapPick.v);
+      if (!labCut && (mapPick.u < 1e-6 || mapPick.u > 1-1e-6) && analysis().fits && !state.cutTarget) dot(1-mapPick.u,EX.seamMate(mapPick.v,mapPick.u > 0.5 ? state.k : -state.k));
+    }
+    if (labCut) mapNote.textContent = 'Horizontal: around the central hole. Vertical: around the tube. Arrows show edges still glued. ' + (labCut === 'patch' ? 'The outlined gold patch lifts out as a disk.' : EX.CUTS[labCut].result);
+    else {
+      const fit = analysis().fits;
+      mapNote.textContent = 'Horizontal: one lap. Vertical: painted cross-section. ' + (state.cutTarget ? 'Top and bottom are cut; ' : 'Top ↔ bottom; ') + 'right edge at v ↔ left edge at v + ' + turnText(state.k) + ' (mod 1). ' + (!fit ? 'These ends do not fit yet: the edge rule is only a proposed gluing.' : state.cutTarget ? 'Paint boundaries are now cut; rows in the same cycle form one ribbon.' : 'Dashed lines are paint boundaries, not cuts.') + (mapPick ? ' Point: (' + mapPick.u.toFixed(2) + ', ' + mapPick.v.toFixed(2) + ').' : '');
+    }
+  }
+  function syncExplore() {
+    const construction = [state.shape,state.twistTo,!!state.braid,labCut].join('|');
+    if (mapConstruction && construction !== mapConstruction) mapPick = null;
+    mapConstruction = construction;
+    labSurface.visible = !!labCut;
+    labBoundary.visible = !!labCut && labCut !== 'closed';
+    if (labCut) {
+      const key = JSON.stringify(pal.c) + pal.trace;
+      if (key !== labColorKey) {
+        labColorKey = key; const colors = labSurface.geometry.attributes.color.array, col = new THREE.Color();
+        labMeshData.components.forEach((_,i) => {
+          const u=labMeshData.params[2*i],v=labMeshData.params[2*i+1];
+          const gold=u>=3/8 && u<=5/8 && v>=1/8 && v<=3/8, rgb=pal.c[gold ? 1 : 5];
+          col.setRGB(rgb[0]/255,rgb[1]/255,rgb[2]/255,THREE.SRGBColorSpace);
+          colors[3*i]=col.r; colors[3*i+1]=col.g; colors[3*i+2]=col.b;
+        });
+        labSurface.geometry.attributes.color.needsUpdate = true;
+        labBoundary.material.color.set(pal.trace);
+      }
+    }
+    mapMarker.visible = !!mapPick && mapReady();
+    if (mapMarker.visible) {
+      let p;
+      if (labCut) p = EX.cutPoint(labCut,mapPick.u,mapPick.v,mapPick.component,0.018);
+      else { const a=mapPick.phi === undefined ? EX.mapPoint(mapPick.u,mapPick.v,shapeOf().colors.length) : mapPick; p=[0,0,0]; surfacePoint(a.piece,a.phi,a.u*TAU,p,0,1.025); }
+      mapMarker.position.set(...p); mapMarker.material.color.set(pal.trace);
+    }
+    drawFlatMap();
+  }
+  const challengeDone = new Set();
+  function updateChallenge() {
+    const task = EX.CHALLENGES.find(c => c.id === challengePick.value) || EX.CHALLENGES[0];
+    challengePick.value = task.id;
+    document.getElementById('challengeGoal').textContent = task.goal;
+    document.getElementById('challengeFeedback').textContent = 'Start this challenge or check your current construction.';
+    return task;
+  }
+  challengePick.addEventListener('change', updateChallenge);
+  document.getElementById('challengeStart').addEventListener('click', () => {
+    const task = updateChallenge(); setLabCut(null);
+    stopGrow(); state.building = false; uncut();
+    applyConstruction({shape:task.start.shape,turn:turnText(task.start.turn)}); if (state.m < 2) setM(2);
+    logOp('challenge',task.id); revealModel();
+    document.getElementById('challengeFeedback').textContent = 'Starting shape loaded. Change the twist or shape, cut the paint lines, then check.';
+  });
+  document.getElementById('challengeHint').addEventListener('click', () => {
+    const task = EX.CHALLENGES.find(c => c.id === challengePick.value);
+    document.getElementById('challengeFeedback').textContent = task.hint;
+  });
+  document.getElementById('challengeCheck').addEventListener('click', () => {
+    if (labCut) { document.getElementById('challengeFeedback').textContent = 'Return to your painted construction to check a challenge.'; return; }
+    const result = EX.checkChallenge(challengePick.value,{description:exactInfo(),pieces:shapeOf().colors.length,turn:state.k,cut:state.cutTarget === 1 && state.cut >= 0.999,ready:!labCut && !state.twisting && state.m >= 2 && state.grow === null,ring:!state.braid && !shapeOf().open});
+    document.getElementById('challengeFeedback').textContent = result.message;
+    if (result.pass) challengeDone.add(challengePick.value);
+    document.getElementById('challengeProgress').textContent = challengeDone.size + ' of ' + EX.CHALLENGES.length + ' solved this session.';
+  });
+  updateChallenge();
+
+  // ---------- appearance: repaint existing geometry without rebuilding it ----------
+  function syncAppearanceControls() {
+    AP.PALETTES.forEach(p => document.getElementById('palette-'+p.id).setAttribute('aria-pressed',String(p.id===appearance.palette)));
+    ['system','light','dark'].forEach(mode => document.getElementById('look-'+mode).setAttribute('aria-pressed',String(mode===appearance.mode)));
+    Object.keys(AP.FINISHES).forEach(finish => document.getElementById('finish-'+finish).setAttribute('aria-pressed',String(finish===appearance.finish)));
+    const chosen=AP.PALETTES.find(p=>p.id===appearance.palette);
+    document.getElementById('appearanceStatus').textContent = chosen.name + (customHex.some(Boolean) ? ' · custom paint' : '') + ' · ' + appearance.mode + ' background · ' + appearance.finish + ' finish';
+    shapeOf().colors.forEach((ci,p) => { const input=document.getElementById('paint-'+p); if(input)input.value=toHex(pal.c[ci]); });
+    document.querySelectorAll('meta[name="theme-color"]').forEach(meta=>meta.setAttribute('content',token('--stage')));
+  }
+  function saveAppearance() { try { AP.save(localStorage,appearance); } catch (_) {} }
+  AP.PALETTES.forEach(p => {
+    const button=document.getElementById('palette-'+p.id), preview=document.createElement('span'), name=document.createElement('span');
+    button.textContent=''; button.setAttribute('title',p.note);
+    preview.className='palette-preview'; preview.setAttribute('aria-hidden','true');
+    p.colors.forEach(color=>{ const chip=document.createElement('i'); chip.style.background=color; preview.appendChild(chip); });
+    name.className='palette-name'; name.textContent=p.name; button.append(preview,name);
+    button.addEventListener('click',()=>{
+      appearance.palette=p.id; customHex.fill(null);
+      applyPaint(); savePaint(); saveAppearance(); buildPaintInputs();
+      logOp('palette',p.id);
+    });
+  });
+  ['system','light','dark'].forEach(mode=>document.getElementById('look-'+mode).addEventListener('click',()=>{
+    appearance.mode=mode; applyPaint(); retint(); saveAppearance();
+  }));
+  Object.keys(AP.FINISHES).forEach(finish=>document.getElementById('finish-'+finish).addEventListener('click',()=>{
+    appearance.finish=finish; retint(); saveAppearance();
+  }));
+
+  // ---------- phone layout: full-screen model with a bottom sheet ----------
+  // On a phone the panel is a sheet with four sizes: hidden, peek (the quick bar),
+  // half and full. Drag its head, tap it, or use its buttons. The model is shifted
+  // up so it stays centered in the part of the screen the sheet leaves free.
+  const phoneMQ = window.matchMedia('(max-width: 760px), (max-height: 520px) and (pointer: coarse)');
+  const sheetHead = document.getElementById('sheetHead'), sheetBody = document.getElementById('sheetBody');
+  const sheetFab = document.getElementById('sheetShow'), sizeBtn = document.getElementById('sheetSize');
+  const notesEl = document.querySelector('.notes'), labEl = document.querySelector('.lab');
+  const SHEET_KEY = 'twisted-toroids-sheet';
+  let sheet = 'peek';
+  try { const v = localStorage.getItem(SHEET_KEY) || localStorage.getItem('half-twisted-torus-sheet'); if (['hidden', 'peek', 'half', 'full'].includes(v)) sheet = v; } catch (_) {}
+  let sheetVisible = 0, viewShift = 0;   // px of sheet on screen; current camera shift
+  const isPhone = () => phoneMQ.matches;
+  const sideMQ = window.matchMedia('(max-height: 520px) and (pointer: coarse) and (orientation: landscape)');
+  const isSide = () => sideMQ.matches;
+  function sheetHeights() {
+    const vh = window.innerHeight, ph = panelEl.getBoundingClientRect().height || vh * 0.9;
+    const safe = parseFloat(getComputedStyle(sheetBody).paddingBottom) - 28 || 0;
+    const peek = Math.min(ph, sheetHead.offsetHeight + Math.max(0, safe));
+    return { hidden: 0, peek, half: Math.max(peek, Math.min(ph, vh * (isSide() ? 0.62 : 0.5))), full: ph };
+  }
+  function applySheet(px) {
+    sheetVisible = px;
+    panelEl.style.setProperty('--sheet-visible', px + 'px');
+  }
+  function setSheet(name, save = true) {
+    sheet = name;
+    if (!isPhone()) return;
+    applySheet(sheetHeights()[name]);
+    panelEl.setAttribute('aria-hidden', String(name === 'hidden'));
+    panelEl.inert = name === 'hidden';
+    sheetFab.hidden = name !== 'hidden';
+    const up = name === 'peek' || name === 'hidden';
+    sizeBtn.setAttribute('aria-expanded', String(!up));
+    sizeBtn.setAttribute('aria-label', up ? 'Show more controls' : 'Show fewer controls');
+    sizeBtn.firstElementChild.style.transform = up ? '' : 'rotate(180deg)';
+    if (save) try { localStorage.setItem(SHEET_KEY, name); } catch (_) {}
+  }
+  function layoutForDevice() {
+    if (isPhone()) {
+      if (notesEl.parentElement !== sheetBody) sheetBody.appendChild(notesEl);
+      setSheet(sheet, false);
+    } else {
+      if (notesEl.parentElement !== labEl.parentElement) labEl.after(notesEl);
+      panelEl.style.removeProperty('--sheet-visible');
+      panelEl.removeAttribute('aria-hidden'); panelEl.inert = false;
+      sheetFab.hidden = true; sheetVisible = 0;
+    }
+  }
+  if (phoneMQ.addEventListener) phoneMQ.addEventListener('change', layoutForDevice);
+  window.addEventListener('resize', () => { if (isPhone()) setSheet(sheet, false); });
+
+  sizeBtn.addEventListener('click', () => setSheet(sheet === 'peek' || sheet === 'hidden' ? 'half' : sheet === 'half' ? 'full' : 'peek'));
+  document.getElementById('sheetHide').addEventListener('click', () => setSheet('hidden'));
+  sheetFab.addEventListener('click', () => setSheet('peek'));
+  // drag the head; a tap on it toggles peek and half
+  let drag = null;
+  sheetHead.addEventListener('pointerdown', e => {
+    if (!isPhone() || e.target.closest('button, input, output')) return;
+    drag = { y: e.clientY, t: performance.now(), start: sheetVisible, moved: false, last: e.clientY, lt: performance.now(), v: 0 };
+    panelEl.classList.add('dragging');
+    try { sheetHead.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  sheetHead.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dy = e.clientY - drag.y;
+    if (Math.abs(dy) > 4) drag.moved = true;
+    const now = performance.now();
+    drag.v = (e.clientY - drag.last) / Math.max(1, now - drag.lt); drag.last = e.clientY; drag.lt = now;
+    applySheet(Math.max(0, Math.min(sheetHeights().full, drag.start - dy)));
+  });
+  const endSheetDrag = () => {
+    if (!drag) return;
+    panelEl.classList.remove('dragging');
+    const d = drag; drag = null;
+    if (!d.moved) { setSheet(sheet === 'half' ? 'peek' : 'half'); return; }
+    const h = sheetHeights(), order = ['peek', 'half', 'full'];
+    let name = order.reduce((best, k) => Math.abs(h[k] - sheetVisible) < Math.abs(h[best] - sheetVisible) ? k : best, 'peek');
+    const i = order.indexOf(name);
+    if (d.v < -0.6 && sheetVisible > d.start) name = order[Math.min(2, Math.max(i, order.indexOf(sheet) + 1))];   // flick up
+    if (d.v > 0.6 && sheetVisible < d.start) name = order[Math.max(0, Math.min(i, order.indexOf(sheet) - 1))];    // flick down
+    if (sheetVisible < h.peek * 0.55) name = 'hidden';
+    setSheet(name);
+  };
+  sheetHead.addEventListener('pointerup', endSheetDrag);
+  sheetHead.addEventListener('pointercancel', endSheetDrag);
+
+  // quick bar: shortcuts to the panel's own controls
+  document.getElementById('q-minus').addEventListener('click', () => minusBtn.click());
+  document.getElementById('q-plus').addEventListener('click', () => plusBtn.click());
+  document.getElementById('q-cut').addEventListener('click', () => cutBtn.click());
+  document.getElementById('q-edit').addEventListener('click', () => {
+    setSheet('half');
+    setTimeout(() => { braidInput.focus(); braidInput.select(); }, 300);
+  });
+  function syncQuick() {
+    const set = (id, t) => { const el = document.getElementById(id); if (el.textContent !== t) el.textContent = t; };
+    set('q-twist', twistLabel(state.twistTo));
+    const step = fracText(stepFor(shapeOf())).txt;
+    document.getElementById('q-minus').setAttribute('aria-label', 'Subtract ' + step + ' turn');
+    document.getElementById('q-plus').setAttribute('aria-label', 'Add ' + step + ' turn');
+    const qc = document.getElementById('q-cut');
+    set('q-cut', state.cutTarget ? 'Glue' : 'Cut');
+    qc.disabled = cutBtn.disabled;
+    set('q-word', state.braid ? (state.braid.word.length ? KM.wordText(state.braid.word) : 'identity') + ' · ' + state.braid.n + ' strands' : '');
+  }
+  // following a strip from the list: make room to see it
+  function revealModel() { if (isPhone() && sheet === 'full') setSheet('half'); }
+
+  // full screen, where the browser allows it (an installed home-screen app is full screen already)
+  const fsBtn = document.getElementById('fsBtn');
+  if (document.fullscreenEnabled && document.documentElement.requestFullscreen) {
+    fsBtn.hidden = false;
+    fsBtn.addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    });
+    document.addEventListener('fullscreenchange', () => fsBtn.setAttribute('aria-label', document.fullscreenElement ? 'Leave full screen' : 'Full screen'));
+  }
+  // Keep the model centered in the part of the screen the sheet leaves free, and on a
+  // phone, until the viewer zooms, pull the camera back so the whole torus fits.
+  let viewShiftX = 0;
+  const MODEL_RADIUS = 2.35;   // R plus the widest cross-section, with a little room
+  // Distance at which the model fits a free area of w x h px. The field of view spans
+  // the full screen height H (the view offset only slides the picture), so a free
+  // area of w x h sees tan(fov/2) * w/H sideways and tan(fov/2) * h/H vertically.
+  function fitDistance(w, h) {
+    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    return MODEL_RADIUS / (t * Math.max(0.15, Math.min(w, h) / H)) * 1.04;
+  }
+  function updateViewShift() {
+    const ease = reduceMotion ? 1 : 0.18;
+    let tx = 0, ty = 0, freeW = W, freeH = H;
+    if (isPhone()) {
+      if (isSide()) {
+        if (sheetVisible > 1) { const pw = panelEl.getBoundingClientRect().width; tx = pw / 2; freeW = W - pw; }
+      } else { const cover = Math.min(sheetVisible, H * 0.6); ty = cover / 2; freeH = H - cover; }
+      if (!userZoomed) {
+        const off = camera.position.clone().sub(controls.target), d = off.length(), want = fitDistance(freeW, freeH);
+        if (Math.abs(want - d) > 0.01) camera.position.copy(controls.target).add(off.setLength(d + (want - d) * ease));
+      }
+    }
+    viewShiftX += (tx - viewShiftX) * ease; if (Math.abs(tx - viewShiftX) < 0.5) viewShiftX = tx;
+    viewShift += (ty - viewShift) * ease; if (Math.abs(ty - viewShift) < 0.5) viewShift = ty;
+    if (viewShift || viewShiftX) camera.setViewOffset(W, H, viewShiftX, viewShift, W, H); else camera.clearViewOffset();
+  }
+
+  // ---------- loop ----------
+  const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  let last = performance.now();
+  const tmp = [0, 0, 0];
+  function frame(now) {
+    const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
+    last = now;
+    if (state.twisting) {
+      const t = Math.max(0, Math.min(1, (now - state.twistStart) / state.twistDur));
+      state.k = state.twistFrom + (state.twistTo - state.twistFrom) * ease(t);
+      updatePositions();
+      if (t >= 1) {
+        state.twisting = false;
+        state.k = state.twistTo;
+        updatePositions(); buildTrail(); restartTraveler();
+      }
+      updateReadouts();
+    }
+    if (state.building) {
+      state.buildT += dt;
+      const T = state.buildT;
+      let m;
+      if (T < 0.9) m = 0;
+      else if (T < 4.1) m = ease((T - 0.9) / 3.2);
+      else if (T < 5.0) m = 1;
+      else if (T < 8.6) m = 1 + ease((T - 5.0) / 3.6);
+      else { m = 2; state.building = false; }
+      setM(m);
+    }
+    if (state.growing) {
+      state.growT += dt;
+      const T = state.growT;
+      if (T < 1.0) state.grow = 0;
+      else if (T < 7.0) state.grow = ease((T - 1.0) / 6.0);
+      else { state.grow = null; state.growing = false; buildTrail(); restartTraveler(); }
+      updatePositions();
+    }
+    let trailCount = 0;
+    if (state.cut !== state.cutTarget) {
+      const d = state.cutTarget - state.cut, stepC = dt / 0.9;
+      state.cut = Math.abs(d) <= stepC ? state.cutTarget : state.cut + Math.sign(d) * stepC;
+      updatePositions();
+      if (sel !== null) buildSelectionLines();
+    }
+    if (!state.twisting && trailPts && state.m >= 2 && state.grow === null && state.cut < 0.02) {
+      if (state.traveling) {
+        if (state.progress < laps) state.progress = Math.min(laps, state.progress + dt / 3.6);
+        else { state.hold += dt; if (state.hold > 1.4) restartTraveler(); }
+      }
+      const p = Math.min(state.progress, laps);
+      travelerPoint(p * TAU, tmp, 0);
+      trailCount = Math.max(2, Math.floor(p * PER_LAP) + 1);
+    }
+    try { render(!state.braid && !state.twisting && state.m >= 2 && state.grow === null && state.cut < 0.02 && sel === null, trailCount, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; return; }
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    layoutForDevice();
+    readHash();
+    loadPaint();
+    applyPaint();
+    buildPaintInputs();
+    buildMesh();
+    buildSeam();
+    buildTrail();
+    syncTravelBtn();
+    syncStepper();
+    updateReadouts();
+    resize();
+    retint();
+    try { render(false, 0, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; }
+    last = performance.now();
+    requestAnimationFrame(frame);
+  }
+  setTimeout(start, 30);
+})();
+</script>
+</body>
+</html>
+

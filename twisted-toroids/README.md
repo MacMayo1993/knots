@@ -1,4 +1,4 @@
-# Half-Twisted Torus
+# Twisted Toroids
 
 An interactive model by Mac Mayo. A painted torus is cut through the tube, one end is turned, and the ends are glued back together. The model shows that the surface keeps its inside and outside, while the paint joins into stripes that need extra laps to come home.
 
@@ -26,6 +26,12 @@ The model slides up, or left when the phone is on its side, so it stays centered
 The full-screen button hides the browser bars where the browser allows it. iPhone Safari doesn't, but you can use *Add to Home Screen* there: the page includes a web app manifest and icons, so it opens full screen with no browser interface. On Android, *Install app* or *Add to Home screen* does the same.
 
 ## Controls
+
+- **Appearance → Palettes & surface style:** choose Classic, Aurora, Sunset, Lagoon, Candy, or Bold. Preview swatches show all eight paint slots. Palettes apply to tubes, braid components, the reference cut explorer, and the linked flat map. Selecting a palette replaces custom paint; **Reset to palette colors** clears edits back to the selected palette. With customized palettes, traveler labels use piece numbers rather than inaccurate color names.
+- **Background:** System follows the device, or choose Light / Dark explicitly. A subtle static stage gradient uses the paint colors. Theme color metadata follows the selected background.
+- **Surface finish:** Matte, Satin (default), or Gloss changes the existing material's roughness/metalness. It adds no geometry, postprocessing, or animation. Palette and finish changes preserve cut geometry and component selection.
+
+Appearance, paint edits, and the phone sheet size are saved on the device when storage is available. Existing saved paint and sheet preferences are read from the former keys. A blocked or malformed storage value falls back to defaults. Palettes are visual options, not a guarantee of color-vision accessibility; piece numbers and the existing solid/dashed selection routes remain available.
 
 - **Model:** *Twisted torus* (everything below) or *Any braid*.
 - **Any braid:** type a braid word and the page draws its closure as flat ribbons running around the loop, one color per component. Words can be written as `s1 S2` (a capital letter means the inverse), `σ1 σ2⁻¹`, `1 -2`, with `(…)^k` for powers. Strands default to one more than the largest generator; set the count higher to add free strands. Limits are 10 strands and 400 crossings. Example buttons load the trefoil, figure-eight, 5₂, 6₃, 8₁₈, Hopf link, Whitehead link and Borromean rings. *Start from the last torus construction* loads the braid of the current twisted torus so you can edit it.
@@ -110,6 +116,7 @@ The topology test independently traverses the generated indexed triangle meshes 
 - `vendor/three/`: Three.js r186.1 (MIT), with OrbitControls and the fat-line addons.
 - `knotmath.js`: braid words, reading a braid (components, linking matrix, writhe), `describe()` for a torus construction, `parseBraid()`, `describeBraid()`, the Burau `alexander()` and `braidLayout()`, the geometry the page draws for a braid. Works as a browser script (`window.KnotMath`) and as a Node module.
 - `explore.js`: cut meshes, flat-map coordinates, and challenge definitions/checks. Browser global `TorusExplore` or a Node module; no renderer dependencies.
+- `appearance.js`: preset palettes, finishes, validation and persistence of appearance settings, and pre-paint application of the saved theme.
 - `test/explore.test.cjs`, `test/app-smoke.cjs`: topology/coordinate tests and application integration checks described above.
 - `test/geometry.test.mjs`, `verify/verify.py`: the checks above.
 
@@ -127,4 +134,12 @@ Everything else is inside `index.html`:
   - The phone layout section runs the bottom sheet (`setSheet()`, dragging, the quick bar's `syncQuick()`) and `updateViewShift()`, which keeps the model centered and fitted above the sheet.
 - `manifest.webmanifest` and `icons/`: the home-screen app (the icons are renders of the cut hexagon: two linked trefoil strips).
   - `frame()` is the animation loop.
+
+## App name and compatibility
+
+The app is **Twisted Toroids**, served from `twisted-toroids/`. Titles, mobile headers, installation metadata, documentation, and new experiment downloads use this name. New exports use `twisted-toroids/experiment`; previous experiment files still load because the importer reads their construction fields.
+
+The former `half-twisted-torus/index.html` is a small redirect that preserves query strings and construction hashes. Its manifest remains available with the new name and launch URL. Both manifests retain the original installation ID and use repository scope so existing home-screen installations can follow the move. Browsers may update an installed app's displayed name on their own schedule.
+
+Run `node test/appearance.test.cjs` for preference validation, legacy paint migration, and rename/redirect consistency checks. The app integration harness also exercises every preset, background, and finish through the actual handlers, checks cut/selection preservation, and checks saving/reloading. As documented above, the harness is not a real WebGL or CSS visual test.
 

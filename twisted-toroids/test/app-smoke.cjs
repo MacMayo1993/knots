@@ -51,13 +51,15 @@ class OrbitControls{constructor(){this.target=new Vector();}addEventListener(){}
 class Raycaster{setFromCamera(){}intersectObject(){return Raycaster.hit ? [Raycaster.hit] : [];}}
 const THREE={MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
 const phone=process.argv.includes('--phone'),side=process.argv.includes('--landscape');
-const win={innerHeight:phone?844:900,innerWidth:phone?390:1200,TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),addEventListener(){},matchMedia(q){return {matches:q.includes('reduced-motion')||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
+const win={innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),addEventListener(){},matchMedia(q){return {matches:q.includes('reduced-motion')||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
 const sandbox={KnotMath:win.KnotMath,THREE,OrbitControls,Line2:Object3D,LineSegments2:Object3D,LineMaterial:Material,LineGeometry:Geometry,LineSegmentsGeometry:Geometry,window:win,document:{documentElement:root,body:el(),getElementById:get,createElement:el,querySelectorAll(s){const key={'#shapeSeg button':'shape','#twistSeg button':'k','#modeSeg button':'mode','#braidExamples button':'word'}[s];return buttons.filter(b=>key in b.dataset);}},getComputedStyle(){return {getPropertyValue(k){return root.style[k]||palette[k]||'#888888';}};},MutationObserver:class{observe(){}},localStorage:{getItem(){return null;},setItem(){}},location:{hash:'',href:'https://example.test/'},history:{replaceState(){}},performance:{now(){return 0;}},requestAnimationFrame(){},setTimeout(f){timers.push(f);},URLSearchParams,console};
 vm.createContext(sandbox);
+const savedPreferences=new Map();
+sandbox.localStorage={getItem:k=>savedPreferences.get(k)??null,setItem:(k,v)=>savedPreferences.set(k,v)};
 sandbox.document.querySelector=s=>get(s);
 sandbox.document.addEventListener=()=>{};
 get('.lab').parentElement=el(); get('.notes').parentElement=get('.lab').parentElement;
-vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,render,syncSurface,surface,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal}; setTimeout(start,30);'),sandbox);
+vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal}; setTimeout(start,30);'),sandbox);
 timers.shift()();assert(!get('hud').textContent.includes('failed'));
 const p=win.probe,toggle=get('cutColors'),legend=get('cutColorLegend');get('seam').checked=false;
 const rgb=c=>[c.r,c.g,c.b];
@@ -126,3 +128,22 @@ p.twistTo(-2/3);get('cutBtn').click();get('challengeCheck').click();assert(get('
 p.showBraid({n:2,word:[1,1,1]});p.render(false,0,[0,0,0]);assert.equal(p.mapMarker.visible,false);assert(get('mapNote').textContent.includes('braid / flat-strip'));
 if(phone){for(const s of ['peek','half','full','hidden']){p.setSheet(s);p.render(false,0,[0,0,0]);assert.equal(p.getSheet(),s);assert.equal(get('sheetShow').hidden,s!=='hidden');}p.setSheet('full');p.setLabCut('patch');assert.equal(p.getSheet(),'half');get('q-return').click();assert.equal(get('panel').dataset.exploring,'false');}
 console.log('PASS: cut explorer restoration, linked map selection/keyboard, challenges, mode switches, and '+(phone?(side?'landscape':'portrait')+' phone sheet':'desktop')+' wiring.');
+p.setLabCut(null);p.showBraid(null);get('shape-hex').click();p.twistTo(2/3);get('cutBtn').click();p.select(0);p.render(false,0,[0,0,0]);
+const geometry=p.surface.geometry,positions=Array.from(geometry.attributes.position.array),routes=JSON.stringify(p.selCore.geometry.positions);
+for(const preset of win.ToroidAppearance.PALETTES){
+ get('palette-'+preset.id).click();p.render(false,0,[0,0,0]);
+ assert.equal(p.appearance.palette,preset.id);assert.equal(get('palette-'+preset.id).attrs['aria-pressed'],'true');
+ assert.equal(p.surface.geometry,geometry);assert.deepEqual(Array.from(geometry.attributes.position.array),positions);
+ assert.equal(p.getSelection(),0);assert.equal(p.state.cutTarget,1);assert.equal(JSON.stringify(p.selCore.geometry.positions),routes);
+ assert.equal(win.ToroidAppearance.load(sandbox.localStorage).palette,preset.id);
+ if(preset.id!=='classic')assert.equal(root.style['--red'],preset.colors[0]);
+ paint([0,1,2,3,4,5],[0,2,4]);
+}
+get('palette-aurora').click();const custom=get('paints').children[0].children[0];custom.value='#112233';custom.dispatch('input');assert.equal(root.style['--red'],'#112233');assert(get('appearanceStatus').textContent.includes('custom paint'));
+get('resetPaint').click();assert.equal(root.style['--red'],win.ToroidAppearance.PALETTES.find(x=>x.id==='aurora').colors[0]);
+for(const mode of ['dark','light','system']){get('look-'+mode).click();p.render(false,0,[0,0,0]);assert.equal(root.attrs['data-theme'],mode==='system'?undefined:mode);assert.equal(win.ToroidAppearance.load(sandbox.localStorage).mode,mode);}
+for(const finish of ['matte','gloss','satin']){get('finish-'+finish).click();assert.equal(p.surface.material.roughness,win.ToroidAppearance.FINISHES[finish].roughness);assert.equal(p.surface.material.metalness,win.ToroidAppearance.FINISHES[finish].metalness);}
+p.setLabCut('patch');get('palette-sunset').click();p.render(false,0,[0,0,0]);const beforeTheme=Array.from(p.labSurface.geometry.attributes.color.array);get('palette-candy').click();p.render(false,0,[0,0,0]);assert.notDeepEqual(Array.from(p.labSurface.geometry.attributes.color.array),beforeTheme);p.setLabCut(null);
+p.showBraid({n:3,word:[1,-2,1,-2,1,-2]});get('palette-lagoon').click();paint([0,2,1]);assert.equal(p.experiment().format,'twisted-toroids/experiment');
+assert.equal(win.ToroidAppearance.load(sandbox.localStorage).palette,'lagoon');
+console.log('PASS: all palettes/backgrounds/finishes, persistence, custom reset, selection and cut preservation, lab/braid colors, and renamed exports.');
