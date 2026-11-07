@@ -505,3 +505,11 @@ details > summary::marker { color: var(--accent); }
   .toast, .toast.toast-out, .game-dialog[open], .qc-big-stars i.on, .ts-ring, .ts-play, .game-bar.gb-gain .gb-level { animation: none !important; }
   .gb-xp i, .stage .mobile-tools { transition: none; }
 }
+
+/* The practical rope field guide has a separate, shareable workspace. */
+.sailor-book-link{text-decoration:none;display:flex;gap:12px;align-items:center;min-height:48px}
+.sailor-book-link>span:last-child{margin-left:auto;opacity:.6}
+.ts-book-link{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:44px;margin:10px 0 0;color:var(--muted);font-size:12px;text-underline-offset:5px}
+.sailor-explore-link{display:flex;align-items:center;gap:12px;border:1px solid var(--rule);border-radius:12px;padding:15px 12px;margin:8px 0 18px;text-decoration:none;color:var(--ink);background:var(--panel)}
+.sailor-explore-link>span:first-child{font-size:24px}.sailor-explore-link>span:last-child{margin-left:auto}
+.sailor-explore-link strong{font-size:14px;display:block}.sailor-explore-link small{display:block;font-size:11px;color:var(--muted);line-height:1.6;margin-top:5px}
