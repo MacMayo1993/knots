@@ -1,6 +1,9 @@
-# knots
-visualizing knots
+# Twisted Toroids
+An interactive knot and surface lab by Mac Mayo.
 
 ## Projects
 
-- [`half-twisted-torus/`](half-twisted-torus/) — an interactive 3D model of a torus cut, twisted and reglued, showing how the paint forms torus-knot stripes, plus a mode for drawing any closed braid. Open it on the GitHub Pages site at `/half-twisted-torus/`, or serve the folder locally (see its README).
+- [Twisted Toroids](twisted-toroids/) — twist, cut, and trace painted surfaces, inspect linked flat maps, solve construction challenges, and draw closed braids. Six paint palettes and light/dark backgrounds let you customize the view.
+
+Open the GitHub Pages site at `/knots/twisted-toroids/`, or serve the `twisted-toroids/` folder locally (see its README). Previous app links redirect to the new address, including shared construction parameters.
+

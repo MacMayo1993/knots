@@ -1,5 +1,5 @@
 {
-  "format": "half-twisted-torus/experiment",
+  "format": "twisted-toroids/experiment",
   "version": 2,
   "created": "2026-11-07T04:08:02.986Z",
   "construction": {
@@ -54,3 +54,4 @@
   "alexander": [1],
   "verify": "python verify/verify.py <this file>"
 }
+

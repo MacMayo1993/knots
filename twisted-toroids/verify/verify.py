@@ -1,4 +1,4 @@
-"""Check experiments exported from the twisted-torus model with SnapPy / Spherogram.
+"""Check experiments exported from Twisted Toroids with SnapPy / Spherogram.
 
 Two kinds of experiment are checked: twisted-torus constructions, and arbitrary
 braids entered in the page's "Any braid" mode. For a braid this script checks
@@ -432,3 +432,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+
