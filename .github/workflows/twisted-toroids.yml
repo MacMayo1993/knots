@@ -35,6 +35,7 @@ jobs:
       - run: node test/randomize.test.cjs
       - run: node test/pull.test.cjs
       - run: node test/studio.test.cjs
+      - run: node test/game.test.cjs
       - run: node test/app-smoke.cjs
       - run: node test/app-smoke.cjs --phone
       - run: node test/app-smoke.cjs --phone --landscape

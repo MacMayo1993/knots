@@ -2,17 +2,65 @@
   "id": "/knots/half-twisted-torus/index.html",
   "name": "Twisted Toroids",
   "short_name": "Twisted Toroids",
-  "description": "An interactive knot and surface lab. Twist, cut, trace, and customize painted toroids and closed braids.",
+  "description": "A knot and surface puzzle game: twist and cut painted toroids, tie knots with braids, clear quests and collect all 296 knots and links.",
   "start_url": "../twisted-toroids/index.html",
   "scope": "../",
   "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone"],
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
   "orientation": "any",
-  "background_color": "#e2e7ed",
-  "theme_color": "#e2e7ed",
+  "background_color": "#0e1033",
+  "theme_color": "#0e1033",
   "icons": [
-    { "src": "../twisted-toroids/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "../twisted-toroids/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "../twisted-toroids/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "../twisted-toroids/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "../twisted-toroids/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "../twisted-toroids/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "games",
+    "education"
+  ],
+  "shortcuts": [
+    {
+      "name": "Quests",
+      "short_name": "Quests",
+      "description": "Open the quest board",
+      "url": "../twisted-toroids/index.html?go=quests",
+      "icons": [
+        {
+          "src": "../twisted-toroids/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Braid lab",
+      "short_name": "Braid lab",
+      "description": "Tie knots from braids",
+      "url": "../twisted-toroids/index.html?go=braid",
+      "icons": [
+        {
+          "src": "../twisted-toroids/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }

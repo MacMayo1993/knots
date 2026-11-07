@@ -29,6 +29,9 @@ const manifests=['twisted-toroids','half-twisted-torus'].map(folder=>{
  const start=new URL(m.start_url,url),scope=new URL(m.scope,url);assert(start.href.startsWith(scope.href));
  assert.equal(start.pathname,'/knots/twisted-toroids/index.html');
  for(const icon of m.icons)assert(new URL(icon.src,url).pathname.startsWith('/knots/twisted-toroids/icons/'));
+ // home-screen shortcuts (Android long press) open the app on its quests and braid lab
+ assert.deepEqual(m.shortcuts.map(c=>new URL(c.url,url)).map(u=>[u.pathname,u.searchParams.get('go')]),[['/knots/twisted-toroids/index.html','quests'],['/knots/twisted-toroids/index.html','braid']]);
+ for(const c of m.shortcuts){assert(new URL(c.url,url).href.startsWith(scope.href));for(const icon of c.icons)assert(new URL(icon.src,url).pathname.startsWith('/knots/twisted-toroids/icons/'));}
  // Manifest IDs resolve against start_url's origin, not the manifest directory.
  return new URL(m.id,start.origin).href;
 });

@@ -26,7 +26,10 @@ const server = http.createServer((req, res) => {
   let checks = 0;
   const ok = (c, m) => { checks++; assert(c, m); };
   async function open(hash = '', opts = { viewport: { width: 1400, height: 900 } }) {
-    const ctx = await browser.newContext(Object.assign({ acceptDownloads: true }, opts));
+    const { title, ...contextOptions } = opts;
+    const ctx = await browser.newContext(Object.assign({ acceptDownloads: true }, contextOptions));
+    // the title screen shows once per visit; most checks start past it, as a returning player
+    if (!title) await ctx.addInitScript(() => { try { sessionStorage.setItem('twisted-toroids-title-seen', '1'); } catch (_) {} });
     const page = await ctx.newPage();
     // the page loads web fonts from Google; offline that fails harmlessly, so it is not an error here
     page.on('console', m => { if (m.type() === 'error' && !/fonts\.(googleapis|gstatic)/.test(m.text()) && !/ERR_(NAME|INTERNET|CONNECTION)/.test(m.text())) errors.push(m.text()); });
@@ -239,6 +242,7 @@ const server = http.createServer((req, res) => {
     ok(await page.inputValue('#braidInput')===before.word && await page.inputValue('#braidStrands')===before.n,'undo restores pre-random braid');
     await page.locator('#braidEditor').getByRole('button',{name:'Redo braid edit',exact:true}).click();
     ok(await page.inputValue('#braidInput')===after.word,'redo restores random braid');
+    if(phone) await page.click('#tab-style');
     await page.locator('#appearanceDetails > summary').click();
     const palette=await page.getAttribute('.palette-choice[aria-pressed="true"]','id');
     await page.click('#randomPalette');
@@ -375,7 +379,8 @@ const server = http.createServer((req, res) => {
   for (const [label, opts] of [['phone', devices['iPhone 13']], ['small phone', devices['iPhone SE']], ['desktop', undefined]]) {
     page = await open('', opts);
     const phone = !!opts;
-    if (phone) { await page.tap('#sheetSize'); await page.waitForTimeout(400); await page.tap('#cutLabDetails > summary'); }
+    // on a phone the Explore tab of the dock opens the sheet at its page
+    if (phone) { await page.tap('#tab-explore'); await page.waitForTimeout(400); await page.tap('#cutLabDetails > summary'); }
     else await page.click('#cutLabDetails > summary');
     await page.selectOption('#labCut', 'draw');
     await page.locator('#labShow').scrollIntoViewIfNeeded();
@@ -436,7 +441,128 @@ const server = http.createServer((req, res) => {
     await page.context().close();
   }
 
+  // ---------- the game layer on Pixel phones ----------
+  // Layout on narrow (Pixel 10, 360 px), regular (Pixel 8, 412 px) and wide (Pixel 10 Pro
+  // XL, 448 px) screens: title screen, player bar, the control deck in thumb reach above
+  // the tabbed dock, nothing overlapping or off screen. Then, on the Pixel 8, a quest
+  // played start to finish through the game controls, the menu, trophies and saving.
+  const rect = (page, sel) => page.evaluate(s => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height }; }, sel);
+  for (const name of ['Pixel 10', 'Pixel 8', 'Pixel 10 Pro XL']) {
+    const label = name, tag = name.toLowerCase().replace(/\s+/g, '');
+    page = await open('', Object.assign({}, devices[name], { title: true }));
+    ok(await page.locator('#titleScreen').evaluate(d => d.open), label + ': the title screen opens on a first visit');
+    const play = await rect(page, '#tsPlay'), vh = await page.evaluate(() => innerHeight), vw = await page.evaluate(() => innerWidth);
+    ok(play.top >= 0 && play.bottom <= vh && play.width >= 200 && play.height >= 56, label + ': Play is a big button on screen: ' + JSON.stringify(play));
+    await screenshot(page, 'game-title-' + tag);
+    await page.tap('#tsPlay');
+    await page.waitForFunction(() => !document.getElementById('titleScreen').open);
+    ok(await page.evaluate(() => sessionStorage.getItem('twisted-toroids-title-seen')) === '1', label + ': the title is not shown again this visit');
+    await page.waitForTimeout(500);
+    const bar = await rect(page, '#gameBar'), hudBox = await rect(page, '#hud'), deck = await rect(page, '#mobileTools'), head = await rect(page, '#sheetHead');
+    ok(await page.evaluate(() => document.getElementById('gameBar').parentElement.id) === 'stage', label + ': the player bar sits over the model');
+    ok(bar.top >= 0 && bar.left >= 0 && bar.right <= vw && bar.height >= 44, label + ': player bar on screen: ' + JSON.stringify(bar));
+    ok(hudBox.top >= bar.bottom, label + ': the readout is below the bar');
+    ok(deck.bottom <= head.top + 1 && deck.top > hudBox.bottom + 100, label + ': the control deck sits above the dock, well below the readout: ' + JSON.stringify({ deck, head }));
+    ok(head.bottom <= vh + 1, label + ': the dock is on screen');
+    const targets = await page.evaluate(() => [...document.querySelectorAll('#gameBar button, #mobileTools button, #mobileTools select, #dock button')].filter(e => e.getClientRects().length).map(e => { const r = e.getBoundingClientRect(); return [e.id || e.className, Math.round(r.width), Math.round(r.height)]; }));
+    ok(targets.every(([, w, h]) => w >= 44 && h >= 42), label + ': game controls are thumb-sized: ' + JSON.stringify(targets.filter(([, w, h]) => w < 44 || h < 42)));
+    ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), label + ': nothing runs off the side');
+    ok(await drawn(page) > 0.08, label + ': the model draws between the bar and the deck');
+    await screenshot(page, 'game-play-' + tag);
+    // dock tabs: one page at a time
+    await page.tap('#tab-quests'); await page.waitForTimeout(450);
+    ok(await page.getAttribute('#tab-quests', 'aria-selected') === 'true', label + ': the Quests tab is selected');
+    ok(await page.locator('.quest-card').count() === 12 && await page.locator('.quest-card').first().isVisible(), label + ': the quest board shows 12 quests');
+    ok(await page.locator('#modeSeg').isHidden() && await page.locator('#appearanceDetails').isHidden(), label + ': other pages are hidden');
+    await screenshot(page, 'game-quests-' + tag);
+    await page.tap('#tab-style'); await page.waitForTimeout(300);
+    ok(await page.locator('#appearanceDetails').isVisible() && await page.locator('.quest-card').first().isHidden(), label + ': the Style tab shows its page');
+    await page.tap('#tab-style'); await page.waitForTimeout(400);
+    ok(await page.evaluate(() => document.getElementById('panel').dataset.sheet) === 'peek', label + ': tapping the open tab lowers the sheet');
+    if (name !== 'Pixel 8') { await page.context().close(); continue; }
+    // The tabs fill the handle, so a drag that starts on one moves the sheet and is not a tap.
+    {
+      const tb = await rect(page, '#tab-play'), x = tb.left + tb.width / 2, y = tb.top + tb.height / 2;
+      await page.mouse.move(x, y); await page.mouse.down();
+      for (let k = 1; k <= 8; k++) { await page.mouse.move(x, y - 40 * k); await page.waitForTimeout(16); }
+      await page.mouse.up(); await page.waitForTimeout(450);
+      ok(await page.evaluate(() => document.getElementById('panel').dataset.sheet) !== 'peek', 'dragging up from a tab raises the sheet');
+      ok(await page.getAttribute('#tab-style', 'aria-selected') === 'true', 'and the drag does not switch tabs');
+      await page.tap('#sheetSize'); await page.waitForTimeout(300);
+      if (await page.evaluate(() => document.getElementById('panel').dataset.sheet) !== 'peek') { await page.tap('#sheetSize'); await page.waitForTimeout(400); }
+    }
+
+    // A whole quest on the Pixel 8: choose, start, a missed check, solve, clear.
+    await page.tap('#tab-quests'); await page.waitForTimeout(400);
+    await page.tap('.quest-card[data-quest="hopf"]'); await page.waitForTimeout(300);
+    ok(/Make a Hopf link/.test(await page.textContent('#questDetailTitle')), 'choosing a card shows that quest');
+    await page.tap('#challengeStart'); await page.waitForTimeout(600);
+    ok(await page.locator('#questTracker').isVisible() && /Hopf/.test(await page.textContent('#qtTitle')), 'the active quest is tracked over the model');
+    ok(await page.evaluate(() => document.getElementById('panel').dataset.sheet) === 'peek', 'starting a quest lowers the sheet');
+    await page.tap('#qtOpen'); await page.waitForTimeout(450);
+    ok(await page.getAttribute('#tab-quests', 'aria-selected') === 'true' && await page.locator('#challengeGoal').isVisible() && /unknotted ribbons/.test(await page.textContent('#challengeGoal')), 'tapping the tracker shows the quest goal');
+    await page.tap('#tab-quests'); await page.waitForTimeout(450);
+    await page.waitForFunction(() => !document.getElementById('q-cut').disabled, null, { timeout: 15000 });
+    await page.tap('#qtCheck');
+    await page.locator('.toast-nope').waitFor();
+    ok(/not yet/i.test(await page.textContent('.toast-nope')), 'a wrong answer says not yet');
+    // a round tube steps by quarter turns; the paint only lines up again at whole turns
+    for (let k = 0; k < 4; k++) { await page.tap('#q-plus'); await page.waitForTimeout(100); await page.waitForFunction(() => !/Turning the cut end/.test(document.getElementById('hud').textContent), null, { timeout: 15000 }); }
+    await page.waitForFunction(() => !document.getElementById('q-cut').disabled, null, { timeout: 15000 });
+    ok(/1 full turn|Full turn/i.test(await page.textContent('#q-twist')), 'four quarter steps make a full turn: ' + await page.textContent('#q-twist'));
+    await page.tap('#q-cut');
+    await page.waitForFunction(() => !document.getElementById('cutToBraid').disabled, null, { timeout: 15000 });
+    await page.tap('#qtCheck');
+    await page.waitForFunction(() => document.getElementById('questClear').open);
+    ok(await page.locator('#questClear .qc-big-stars i.on').count() === 2, 'one miss: two stars');
+    await page.waitForTimeout(900);
+    await screenshot(page, 'game-clear-pixel8');
+    await page.tap('#qcStay');
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('twisted-toroids-game')));
+    ok(saved.quests.hopf.stars === 2 && saved.knots['2^2_1'] && saved.ach.cut && saved.ach.link && saved.ach.quest1, 'progress is saved: ' + JSON.stringify({ q: saved.quests, k: Object.keys(saved.knots), a: Object.keys(saved.ach) }));
+    ok(await page.locator('#questTracker').isHidden(), 'a cleared quest leaves the tracker');
+    ok((await page.textContent('#gbStarCount')).startsWith('2/'), 'the bar counts the stars');
+    // menu and trophy room
+    await page.tap('#gbMenu');
+    await page.waitForFunction(() => document.getElementById('gameMenu').open);
+    const sound = await page.getAttribute('#gmSound', 'aria-checked');
+    await page.tap('#gmSound');
+    ok(await page.getAttribute('#gmSound', 'aria-checked') !== sound, 'the sound switch toggles');
+    await screenshot(page, 'game-menu-pixel8');
+    await page.tap('#gmTrophies');
+    await page.waitForFunction(() => document.getElementById('trophyRoom').open);
+    ok(await page.locator('.tr-badge').count() === 22 && await page.locator('.tr-badge.got').count() >= 4, 'the trophy room lists badges, some earned');
+    await page.tap('#trTabKnots');
+    ok(/Hopf link/.test(await page.textContent('.tr-knots')), 'the Hopf link joined the knot collection');
+    await screenshot(page, 'game-trophies-pixel8');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('trophyRoom').open);
+    // a reload keeps the level and stars; the sound setting too
+    const level = await page.textContent('#gbLevelNum');
+    await page.reload(); await page.waitForFunction(() => !/Drawing the model/.test(document.getElementById('hud').textContent));
+    ok(await page.textContent('#gbLevelNum') === level && (await page.textContent('#gbStarCount')).startsWith('2/'), 'level and stars survive a reload');
+    ok(await page.locator('#titleScreen').evaluate(d => !d.open), 'no title screen again in the same visit');
+    await page.context().close();
+  }
+  // On its side: the controls are a column on the left and the model fills the rest.
+  page = await open('', Object.assign({}, devices['Pixel 8 landscape']));
+  await page.waitForTimeout(500);
+  {
+    const col = await rect(page, '#mobileTools'), vw = await page.evaluate(() => innerWidth), vh = await page.evaluate(() => innerHeight);
+    ok(col.left >= 0 && col.right < vw * 0.4 && col.bottom <= vh, 'landscape: the controls are a column on the left: ' + JSON.stringify(col));
+    ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'landscape: nothing runs off the side');
+    ok(await drawn(page) > 0.05, 'landscape: the model draws');
+    await screenshot(page, 'game-landscape-pixel8');
+  }
+  await page.context().close();
+  // Wide screens: the player bar is in the page header, the quest board in the panel.
+  page = await open();
+  ok(await page.evaluate(() => document.getElementById('gameBar').parentElement.id) === 'headBar' && await page.locator('#gameBar').isVisible(), 'desktop: the player bar is in the header');
+  ok(await page.locator('.quest-card').count() === 12 && await page.locator('.quest-card').first().isVisible(), 'desktop: the quest board is in the panel');
+  ok(await page.locator('#dock').isHidden(), 'desktop: no phone dock');
+  await page.context().close();
+
   ok(errors.length === 0, 'no console or page errors: ' + errors.join(' | '));
   await browser.close(); server.close();
-  console.log('PASS: ' + checks + ' browser checks — sticky desktop model, WebGL drawing (torus, Seifert surface, relaxed knot, Klein bottle, phone), knot names, editor, closed STL downloads, PNG, phone bottom sheet, no console errors.');
+  console.log('PASS: ' + checks + ' browser checks — sticky desktop model, WebGL drawing (torus, Seifert surface, relaxed knot, Klein bottle, phone), knot names, editor, closed STL downloads, PNG, phone bottom sheet, game layer on Pixel 10/8/10 Pro XL (title, bar, deck, dock tabs, a full quest, menu, trophies, saving, landscape), no console errors.');
 })().catch(err => { console.error(err); server.close(); process.exit(1); });

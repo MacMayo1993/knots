@@ -18,12 +18,12 @@
 try { window.ToroidAppearance.bootstrap(document.documentElement, window.localStorage); }
 catch (_) { window.ToroidAppearance.bootstrap(document.documentElement, null); }
 </script>
-<meta name="theme-color" content="#e2e7ed" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#141920" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#dfe3ff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1033" media="(prefers-color-scheme: dark)">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Fredoka:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: a lab bench — the 3D model on the left, an instrument panel on the right, field notes below */
 :root {
@@ -392,7 +392,7 @@ h2 {
 .lab-slope input { width: 6em; min-height: 40px; font: 500 0.95rem var(--f-mono); color: var(--ink); background: var(--bg); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 8px; }
 .lab-draw .note { margin: 4px 0; }
 #labSurfaceSeg { margin: 8px 0; }
-.panel[data-exploring="true"] .sheet-body > :not(.explore-tools):not(.appearance-tools) { display: none; }
+.panel[data-exploring="true"] .sheet-body > :not(.explore-tools):not(.appearance-tools):not(.quest-tools) { display: none; }
 .panel:not([data-exploring="true"]) .lab-only { display: none; }
 .panel[data-exploring="true"] .quick.torus-only, .panel[data-exploring="true"] .quick.braid-only { display: none; }
 
@@ -484,6 +484,7 @@ h2 {
 }
 </style>
 <link rel="stylesheet" href="braid-workspace.css">
+<link rel="stylesheet" href="game.css">
 </head>
 <body>
 <main class="wrap">
@@ -491,12 +492,14 @@ h2 {
     <p class="eyebrow">Knots · surfaces · discovery</p>
     <h1>Twisted Toroids</h1>
     <p class="lede">Twist, cut, and trace painted surfaces. Explore how a gluing rule turns stripes into ribbons, knots, and links.</p>
+    <div class="head-bar" id="headBar"><div class="game-bar" id="gameBar" role="group" aria-label="Player" hidden></div></div>
   </header>
 
   <section class="lab" aria-label="Interactive model">
     <div class="stage" id="stage">
       <canvas id="c" tabindex="0" aria-label="3D model. Drag or use the arrow keys to rotate, tap a strip to follow it, press Escape to clear."></canvas>
       <div class="stage-tools" id="stageTools">
+        <div class="quest-tracker" id="questTracker" role="group" aria-label="Active quest" hidden></div>
         <div class="hud" id="hud" aria-live="polite">Drawing the model</div>
         <div class="braid-toolbar" id="braidToolbar" aria-label="Braid controls" hidden>
           <div class="braid-top-row">
@@ -561,6 +564,13 @@ h2 {
         <div class="sheet-grip" aria-hidden="true"></div>
         <div class="sheet-top">
           <span class="sheet-title">Twisted Toroids</span>
+          <nav class="dock" id="dock" role="tablist" aria-label="Menu pages">
+            <button type="button" role="tab" class="dock-tab" id="tab-play" data-tab="play" aria-selected="true" aria-controls="sheetBody"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="9" ry="5.5"/><ellipse cx="12" cy="12" rx="3.2" ry="1.6"/></svg><span>Play</span></button>
+            <button type="button" role="tab" class="dock-tab" id="tab-quests" data-tab="quests" aria-selected="false" aria-controls="sheetBody"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/></svg><span>Quests</span></button>
+            <button type="button" role="tab" class="dock-tab" id="tab-explore" data-tab="explore" aria-selected="false" aria-controls="sheetBody"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6.5l5.5-2.5 6 2.5 5.5-2.5v13.5L15 20l-6-2.5L3.5 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Explore</span></button>
+            <button type="button" role="tab" class="dock-tab" id="tab-style" data-tab="style" aria-selected="false" aria-controls="sheetBody"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5a8.5 8.5 0 100 17c1.4 0 2-1 1.6-2.1-.5-1.3.4-2.4 1.8-2.4H17a3.5 3.5 0 003.5-3.5c0-5-3.8-9-8.5-9z"/><circle cx="7.5" cy="11" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7.2" r="1.2" fill="currentColor"/><circle cx="15" cy="7.8" r="1.2" fill="currentColor"/></svg><span>Style</span></button>
+            <button type="button" role="tab" class="dock-tab" id="tab-data" data-tab="data" aria-selected="false" aria-controls="sheetBody"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5h10.5L19 8v11.5H5z"/><path d="M8.5 11h7M8.5 14.5h7M8.5 7.5h4"/></svg><span>Data</span></button>
+          </nav>
           <div class="sheet-tools">
             <button type="button" class="icon-btn" id="fsBtn" aria-label="Full screen" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
             <button type="button" class="icon-btn" id="sheetSize" aria-label="Show more controls" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
@@ -573,8 +583,8 @@ h2 {
         </div>
         <div class="quick lab-only"><span class="q-word" id="q-lab">Cut explorer</span><button type="button" class="secondary" id="q-return">Return</button></div>
       </div>
-      <div class="sheet-body" id="sheetBody">
-      <fieldset>
+      <div class="sheet-body" id="sheetBody" role="tabpanel" aria-labelledby="tab-play">
+      <fieldset data-tab="play">
         <legend>Model</legend>
         <div class="seg" id="modeSeg">
           <button type="button" data-mode="torus" aria-pressed="true">Twisted torus</button>
@@ -582,7 +592,7 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset class="torus-only">
+      <fieldset class="torus-only" data-tab="play">
         <legend>Try something new</legend>
         <div class="random-actions">
           <button type="button" class="secondary" id="randomToroid">⚄ Random toroid</button>
@@ -591,7 +601,7 @@ h2 {
         <p class="note">A new uncut shape with a matching twist, ready to cut. Shuffle twist keeps your current shape.</p>
       </fieldset>
 
-      <fieldset class="braid-only braid-workspace" id="braidWorkspace">
+      <fieldset class="braid-only braid-workspace" id="braidWorkspace" data-tab="play">
         <legend>Braid studio</legend>
         <p class="braid-stats" id="braidStats" aria-live="polite"></p>
         <p class="note braid-origin-note" id="braidOriginNote" hidden></p>
@@ -660,7 +670,7 @@ h2 {
         </details>
       </fieldset>
 
-      <fieldset class="appearance-tools">
+      <fieldset class="appearance-tools" data-tab="style">
         <legend>Appearance</legend>
         <details id="appearanceDetails">
           <summary>Palettes &amp; surface style</summary>
@@ -691,7 +701,22 @@ h2 {
         </details>
       </fieldset>
 
-      <fieldset class="explore-tools">
+      <fieldset class="quest-tools" data-tab="quests">
+        <legend>Quests</legend>
+        <div class="quest-board" id="questBoard"></div>
+        <details id="challengeDetails" class="quest-detail" open>
+          <summary>Selected quest</summary>
+          <p class="quest-detail-title" id="questDetailTitle"></p>
+          <label for="challengePick" class="quest-pick-label">Choose a quest</label>
+          <select id="challengePick"></select>
+          <p class="result" id="challengeGoal"></p>
+          <div class="actions quest-actions"><button type="button" class="secondary game-go" id="challengeStart">Start quest</button><button type="button" class="secondary" id="challengeCheck">Check</button><button type="button" class="link-btn" id="challengeHint">Show hint</button></div>
+          <p class="note" id="challengeFeedback" aria-live="polite">Choose a quest, then start it or check your current construction.</p>
+          <p class="note" id="challengeProgress" aria-live="polite"></p>
+        </details>
+      </fieldset>
+
+      <fieldset class="explore-tools" data-tab="explore">
         <legend>Explore</legend>
         <details id="cutLabDetails">
           <summary>Try different cuts</summary>
@@ -739,19 +764,10 @@ h2 {
           <p class="note" id="mapNote" aria-live="polite"></p>
           <button type="button" class="link-btn" id="mapClear">Clear map point</button>
         </details>
-        <details id="challengeDetails">
-          <summary>Construction challenges</summary>
-          <label for="challengePick">Choose a challenge</label>
-          <select id="challengePick"></select>
-          <p class="result" id="challengeGoal"></p>
-          <div class="actions"><button type="button" class="secondary" id="challengeStart">Start challenge</button><button type="button" class="secondary" id="challengeCheck">Check construction</button><button type="button" class="link-btn" id="challengeHint">Show hint</button></div>
-          <p class="note" id="challengeFeedback" aria-live="polite">Choose a challenge, then start or check your current construction.</p>
-          <p class="note" id="challengeProgress" aria-live="polite"></p>
-        </details>
       </fieldset>
 
 
-      <fieldset class="torus-only">
+      <fieldset class="torus-only" data-tab="play">
         <legend>Tube cross-section</legend>
         <div class="seg" id="shapeSeg">
           <button type="button" id="shape-circle" data-shape="circle" aria-pressed="true">Round</button>
@@ -777,7 +793,7 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset class="torus-only">
+      <fieldset class="torus-only" data-tab="play">
         <legend>Turn the cut end by</legend>
         <div class="seg" id="twistSeg">
           <button type="button" id="twist-0" data-k="0" aria-pressed="false">Nothing</button>
@@ -794,7 +810,7 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset class="torus-only">
+      <fieldset class="torus-only" data-tab="play">
         <legend>Build it</legend>
         <div class="build">
           <div class="build-buttons">
@@ -806,7 +822,7 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset class="torus-only">
+      <fieldset class="torus-only" data-tab="play">
         <legend>Cut it</legend>
         <div class="build">
           <button type="button" class="secondary" id="cutBtn">Cut along the color lines</button>
@@ -823,7 +839,7 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset data-tab="data">
         <legend>Exact description</legend>
         <div class="exact">
           <dl class="readout">
@@ -875,18 +891,18 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset class="torus-only">
+      <fieldset class="torus-only" data-tab="style">
         <legend>Paint colors</legend>
         <div class="paints" id="paints"></div>
         <button type="button" class="link-btn" id="resetPaint">Reset to palette colors</button>
       </fieldset>
 
-      <div class="actions torus-only">
+      <div class="actions torus-only" data-tab="play">
         <button type="button" class="primary" id="travel">Pause traveler</button>
         <label class="check" for="seam"><input type="checkbox" id="seam" checked> Show the cut</label>
       </div>
 
-      <div class="torus-only">
+      <div class="torus-only" data-tab="data">
         <div class="label">What changed</div>
         <dl class="readout">
           <div>
@@ -918,7 +934,7 @@ h2 {
     <button type="button" class="sheet-fab" id="sheetShow" aria-label="Show controls" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg><span>Controls</span></button>
   </section>
 
-  <section class="notes">
+  <section class="notes" data-tab="data">
     <h2>What the model shows</h2>
     <div class="notes-grid">
       <div class="note-block">
@@ -980,6 +996,8 @@ h2 {
 <script src="relax.js"></script>
 <script src="braid-studio.js"></script>
 <script src="explore.js"></script>
+<script src="game.js"></script>
+<script src="game-ui.js"></script>
 <script src="cut-animation.js"></script>
 <script type="importmap">
 { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
@@ -1514,6 +1532,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       set('c-link', u.every(x => x === 0) ? 'No, they come apart' : 'Yes, ' + (u.length === 1 ? 'each pair links ' + timesWord(u[0]) : 'linked ' + u.join(' or ') + ' times'));
     }
   }
+  let wasOneSided = false;
   function updateReadouts() {
     const a = analysis();
     const sh = shapeOf();
@@ -1534,6 +1553,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     document.getElementById('r-wind').textContent = wind === null ? '–'
       : String(wind).replace('-', '−') + (Math.abs(wind) === 1 ? ' turn' : ' turns') + (wind < 0 ? ' (the other way)' : '');
     const oneSide = !!sh.open && a.fits && Math.abs(Math.round(2 * state.k)) % 2 === 1;
+    if (oneSide && !state.twisting && !wasOneSided) gameEmit('mobius');
+    wasOneSided = oneSide && !state.twisting;
     document.getElementById('r-sides').textContent = oneSide ? '1' : '2';
     document.getElementById('r-sides-note').textContent = !sh.open ? 'Turning the tube never swaps inside and outside.'
       : oneSide ? 'A Möbius band: one side and one edge. Paint one face and you have painted both.'
@@ -1543,6 +1564,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncQuick();
   }
   function updateHud() {
+    if (game) game.stage(labCut ? (labModel && labModel.surface === 'klein' ? 'klein' : 'explore') : state.braid ? 'braid' : 'torus');
     if (labCut) {
       // on a phone the readout also carries the drawing status shown under the map elsewhere
       const drawing = labIsDraw() && labDraft.length ? 'drawing loop ' + (labLoops.length + 1) + ', ' + labDraft.length + (labDraft.length === 1 ? ' point' : ' points') + ' · finish near the start to cut'
@@ -1627,7 +1649,24 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   // ---------- exact description and experiments ----------
   const KM = window.KnotMath;
   const ops = [];   // every operation since the page opened, for the experiment record
-  function logOp(op, value) { ops.push({ op, value, at: new Date().toISOString() }); if (ops.length > 500) ops.shift(); }
+  function logOp(op, value) { ops.push({ op, value, at: new Date().toISOString() }); if (ops.length > 500) ops.shift(); gameEmit('op', { op, value }); }
+  // ---------- game layer (game.js rules, game-ui.js drawing): progress, quests, collection ----------
+  let game = null;
+  function gameEmit(type, data) {
+    if (!game) return;
+    try { game.emit(Object.assign({ type }, data)); } catch (err) { if (window.console) console.warn('game:', err); }
+  }
+  const TABLE = new Map((window.KnotTableEntries || []).map(e => [e.name, e]));
+  let tableDraw = false;   // a knot picked from the table list is shown, not discovered
+  // a construction that matches one table entry joins the player's collection
+  function discover(n, word) {
+    if (!game || tableDraw) return;
+    const idn = identifyBraid(n, word);
+    if (idn.error || idn.matches.length !== 1) return;
+    const m = idn.matches[0], e = TABLE.get(m.name);
+    gameEmit('discover', { components: idn.components, matches: [{ name: m.name, label: m.label, chirality: m.chirality, crossings: e ? e.crossings : 0, special: !e }] });
+  }
+  function cutFinished() { const d = torusInfo(); if (d.ok) discover(d.braid.strands, d.braid.word); }
   const minus = x => String(x).replace('-', '−');
   // exact fraction for a twist, e.g. 0.666… -> "2/3"
   function turnText(x) {
@@ -1910,6 +1949,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     dropRope();
     syncBraidWorkspace();
     if (state.braid && braidEditor) braidEditor.render(state.braid.n, state.braid.word);
+    if (state.braid) discover(state.braid.n, state.braid.word);
   }
   function drawFromForm() {
     try {
@@ -2012,6 +2052,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function saveBraidStyle() { try { BC.save(localStorage, braidStyle); } catch (_) {} }
   function openBraidPanel(id) {
     const details = document.getElementById(id); details.open = true;
+    showTabFor(details);
     setSheet('half');
     setTimeout(() => { details.scrollIntoView?.({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' }); details.querySelector?.('summary')?.focus(); }, 300);
   }
@@ -2063,7 +2104,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (!e) return;
     braidInput.value = e.word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ');
     braidStrandsIn.value = String(e.n);
-    drawFromForm();
+    tableDraw = true; try { drawFromForm(); } finally { tableDraw = false; }
     logOp('table', e.name);
   });
   document.getElementById('braidFromTorus').addEventListener('click', () => {
@@ -2192,7 +2233,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   });
   function setCut(on) {
     state.cutTarget = on ? 1 : 0;
-    if (reduceMotion) { state.cut = state.cutTarget; updatePositions(); }
+    if (reduceMotion) { state.cut = state.cutTarget; updatePositions(); if (on) cutFinished(); }
     cutBtn.textContent = on ? 'Glue it back' : 'Cut along the color lines';
     updateCutColors();
     syncQuick();
@@ -2579,7 +2620,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function advanceSeifBuild(dt) {
     if (!seifertShown() || !seifData || !seifBuild.playing) return;
     seifBuild.progress = Math.min(1, seifBuild.progress + Math.max(0, dt) / SF.constructionDuration(seifData.S));
-    if (seifBuild.progress >= 1 - 1e-12) { seifBuild.progress = 1; seifBuild.playing = false; }
+    if (seifBuild.progress >= 1 - 1e-12) { seifBuild.progress = 1; seifBuild.playing = false; gameEmit('surface-done', { genus: seifData.genus }); }
     applySeifBuild();
   }
   for (const prefix of ['seifQuick']) {
@@ -2589,7 +2630,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     });
     action('Play', () => { if (seifBuild.progress < 1) seifBuild.playing = !seifBuild.playing; });
     action('Replay', () => { seifBuild.progress = 0; seifBuild.playing = true; logOp('build Seifert surface', 'replay'); });
-    action('Finish', () => { seifBuild.progress = 1; seifBuild.playing = false; });
+    action('Finish', () => { seifBuild.progress = 1; seifBuild.playing = false; if (seifData) gameEmit('surface-done', { genus: seifData.genus }); });
     document.getElementById(prefix + 'Progress').addEventListener('input', e => {
       if (!seifertShown()) return;
       syncSeifert(); seifBuild.progress = Math.max(0, Math.min(1, Number(e.target.value) / 1000));
@@ -2801,6 +2842,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), world);
     const pointer = raycaster.ray.intersectPlane(plane, new THREE.Vector3());
     if (!pointer) return;
+    gameEmit('pull');
     pullDrag = { id: e.pointerId, before: shapeSnapshot(), plane, offset: world.clone().sub(pointer), handle: { vertex, target, whole: document.getElementById('pullScope').value === 'component' } };
     pullSelected = vertex; relax.done = false;
     canvas.focus({ preventScroll: true });
@@ -3251,6 +3293,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (kind !== labCut) labDraft = [];
     labCut = kind; mapPick = null; mapKey = ''; labColorKey = '';
     panelEl.dataset.exploring = String(!!kind);
+    setTab(tab, false);
     if (isPhone()) setSheet(sheet, false); else syncMobileTools();
     document.getElementById('labReturn').hidden = !kind;
     document.getElementById('labReadout').hidden = !kind;
@@ -3275,6 +3318,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const edges = [];
     counts.forEach(e => { if (e.count === 1) edges.push(...p.slice(e.a*3,e.a*3+3),...p.slice(e.b*3,e.b*3+3)); });
     setSegments(labBoundary, edges); labEdgeCount = edges.length; labVersion++;
+    gameEmit('lab', { surface: labModel.surface });
     const t = labModel.text;
     for (const [id,value] of Object.entries({labResult:t.result,labPieces:t.pieces,labBoundaries:t.boundaries,labEuler:minus(t.euler),labWhy:t.why,labOrient:t.orient,labNote:t.note,'q-lab':t.label})) document.getElementById(id).textContent = String(value);
     // the Klein bottle's self-intersection: where the figure-eight crosses itself
@@ -3295,6 +3339,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   // top is fixed by its target size).
   function revealInSheet(first, last = first) {
     if (!isPhone() || !first) return;
+    showTabFor(first);
     const panel = panelEl.getBoundingClientRect(), a = first.getBoundingClientRect(), b = last.getBoundingClientRect();
     const top = window.innerHeight - sheetVisible, visTop = top + sheetHead.offsetHeight + 6, visBottom = window.innerHeight - 10;
     const elTop = top + (a.top - panel.top), elBottom = top + (b.bottom - panel.top);
@@ -3586,11 +3631,12 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function updateChallenge() {
     const task = EX.CHALLENGES.find(c => c.id === challengePick.value) || EX.CHALLENGES[0];
     challengePick.value = task.id;
+    document.getElementById('questDetailTitle').textContent = 'Quest ' + (EX.CHALLENGES.indexOf(task) + 1) + ' · ' + task.title;
     document.getElementById('challengeGoal').textContent = task.goal;
     document.getElementById('challengeFeedback').textContent = 'Start this challenge or check your current construction.';
     return task;
   }
-  challengePick.addEventListener('change', updateChallenge);
+  challengePick.addEventListener('change', () => { updateChallenge(); if (game) game.select(challengePick.value); });
   document.getElementById('challengeStart').addEventListener('click', () => {
     const task = updateChallenge(), fb = document.getElementById('challengeFeedback');
     logOp('challenge', task.id);
@@ -3598,7 +3644,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       setLabCut(null);
       braidInput.value = task.start.word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ');
       braidStrandsIn.value = String(task.start.strands);
-      drawFromForm(); revealModel();
+      drawFromForm(); revealModel(); if (isPhone() && sheet !== 'hidden') setSheet('peek');
       fb.textContent = 'A starting braid is loaded. Edit it with the diagram or the word, then check.';
       return;
     }
@@ -3613,20 +3659,22 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     setLabCut(null);
     stopGrow(); state.building = false; uncut();
     applyConstruction({shape:task.start.shape,turn:turnText(task.start.turn)}); if (state.m < 2) setM(2);
-    revealModel();
+    revealModel(); if (isPhone() && sheet !== 'hidden') setSheet('peek');
     fb.textContent = 'Starting shape loaded. Change the twist or shape, cut the paint lines, then check.';
   });
   document.getElementById('challengeHint').addEventListener('click', () => {
     const task = EX.CHALLENGES.find(c => c.id === challengePick.value);
     document.getElementById('challengeFeedback').textContent = task.hint;
+    gameEmit('quest-hint', { id: task.id, hint: task.hint });
   });
   document.getElementById('challengeCheck').addEventListener('click', () => {
     const task = EX.CHALLENGES.find(c => c.id === challengePick.value);
-    if (labCut && task.kind === 'torus') { document.getElementById('challengeFeedback').textContent = 'Return to your painted construction to check a challenge.'; return; }
+    if (labCut && task.kind === 'torus') { document.getElementById('challengeFeedback').textContent = 'Return to your painted construction to check a challenge.'; if (game) game.note('Return to your painted construction to check this quest.'); return; }
     const result = EX.checkChallenge(challengePick.value,{description:state.braid ? null : exactInfo(),pieces:shapeOf().colors.length,turn:state.k,cut:state.cutTarget === 1 && state.cut >= 0.999,ready:!labCut && !state.twisting && state.m >= 2 && state.grow === null,ring:!state.braid && !shapeOf().open,braid:braidFacts(),lab:labFacts()});
     document.getElementById('challengeFeedback').textContent = result.message;
     if (result.pass) challengeDone.add(challengePick.value);
     document.getElementById('challengeProgress').textContent = challengeDone.size + ' of ' + EX.CHALLENGES.length + ' solved this session.';
+    gameEmit('quest-check', { id: task.id, pass: result.pass, message: result.message.replace(/^(Solved!|Not yet\.)\s*/, '') });
   });
   updateChallenge();
 
@@ -3687,6 +3735,9 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const r = stageTools.getBoundingClientRect();
     topToolsInset = Math.max(0, r.top - stage.getBoundingClientRect().top + r.height + 8);
   }
+  // On a phone held upright the quick toroid controls are a deck along the bottom, in
+  // thumb reach just above the sheet (game.css); on its side they stay at the top.
+  const deckAtBottom = () => { try { return getComputedStyle(mobileTools).position === 'fixed'; } catch (_) { return false; } };
   function syncMobileTools() {
     syncBraidToolbar();
     const hidden = !isPhone() || !['hidden','peek'].includes(sheet) || !!state.braid || !!labCut;
@@ -3694,6 +3745,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     mobileTools.hidden = hidden;
     stage.dataset.sheet = sheet;
     if (changed && !hidden) measureTopTools();
+    if (game && changed && typeof game.refresh === 'function') game.refresh();
   }
   if ('ResizeObserver' in window) new ResizeObserver(measureTopTools).observe(stageTools);
   window.addEventListener('resize', measureTopTools);
@@ -3714,11 +3766,13 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function applySheet(px) {
     sheetVisible = px;
     panelEl.style.setProperty('--sheet-visible', px + 'px');
+    stage.style.setProperty('--sheet-visible', px + 'px');   // the control deck rides on the sheet
     // the part of the sheet below the screen, kept as room at the end of its content
     panelEl.style.setProperty('--sheet-hidden', Math.max(0, Math.round((panelEl.getBoundingClientRect().height || 0) - px)) + 'px');
   }
   function setSheet(name, save = true) {
     sheet = name;
+    panelEl.dataset.sheet = name;
     syncMobileTools();
     if (!isPhone()) return;
     applySheet(sheetHeights()[name]);
@@ -3731,12 +3785,16 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     sizeBtn.firstElementChild.style.transform = up ? '' : 'rotate(180deg)';
     if (save) try { localStorage.setItem(SHEET_KEY, name); } catch (_) {}
   }
+  const gameBarEl = document.getElementById('gameBar'), headBar = document.getElementById('headBar');
   function layoutForDevice() {
     if (isPhone()) {
       if (notesEl.parentElement !== sheetBody) sheetBody.appendChild(notesEl);
+      if (gameBarEl.parentElement !== stage && stage.insertBefore) stage.insertBefore(gameBarEl, stageTools);
+      setTab(tab, false);
       setSheet(sheet, false);
     } else {
       if (notesEl.parentElement !== labEl.parentElement) labEl.after(notesEl);
+      if (gameBarEl.parentElement !== headBar) headBar.appendChild(gameBarEl);
       panelEl.style.removeProperty('--sheet-visible'); panelEl.style.removeProperty('--sheet-hidden');
       panelEl.removeAttribute('aria-hidden'); panelEl.inert = false;
       sheetFab.hidden = true; sheetVisible = 0;
@@ -3751,15 +3809,25 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   sheetFab.addEventListener('click', () => setSheet('peek'));
   // drag the head; a tap on it toggles peek and half
   let drag = null;
+  // The dock's tabs fill most of the handle, so a drag may start on a tab too: it only
+  // becomes a drag once the finger has clearly moved, otherwise the tap opens the tab.
+  let tabDragEnd = -1e9;
   sheetHead.addEventListener('pointerdown', e => {
-    if (!isPhone() || e.target.closest('button, input, output')) return;
-    drag = { y: e.clientY, t: performance.now(), start: sheetVisible, moved: false, last: e.clientY, lt: performance.now(), v: 0 };
+    const onTab = !!(e.target.closest && e.target.closest('.dock-tab'));
+    if (!isPhone() || (!onTab && e.target.closest('button, input, output'))) return;
+    drag = { y: e.clientY, t: performance.now(), start: sheetVisible, moved: false, last: e.clientY, lt: performance.now(), v: 0, tab: onTab, id: e.pointerId };
+    if (onTab) return;
     panelEl.classList.add('dragging');
     try { sheetHead.setPointerCapture(e.pointerId); } catch (_) {}
   });
   sheetHead.addEventListener('pointermove', e => {
     if (!drag) return;
     const dy = e.clientY - drag.y;
+    if (drag.tab && !drag.moved) {
+      if (Math.abs(dy) <= 8) return;
+      panelEl.classList.add('dragging');
+      try { sheetHead.setPointerCapture(drag.id); } catch (_) {}
+    }
     if (Math.abs(dy) > 4) drag.moved = true;
     const now = performance.now();
     drag.v = (e.clientY - drag.last) / Math.max(1, now - drag.lt); drag.last = e.clientY; drag.lt = now;
@@ -3769,7 +3837,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (!drag) return;
     panelEl.classList.remove('dragging');
     const d = drag; drag = null;
-    if (!d.moved) { setSheet(sheet === 'half' ? 'peek' : 'half'); return; }
+    if (!d.moved) { if (!d.tab) setSheet(sheet === 'half' ? 'peek' : 'half'); return; }
+    if (d.tab) tabDragEnd = performance.now();   // the drag's release is not a tap on the tab
     const h = sheetHeights(), order = ['peek', 'half', 'full'];
     let name = order.reduce((best, k) => Math.abs(h[k] - sheetVisible) < Math.abs(h[best] - sheetVisible) ? k : best, 'peek');
     const i = order.indexOf(name);
@@ -3780,6 +3849,51 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   };
   sheetHead.addEventListener('pointerup', endSheetDrag);
   sheetHead.addEventListener('pointercancel', endSheetDrag);
+
+  // ---------- menu pages: on a phone the dock's tabs show one page of the sheet ----------
+  const TABS = ['play', 'quests', 'explore', 'style', 'data'], TAB_KEY = 'twisted-toroids-tab';
+  let tab = 'play';
+  try { const v = localStorage.getItem(TAB_KEY); if (TABS.includes(v)) tab = v; } catch (_) {}
+  const tabBtn = t => document.getElementById('tab-' + t);
+  function setTab(name, save = true) {
+    if (!TABS.includes(name)) return;
+    // the construction pages are empty while the cut explorer is open
+    if (labCut && (name === 'play' || name === 'data')) name = 'explore';
+    const changed = name !== tab;
+    tab = name;
+    panelEl.dataset.tab = name;
+    TABS.forEach(t => {
+      const b = tabBtn(t); b.setAttribute('aria-selected', String(t === name)); b.tabIndex = t === name ? 0 : -1;
+      b.disabled = !!labCut && (t === 'play' || t === 'data');
+    });
+    sheetBody.setAttribute('aria-labelledby', 'tab-' + name);
+    if (changed && isPhone()) sheetBody.scrollTop = 0;
+    if (save) try { localStorage.setItem(TAB_KEY, name); } catch (_) {}
+  }
+  // Code that opens a control in the sheet first shows the page that holds it.
+  function showTabFor(node) {
+    const sec = node && node.closest ? node.closest('.sheet-body > [data-tab]') : null;
+    if (sec && sec.dataset.tab !== tab) setTab(sec.dataset.tab);
+  }
+  // Open a page: on a phone, the sheet rises to show it; on a wide screen, scroll to it.
+  function openTab(name) {
+    setTab(name);
+    if (isPhone()) { if (sheet !== 'full') setSheet('half'); return; }
+    const sec = document.querySelector('.sheet-body > [data-tab="' + name + '"]');
+    if (sec && sec.scrollIntoView) sec.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+  TABS.forEach(t => tabBtn(t).addEventListener('click', () => {
+    if (performance.now() - tabDragEnd < 400) return;
+    if (t === tab && (sheet === 'half' || sheet === 'full')) { setSheet('peek'); return; }
+    openTab(t);
+  }));
+  document.getElementById('dock').addEventListener('keydown', e => {
+    const dir = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (!dir) return;
+    const live = TABS.filter(t => !tabBtn(t).disabled), i = live.indexOf(tab);
+    const next = live[(i + dir + live.length) % live.length];
+    setTab(next); tabBtn(next).focus(); e.preventDefault();
+  });
 
   // quick bar: shortcuts to the panel's own controls
   document.querySelectorAll('#shapeSeg button').forEach(button => {
@@ -3814,6 +3928,34 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncMobileTools();
     set('q-word', state.braid ? (state.braid.word.length ? KM.wordText(state.braid.word) : 'identity') + ' · ' + state.braid.n + ' strands' : '');
   }
+  // Start the game layer: the player bar, quests, collection and title screen. Opening a
+  // shared link (a #construction) or a home-screen shortcut (?go=...) skips the title.
+  function initGame() {
+    const GUI = window.ToroidGameUI, GM = window.ToroidGame;
+    if (!GUI || !GM || game) return;
+    let store = null, seen = false;
+    try { store = window.localStorage; } catch (_) {}
+    try { seen = window.sessionStorage.getItem(GUI.TITLE_KEY) === '1'; } catch (_) {}
+    const params = new URLSearchParams(location.search || ''), go = params.get('go');
+    const challengeStart = document.getElementById('challengeStart');
+    game = GUI.init({
+      G: GM, storage: store, quests: EX.CHALLENGES, tableSize: TABLE.size,
+      showTitle: !seen && !location.hash && !go,
+      onLayout: measureTopTools,
+      hooks: {
+        openTab,
+        select: id => { challengePick.value = id; updateChallenge(); revealInSheet(document.getElementById('challengeGoal'), challengeStart); },
+        start: id => { challengePick.value = id; updateChallenge(); challengeStart.click(); },
+        check: () => document.getElementById('challengeCheck').click(),
+        hint: () => document.getElementById('challengeHint').click(),
+        braidLab: () => { if (!state.braid) document.querySelector('#modeSeg button[data-mode="braid"]').click(); },
+        play: () => {}
+      }
+    });
+    game.select(challengePick.value);
+    if (go === 'quests' || go === 'explore' || go === 'style') setTimeout(() => openTab(go), 60);
+    if (go === 'braid' && !state.braid) document.querySelector('#modeSeg button[data-mode="braid"]').click();
+  }
   // following a strip from the list: make room to see it
   function revealModel() { if (isPhone() && sheet === 'full') setSheet('half'); }
 
@@ -3847,10 +3989,26 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     let tx = 0, ty = 0, freeW = W, freeH = H;
     if (isPhone()) {
       if (isSide()) {
-        if (sheetVisible > 1) { const pw = panelEl.getBoundingClientRect().width; tx = pw / 2; freeW = W - pw; }
-      } else { const cover = Math.min(sheetVisible, H * 0.6); ty = cover / 2; freeH = H - cover; }
+        // the side sheet takes the right side once open; peeking, only its dock shows, low down
+        if (sheetVisible > 1 && sheet !== 'peek') { const pw = panelEl.getBoundingClientRect().width; tx = pw / 2; freeW = W - pw; }
+        else if (sheetVisible > 1) { const cover = Math.min(sheetVisible, H * 0.3); ty = cover / 2; freeH = H - cover; }
+      } else {
+        let cover = Math.min(sheetVisible, H * 0.6);
+        if (!mobileTools.hidden && deckAtBottom()) {
+          const sr = stage.getBoundingClientRect(), m = mobileTools.getBoundingClientRect();
+          if (Number.isFinite(m.top) && m.height > 0) cover = Math.max(cover, Math.min(H * 0.6, sr.top + sr.height - m.top + 8));
+        }
+        ty = cover / 2; freeH = H - cover;
+      }
     }
-    if (!mobileTools.hidden) { ty -= topToolsInset / 2; freeH = Math.max(1, freeH - topToolsInset); }
+    // the player bar, quest tracker and readout (or, on a phone on its side, the quick
+    // controls) along the top; the braid toolbar reserves its own room below
+    const barHidden = document.getElementById('braidToolbar').hidden;
+    if (barHidden && isSide() && !mobileTools.hidden) {
+      // on its side the readout and quick controls are a column down the left
+      const sr = stage.getBoundingClientRect(), r = stageTools.getBoundingClientRect(), right = r.left + r.width - sr.left + 10;
+      if (Number.isFinite(right) && right < W * 0.6) { tx -= right / 2; freeW = Math.max(1, freeW - right); }
+    } else if (barHidden && (!mobileTools.hidden || (isPhone() && !isSide()))) { measureTopTools(); ty -= topToolsInset / 2; freeH = Math.max(1, freeH - topToolsInset); }
     // the braid toolbar takes the left side (rail) or a band along the top (phone row)
     const bar = document.getElementById('braidToolbar'), place = bar.hidden ? 'hidden' : bar.dataset.place || 'top';
     if (place !== 'hidden') {
@@ -3898,7 +4056,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       else if (T < 4.1) m = ease((T - 0.9) / 3.2);
       else if (T < 5.0) m = 1;
       else if (T < 8.6) m = 1 + ease((T - 5.0) / 3.6);
-      else { m = 2; state.building = false; }
+      else { m = 2; state.building = false; gameEmit('build-done'); }
       setM(m);
     }
     if (state.growing) {
@@ -3906,7 +4064,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       const T = state.growT;
       if (T < 1.0) state.grow = 0;
       else if (T < 7.0) state.grow = ease((T - 1.0) / 6.0);
-      else { state.grow = null; state.growing = false; buildTrail(); restartTraveler(); }
+      else { state.grow = null; state.growing = false; buildTrail(); restartTraveler(); gameEmit('grow-done'); }
       updatePositions();
     }
     renderDt = dt;
@@ -3915,6 +4073,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (state.cut !== state.cutTarget && !labCut) {
       state.cut = CUT.advance(state.cut,state.cutTarget,dt);
       updatePositions();
+      if (state.cut === 1 && state.cutTarget === 1) cutFinished();
       if (sel !== null) buildSelectionLines();
     }
     if (!state.twisting && trailPts && state.m >= 2 && state.grow === null && state.cut === 0 && state.cutTarget === 0) {
@@ -3931,6 +4090,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
 
   function start() {
+    initGame();
     layoutForDevice();
     readHash();
     if (state.braid) braidHistory.record(state.braid);
