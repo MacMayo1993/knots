@@ -205,6 +205,45 @@ const server = http.createServer((req, res) => {
     await page.context().close();
   }
 
+  // Random menus work on desktop and on a narrow phone, including conversion and undo.
+  for (const phone of [false, true]) {
+    page=await open('#shape=hex&turn=1/3',phone?{viewport:{width:320,height:740},isMobile:true,hasTouch:true}:undefined);
+    if(phone) await page.click('#sheetHide');
+    await page.click(phone?'#q-random-toroid':'#randomToroid');
+    await page.waitForFunction(()=>!document.getElementById('q-cut').disabled,null,{timeout:15000});
+    ok(await page.inputValue('#q-shape')!=='hex','random toroid changes the shape and closes its seam');
+    if(!phone) {
+      const shape=await page.inputValue('#q-shape'),turn=await page.textContent('#q-twist');
+      await page.click('#randomTwist');
+      await page.waitForFunction(()=>!document.getElementById('q-cut').disabled,null,{timeout:15000});
+      ok(await page.inputValue('#q-shape')===shape && await page.textContent('#q-twist')!==turn,'shuffle twist retains shape and changes turn');
+    }
+    ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'random toroid controls do not overflow');
+    await screenshot(page,phone?'random-toroid-phone':'random-toroid-desktop');
+    await page.click(phone?'#q-cut':'#cutBtn');
+    await page.waitForFunction(()=>!document.getElementById('cutToBraid').disabled,null,{timeout:15000});
+    await page.click(phone?'#q-braid':'#cutToBraid');
+    if(phone) await page.click('#braidEdit');
+    const before={word:await page.inputValue('#braidInput'),n:await page.inputValue('#braidStrands')};
+    await page.selectOption('#randomBraidLevel','simple');
+    await page.click('#randomBraid');
+    const after={word:await page.inputValue('#braidInput'),n:await page.inputValue('#braidStrands')};
+    ok(JSON.stringify(after)!==JSON.stringify(before) && [2,3].includes(Number(after.n)),'simple random braid creates a valid new word');
+    ok((await page.textContent('#braidOriginNote')).includes('Braid edited'),'random braid stops claiming original knot equivalence');
+    await screenshot(page,phone?'random-braid-phone':'random-braid-desktop');
+    await page.locator('#braidEditor').getByRole('button',{name:'Undo braid edit',exact:true}).click();
+    ok(await page.inputValue('#braidInput')===before.word && await page.inputValue('#braidStrands')===before.n,'undo restores pre-random braid');
+    await page.locator('#braidEditor').getByRole('button',{name:'Redo braid edit',exact:true}).click();
+    ok(await page.inputValue('#braidInput')===after.word,'redo restores random braid');
+    await page.locator('#appearanceDetails > summary').click();
+    const palette=await page.getAttribute('.palette-choice[aria-pressed="true"]','id');
+    await page.click('#randomPalette');
+    ok(await page.getAttribute('.palette-choice[aria-pressed="true"]','id')!==palette,'random palette selects another palette');
+    ok(await page.inputValue('#braidInput')===after.word,'random palette preserves the braid');
+    ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'random braid menu fits the viewport');
+    await page.context().close();
+  }
+
   // Actual mouse and touch drags reshape the rope while the mathematical word stays fixed.
   const ropePoint = (page, blue = false) => page.evaluate(blue => new Promise(resolve => requestAnimationFrame(() => {
     const c=document.getElementById('c'), o=document.createElement('canvas'), rc=c.getBoundingClientRect();

@@ -515,7 +515,7 @@ h2 {
           </div>
         </div>
         <div class="mobile-tools" id="mobileTools" role="group" aria-label="Quick toroid controls" hidden>
-          <label class="quick-shape" for="q-shape"><span>Shape</span><select id="q-shape" aria-label="Tube shape"></select></label>
+          <div class="quick-shape-random"><label class="quick-shape" for="q-shape"><span>Shape</span><select id="q-shape" aria-label="Tube shape"></select></label><button type="button" class="secondary" id="q-random-toroid" aria-label="Randomize toroid shape and twist" title="Random toroid">⚄</button></div>
           <div class="quick">
             <button type="button" class="step" id="q-minus" aria-label="Subtract a step of twist">−</button>
             <output class="q-value" id="q-twist" aria-label="Tube twist" aria-live="polite">½ turn</output>
@@ -558,8 +558,24 @@ h2 {
         </div>
       </fieldset>
 
+      <fieldset class="torus-only">
+        <legend>Try something new</legend>
+        <div class="random-actions">
+          <button type="button" class="secondary" id="randomToroid">⚄ Random toroid</button>
+          <button type="button" class="secondary" id="randomTwist">Shuffle twist</button>
+        </div>
+        <p class="note">A new uncut shape with a matching twist, ready to cut. Shuffle twist keeps your current shape.</p>
+      </fieldset>
+
       <fieldset class="braid-only braid-workspace" id="braidWorkspace">
         <legend>Braid studio</legend>
+        <div class="random-actions">
+          <select id="randomBraidLevel" aria-label="Random braid complexity" aria-describedby="randomBraidHelp">
+            <option value="simple">Simple</option><option value="varied" selected>Varied</option><option value="intricate">Intricate</option>
+          </select>
+          <button type="button" class="secondary" id="randomBraid">⚄ Random braid</button>
+        </div>
+        <p class="note" id="randomBraidHelp">New strands and crossings; may form a knot, link, or unknot. Undo brings back your previous braid.</p>
         <p class="braid-stats" id="braidStats" aria-live="polite"></p>
         <p class="note braid-origin-note" id="braidOriginNote" hidden></p>
         <details class="braid-editor-box" id="braidEditorDetails" open>
@@ -630,6 +646,8 @@ h2 {
             <button type="button" class="palette-choice" id="palette-candy" aria-pressed="false">Candy</button>
             <button type="button" class="palette-choice" id="palette-bold" aria-pressed="false">Bold</button>
           </div>
+          <button type="button" class="secondary random-palette" id="randomPalette">⚄ Random palette</button>
+          <p class="note">Random palette also replaces custom braid component colors.</p>
           <div class="label" id="backgroundLabel">Background</div>
           <div class="seg" role="group" aria-labelledby="backgroundLabel">
             <button type="button" id="look-system" aria-pressed="true">System</button>
@@ -924,6 +942,7 @@ h2 {
 <script src="seifert.js"></script>
 <script src="surfaces.js"></script>
 <script src="braid-controls.js"></script>
+<script src="randomize.js"></script>
 <script src="braid-editor.js"></script>
 <script src="relax.js"></script>
 <script src="explore.js"></script>
@@ -950,6 +969,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const AP = window.ToroidAppearance;
   const CUT = window.ToroidCutAnimation;
   const BC = window.BraidControls, braidHistory = BC.history();
+  const RAND = window.ToroidRandomizer;
   let cutBraidSource = null;
   let braidStyle = (() => { try { return BC.load(localStorage); } catch (_) { return BC.normalize(); } })();
   const appearance = (() => { try { return AP.load(localStorage); } catch (_) { return AP.normalize(null); } })();
@@ -1858,6 +1878,13 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     } catch (err) { braidError.textContent = err.message; }
   }
   document.getElementById('braidForm').addEventListener('submit', ev => { ev.preventDefault(); drawFromForm(); });
+  document.getElementById('randomBraid').addEventListener('click', () => {
+    if (!state.braid || labCut) return;
+    const b = RAND.braid(document.getElementById('randomBraidLevel').value, state.braid);
+    seifertBox.checked = false; seifKey = '#';
+    showBraid(checkBraid(b.word, b.n));
+    logOp('random braid', document.getElementById('randomBraidLevel').value);
+  });
   document.querySelectorAll('#braidExamples button').forEach(btn => btn.addEventListener('click', () => {
     braidInput.value = btn.dataset.word; braidStrandsIn.value = '';
     drawFromForm();
@@ -2172,6 +2199,17 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const step = stepFor(shapeOf());
     twistTo((Math.floor(state.twistTo / step + 1e-9) + 1) * step);
   });
+  function randomizeToroid(twistOnly = false) {
+    if (state.braid || labCut) return;
+    const c = RAND.toroid(SHAPES, { shape: state.shape, turn: state.twistTo }, twistOnly);
+    stopGrow(); state.building = false; uncut();
+    if (state.m < 2) setM(2);
+    applyConstruction({ ...c, turn: turnText(c.turn) });
+    logOp('random toroid', c);
+  }
+  document.getElementById('randomToroid').addEventListener('click', () => randomizeToroid());
+  document.getElementById('q-random-toroid').addEventListener('click', () => randomizeToroid());
+  document.getElementById('randomTwist').addEventListener('click', () => randomizeToroid(true));
   const travelBtn = document.getElementById('travel');
   function syncTravelBtn() { travelBtn.textContent = state.traveling ? 'Pause traveler' : 'Send a traveler'; }
   travelBtn.addEventListener('click', () => {
@@ -3336,6 +3374,13 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       applyPaint(); retint(); savePaint(); saveAppearance(); buildPaintInputs();
       logOp('palette',p.id);
     });
+  });
+  document.getElementById('randomPalette').addEventListener('click', () => {
+    const choices = AP.PALETTES.filter(p => p.id !== appearance.palette);
+    const p = choices[Math.floor(Math.random() * choices.length)];
+    braidStyle.colors.fill(null); saveBraidStyle();
+    document.getElementById('palette-' + p.id).click();
+    syncBraidWorkspace();
   });
   ['system','light','dark'].forEach(mode=>document.getElementById('look-'+mode).addEventListener('click',()=>{
     appearance.mode=mode; applyPaint(); retint(); saveAppearance();
