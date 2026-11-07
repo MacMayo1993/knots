@@ -12,6 +12,19 @@ python3 -m http.server 8000      # then visit http://localhost:8000/
 
 The page draws with [Three.js](https://threejs.org) (WebGL 2), loaded as JavaScript modules. Browsers won't load modules from a double-clicked file, which is why it needs a server. There is no install and no build step. Three.js r186.1 is copied into `vendor/three/`, unmodified, so the page makes no requests to other sites. The only exception is the optional Google Fonts link; without a connection the page falls back to system fonts.
 
+## On a phone
+
+On a phone the model fills the screen and the controls live in a bottom sheet. You can drag the sheet's handle, tap it, or use its buttons to switch between four sizes:
+
+- **Peek:** a slim bar with the essentials: the twist stepper and Cut on the torus, or the braid word and an Edit button in braid mode.
+- **Half:** the model stays visible above the controls.
+- **Full:** for reading the exact description and the notes, which move into the sheet on a phone.
+- **Hidden:** only a small *Controls* button remains.
+
+The model slides up, or left when the phone is on its side, so it stays centered in the space the sheet leaves free. Until you zoom yourself, the camera also pulls back so the whole torus fits. The sheet remembers its size on your device.
+
+The full-screen button hides the browser bars where the browser allows it. iPhone Safari doesn't, but you can use *Add to Home Screen* there: the page includes a web app manifest and icons, so it opens full screen with no browser interface. On Android, *Install app* or *Add to Home screen* does the same.
+
 ## Controls
 
 - **Model:** *Twisted torus* (everything below) or *Any braid*.
@@ -77,4 +90,6 @@ Everything else is inside `index.html`:
   - `showBraid()` switches modes, and `buildBraidMesh()` turns `braidLayout()` into ribbons for the renderer.
   - The three.js scene section hands the mesh to WebGL (`syncSurface()` updates positions, normals and per-vertex colors only when they change) and draws the seam, traveler, build edges and selection lines as fat lines. `render()` updates those each frame.
   - `select()`, `torusRoute()` and `braidRoute()` handle following a strip.
+  - The phone layout section runs the bottom sheet (`setSheet()`, dragging, the quick bar's `syncQuick()`) and `updateViewShift()`, which keeps the model centered and fitted above the sheet.
+- `manifest.webmanifest` and `icons/`: the home-screen app (the icons are renders of the cut hexagon: two linked trefoil strips).
   - `frame()` is the animation loop.
