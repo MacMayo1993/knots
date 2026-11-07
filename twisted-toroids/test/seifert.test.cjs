@@ -32,7 +32,8 @@ function check(n, word) {
   ok(A.euler === n - word.length, 'chi = n - c for ' + word + ': ' + A.euler);
   ok(A.loops.length === mu, 'boundary loops = components for ' + word);
   ok(A.pieces.every(p => p.orientable && p.nonManifoldEdges === 0), 'orientable, manifold for ' + word);
-  if (groups === 1) ok(A.pieces[0].genus === KM.seifertGenus(n, word), 'genus formula for ' + word);
+  ok(A.pieces.length === KM.seifertPieces(n, word), 'surface piece count for ' + word);
+  ok(A.pieces.reduce((sum, p) => sum + p.genus, 0) === KM.seifertGenus(n, word), 'total genus formula for ' + word);
   // boundary curves follow the braid: the linking numbers match
   const loops = SF.orientLoops(S, A.loops), comp = SF.loopComponents(S, loops, rb.compOf);
   ok(new Set(comp).size === mu, 'each loop is a different component for ' + word);
@@ -50,6 +51,9 @@ check(2, [1, 1, 1, 1]);         // T(2,4): lk 2
 check(3, [1, -2, 1, -2, 1, -2]); // Borromean rings
 check(3, []);                   // three disks, unlink
 check(4, [1, 3, 1, 3]);          // two Hopf links, split
+check(4, [1, 1, 1]);             // a trefoil surface and two isolated disks
+ok(KM.seifertGenus(3, []) === 0, 'three disks have total genus zero');
+ok(KM.seifertGenus(4, [1, 1, 1]) === 1, 'a split trefoil and two unknots have total genus one');
 const tre = check(2, [1, 1, 1]);
 ok(tre.A.pieces[0].genus === 1, 'trefoil Seifert surface has genus 1');
 ok(check(2, [1, 1, 1, 1, 1]).A.pieces[0].genus === 2, 'cinquefoil: genus 2');
@@ -92,4 +96,10 @@ for (const [name, idx, P] of [['Möbius band', grid(40, 4, mobius), pts(40, 4, m
   const stl = MK.toSTL(T.positions, T.indices, 25);
   ok(stl.byteLength === 84 + 50 * T.indices.length / 3 && new DataView(stl).getUint32(80, true) === T.indices.length / 3, name + ': STL size');
 }
+
+// The immersed Klein bottle must not silently become a nonmanifold STL when its
+// distinct sheets meet in space. This reproduced 192 bad edges before the guard.
+const SL = require('../surfaces.js'), bottle = SL.build('klein', []);
+assert.throws(() => MK.thicken(Array.from(Float32Array.from(bottle.positions)), bottle.indices, 0.6 / 22), /intersecting or nonmanifold/);
+
 console.log('PASS: ' + checks + ' checks — Seifert surfaces of closed braids: pieces, χ = n − c, boundary loops = components, orientable, genus, boundary linking numbers by Gauss integral; meshkit disks/annuli/Möbius/torus/Klein topology and closed thickened solids for STL.');

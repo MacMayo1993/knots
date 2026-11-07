@@ -186,6 +186,9 @@
   function thicken(positions, indices, half, opts = {}) {
     let mesh = opts.weld === false ? { positions: Array.from(positions), indices: Array.from(indices) } : weld(positions, indices, opts.eps || 1e-5);
     let E = edgeFaces(mesh.indices);
+    if ([...E.values()].some(faces => faces.length > 2)) {
+      throw new Error('This surface has intersecting or nonmanifold sheets and cannot be thickened for STL export.');
+    }
     let { flip, conflicts } = orient(mesh.indices, E);
     let idx = mesh.indices.slice(), pos = mesh.positions.slice();
     if (conflicts.length) {

@@ -50,6 +50,40 @@ function gaussLink(P, Q) {
   return s / (4 * Math.PI);
 }
 const cases = [[2, [1, 1, 1]], [3, [1, -2, 1, -2]], [3, [1, -2, 1, -2, 1, -2]], [2, [1, 1, 1, 1]], [3, [1, 1, -2, 1, -2]]];
+// Exact polygonal Gauss integral via spherical quadrilaterals. The midpoint rule
+// above is too inaccurate when a long braid puts neighbouring turns very close.
+function polygonLink(P, Q) {
+  const sub = (a, b) => a.map((x, k) => x - b[k]);
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const solidAngle = (a, b, c) => {
+    const la = Math.hypot(...a), lb = Math.hypot(...b), lc = Math.hypot(...c);
+    const det = a[0] * (b[1] * c[2] - b[2] * c[1]) + a[1] * (b[2] * c[0] - b[0] * c[2]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
+    return 2 * Math.atan2(det, la * lb * lc + dot(a, b) * lc + dot(b, c) * la + dot(c, a) * lb);
+  };
+  let sum = 0;
+  for (let i = 0; i < P.length; i++) for (let j = 0; j < Q.length; j++) {
+    const a = sub(P[i], Q[j]), b = sub(P[i], Q[(j + 1) % Q.length]);
+    const c = sub(P[(i + 1) % P.length], Q[(j + 1) % Q.length]), d = sub(P[(i + 1) % P.length], Q[j]);
+    sum += solidAngle(a, b, c) + solidAngle(a, c, d);
+  }
+  return sum / (4 * Math.PI);
+}
+for (const crossings of [2, 72, 144, -144, 400]) {
+  const w = Array(Math.abs(crossings)).fill(Math.sign(crossings));
+  const C = RX.fromBraid(KM, 2, w);
+  ok(C.every(c => c.length >= 8 * w.length), 'each crossing is resolved in ' + crossings);
+  const lk = polygonLink(C[0], C[1]);
+  ok(Math.abs(lk - crossings / 2) < 1e-6, 'initial T(2,' + crossings + ') linking: ' + lk);
+  if (crossings === 144) {
+    const S = RX.create(C);
+    for (let k = 0; k < 3; k++) RX.step(S);
+    const after = RX.curves(S);
+    ok(Math.abs(polygonLink(after[0], after[1]) - 72) < 1e-6, 'dense link survives relaxation steps');
+  }
+}
+assert.throws(() => RX.fromBraid(KM, 10, Array(400).fill(1)), /too large to relax/);
+const tinyRequest = RX.fromBraid(KM, 2, [1, 1], 1);
+ok(tinyRequest[0].length >= 16, 'a small per argument cannot skip crossings');
 for (let t = 0; t < 6; t++) { const n = 2 + rnd(3); cases.push([n, randomWord(n, 2 + rnd(7))]); }
 for (const [n, w] of cases) {
   const S = RX.create(RX.fromBraid(KM, n, w, 48)), rb = KM.readBraid(n, w);

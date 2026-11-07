@@ -481,11 +481,16 @@
     for (const g of word) { const i = Math.abs(g); if (s.has(i) && s.get(i) !== Math.sign(g)) return false; s.set(i, Math.sign(g)); }
     return true;
   }
-  // Genus of the Seifert surface of a closed braid: n disks and one band per crossing,
-  // chi = n - c, genus = (2 - chi - components) / 2.
+  // The disks form a path graph; a generator joins its two neighbouring disks.
+  function seifertPieces(n, word) {
+    const used = new Set(word.map(g => Math.abs(g)));
+    return n - used.size;
+  }
+  // Total genus of all k Seifert pieces: chi = n - c = 2k - 2g - mu,
+  // where mu is the number of link components (boundary loops), not surface pieces.
   function seifertGenus(n, word) {
     const mu = cycles(permutation(n, word)).length;
-    return (2 - (n - word.length) - mu) / 2;
+    return (2 * seifertPieces(n, word) - (n - word.length) - mu) / 2;
   }
 
   // ---------- naming knots and links from the table ----------
@@ -683,7 +688,7 @@
   }
 
   const api = { laneWidth, gcd, wordFormula, parseBraid, freeReduce, keepStrands, alexander, polyText, blackboardRibbon, describeBraid, braidLayout, braidWord, permutation, cycles, readBraid, stepsFor, torusKnot, describe, wordText,
-    bracket, jones, jonesText, jonesAt, mirrorPoly, polyKey, mirrorWord, homogeneous, seifertGenus, identify, knotTable, tableName };
+    bracket, jones, jonesText, jonesAt, mirrorPoly, polyKey, mirrorWord, homogeneous, seifertPieces, seifertGenus, identify, knotTable, tableName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KnotMath = api;
 })(typeof window !== 'undefined' ? window : globalThis);

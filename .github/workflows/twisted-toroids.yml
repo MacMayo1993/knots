@@ -65,6 +65,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install snappy
+      - name: Split-surface exports and invalid genus detection
+        run: python verify/test_seifert.py
       - name: Exported experiments
         run: python verify/verify.py verify/examples/*.json
       - name: Every preset shape, twists up to one turn each way

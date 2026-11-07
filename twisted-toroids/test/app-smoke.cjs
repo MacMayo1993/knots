@@ -51,7 +51,7 @@ class OrbitControls{constructor(){this.target=new Vector();}addEventListener(){}
 class Raycaster{setFromCamera(){}intersectObject(){return Raycaster.hit ? [Raycaster.hit] : [];}}
 class Curve{constructor(points){this.points=points;}}
 class TubeGeometry extends Geometry{constructor(curve,segments,radius,radial,closed){super();this.curve=curve;this.parameters={segments,radius,radial,closed};const P=[],I=[];curve.points.forEach((p,i)=>{for(let k=0;k<3;k++)P.push(i,k,0);const a=3*i,b=3*((i+1)%curve.points.length);I.push(a,a+1,b,a+1,b+1,b,a+1,a+2,b+1,a+2,b+2,b+1,a+2,a,b+2,a,b,b+2);});this.attributes.position=new Attribute(new Float32Array(P),3);this.index=new Attribute(new Uint32Array(I),1);}}
-const THREE={CatmullRomCurve3:Curve,TubeGeometry,FrontSide:0,BackSide:1,DoubleSide:2,MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
+const THREE={Curve,CatmullRomCurve3:Curve,TubeGeometry,FrontSide:0,BackSide:1,DoubleSide:2,MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
 const phone=process.argv.includes('--phone'),side=process.argv.includes('--landscape'),animate=process.argv.includes('--animate');
 const win={innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),BraidEditor:require(process.cwd()+'/braid-editor.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),KnotRelax:require(process.cwd()+'/relax.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
 const sandbox={KnotMath:win.KnotMath,THREE,OrbitControls,Line2:Object3D,LineSegments2:Object3D,LineMaterial:Material,LineGeometry:Geometry,LineSegmentsGeometry:Geometry,window:win,document:{documentElement:root,body:el(),getElementById:get,createElement:el,querySelectorAll(s){const key={'#shapeSeg button':'shape','#twistSeg button':'k','#modeSeg button':'mode','#braidExamples button':'word'}[s];return buttons.filter(b=>key in b.dataset);}},getComputedStyle(){return {getPropertyValue(k){return root.style[k]||palette[k]||'#888888';}};},MutationObserver:class{observe(){}},localStorage:{getItem(){return null;},setItem(){}},location:{hash:'',href:'https://example.test/'},history:{replaceState(){}},performance:{now(){return 0;}},requestAnimationFrame(){},setTimeout(f){timers.push(f);},URLSearchParams,console,Blob:class{constructor(parts){this.parts=parts;}},URL:{createObjectURL(){return 'blob:x';},revokeObjectURL(){}}};
@@ -244,6 +244,10 @@ console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sect
  tick1();assert.match(get('hud').textContent,/right-handed trefoil/);
  p.showBraid({n:2,word:[-1,-1,-1]});assert.match(get('x-name').textContent,/left-handed trefoil/);
  const ex=p.experiment();assert.equal(ex.jones.text,'t⁻¹ + t⁻³ − t⁻⁴');assert.deepEqual(ex.tableNames,['3_1']);assert.equal(ex.seifert.genus,1);assert.equal(ex.seifert.homogeneous,true);
+ for(const [n,word,genus,pieces] of [[3,[],0,3],[4,[1,1,1],1,3],[4,[1,3,1,3],0,2]]) {
+  p.showBraid({n,word});const sf=p.experiment().seifert;
+  assert.equal(sf.genus,genus);assert.equal(sf.pieces,pieces);assert.match(sf.note,/sum of the genera/);
+ }
  // the table picker draws an entry from its braid word
  get('tablePick').value='6_2';get('tablePick').dispatch('change');assert.match(get('x-name').textContent,/6₂/);
  // the diagram editor: add, flip and delete crossings through its own buttons
@@ -268,6 +272,9 @@ console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sect
  assert(p.getRelax().S.steps>0);assert.equal(p.surface.visible,false);assert.match(get('hud').textContent,/Relax/);
  made=p.makeSTL();assert(made&&made.indices.length>0,'relaxed tubes export');
  get('relaxBtn').click();assert.equal(p.getRelax(),null);
+ // Oversized relaxation is rejected before changing the displayed braid or view.
+ p.showBraid({n:10,word:Array(110).fill(1)});get('relaxBtn').click();
+ assert.equal(p.getRelax(),null);assert.match(get('x-status').textContent,/too large to relax/);
  // the twisted torus and braid ribbons export as closed solids too
  p.showBraid(null);get('shape-hex').click();p.twistTo(1/3);made=p.makeSTL();assert(closed(made),'torus STL closed');
  get('cutBtn').click();made=p.makeSTL();assert(closed(made),'cut torus STL closed');get('cutBtn').click();
@@ -280,8 +287,13 @@ console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sect
  p.showBraid(null);
  p.setLabSurface('klein');assert.equal(get('labCut').children.length,5);
  p.setLabCut('k-closed');p.render(false,0,[0,0,0]);assert.equal(get('labOrient').textContent,'One-sided');assert.equal(get('labPieces').textContent,'1');
+ for(const kind of ['k-closed','k-meridian','k-core','k-draw']) {
+  p.setLabCut(kind);assert.throws(()=>p.makeSTL(),/STL export is unavailable for Klein-bottle/);
+  get('x-stl').click();assert.match(get('x-status').textContent,/Save a picture instead/);
+ }
  p.setLabCut('k-between');assert.equal(get('labPieces').textContent,'2');assert.match(get('labResult').textContent,/2 Möbius bands/);
- made=p.makeSTL();assert(closed(made),'Möbius bands STL closed');
+ assert.throws(()=>p.makeSTL(),/STL export is unavailable for Klein-bottle/);
+ get('x-png').click();assert.match(get('x-status').textContent,/Saved .*\.png/);
  p.render(false,0,[0,0,0]);p.chooseMapPoint(.5,.5);p.syncExplore();assert.equal(p.mapMarker.visible,true);
  p.setLabSurface('torus');p.setLabCut('slope');get('labA').value='2';get('labB').value='4';get('labA').dispatch('input');
  assert.equal(get('labPieces').textContent,'2');assert.match(get('labWhy').textContent,/factor 2/);

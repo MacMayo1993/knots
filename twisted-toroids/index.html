@@ -1593,7 +1593,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       jones: idn.error ? null : { lowestHalfPower: idn.jones.o, coefficients: idn.jones.c, text: KM.jonesText(idn.jones), note: 'Coefficient i multiplies t^((lowestHalfPower + i) / 2).' },
       tableNames: idn.error ? [] : idn.matches.map(m => m.name),
       tableMatches: idn.error ? [] : idn.matches.map(m => m.label),
-      seifert: { genus: KM.seifertGenus(n, word), homogeneous: KM.homogeneous(word), note: 'Seifert\'s algorithm on the closed braid: one disk per strand, one twisted band per crossing. For a homogeneous braid this genus is the genus of the knot or link.' }
+      seifert: { genus: KM.seifertGenus(n, word), pieces: KM.seifertPieces(n, word), homogeneous: KM.homogeneous(word), note: 'Seifert\'s algorithm: one disk per strand, one twisted band per crossing. Genus is the sum of the genera of all surface pieces. For a homogeneous braid each piece has least genus for its oriented boundary.' }
     };
   }
   const matrixText = M => {
@@ -1657,9 +1657,9 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     set('x-alex', KM.polyText(d.alexander));
     if (state.braid) {
       const n = state.braid.n, c = state.braid.word.length, g = KM.seifertGenus(n, state.braid.word), comps = d.components.length;
-      const used = new Set(state.braid.word.map(Math.abs)); let pieces = 1; for (let i = 1; i < n; i++) if (!used.has(i)) pieces++;
+      const pieces = KM.seifertPieces(n, state.braid.word);
       set('x-seifert', n + (n === 1 ? ' disk' : ' disks') + ' + ' + c + (c === 1 ? ' band' : ' bands') + ' · χ = ' + minus(n - c) + (pieces === 1 ? ' · genus ' + g : ' · ' + pieces + ' separate pieces'));
-      set('x-seifert-note', pieces > 1 ? 'Some neighbouring strands never cross, so the surface comes in pieces and the link is split.'
+      set('x-seifert-note', pieces > 1 ? 'Some neighbouring strands never cross, so the surface comes in pieces and the link is split. The sum of the pieces\' genera is ' + g + '.'
         : KM.homogeneous(state.braid.word) ? 'Each generator appears with one sign only (a homogeneous braid), so no surface with this edge has smaller genus: the ' + (comps === 1 ? 'knot' : 'link') + ' has genus ' + g + '.'
         : 'Some generator appears with both signs, so a surface of smaller genus may exist: the ' + (comps === 1 ? 'knot\'s' : 'link\'s') + ' genus is at most ' + g + '.');
     }
@@ -1729,6 +1729,11 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     return out;
   }
   function makeSTL() {
+    // A Klein-bottle immersion has distinct sheets at the same 3D points. Neither
+    // welding those sheets nor offsetting them independently makes a solid.
+    if (labCut && labModel && labModel.surface === 'klein') {
+      throw new Error('STL export is unavailable for Klein-bottle views because their sheets can intersect in 3D. Save a picture instead.');
+    }
     // a tube around a curve is already a closed solid: just join its seam
     const parts = visibleMeshes().map(m => m.solid ? MK.weld(m.positions, m.indices, 1e-5) : MK.thicken(m.positions, m.indices, PRINT_WALL / 2 / PRINT_SCALE));
     const positions = [], indices = [];
@@ -2201,8 +2206,11 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const relaxShown = () => !!relax && !!state.braid && !labCut;
   function setRelax(on) {
     if (on && state.braid && RX && THREE.TubeGeometry) {
+      let curves;
+      try { curves = RX.fromBraid(KM, state.braid.n, state.braid.word); }
+      catch (err) { flash(err.message); return; }
       seifertBox.checked = false; seifKey = '#';
-      relax = { S: RX.create(RX.fromBraid(KM, state.braid.n, state.braid.word)), key: state.braid.n + ':' + state.braid.word.join(','), done: false, gap: 0 };
+      relax = { S: RX.create(curves), key: state.braid.n + ':' + state.braid.word.join(','), done: false, gap: 0 };
       clearSelection(); revealModel();
       logOp('relax', relax.key);
     } else relax = null;
@@ -2215,14 +2223,30 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (relax.key !== state.braid.n + ':' + state.braid.word.join(',')) { setRelax(false); return false; }
     if (!relax.done) {
       const per = reduceMotion ? RELAX_STEPS : Math.max(2, Math.round(10 * Math.min(dt, 0.05) / 0.016));
-      for (let k = 0; k < per && relax.S.steps < RELAX_STEPS; k++) relax.gap = RX.step(relax.S).gap;
+      const started = performance.now();
+      for (let k = 0; k < per && relax.S.steps < RELAX_STEPS; k++) {
+        relax.gap = RX.step(relax.S).gap;
+        if (performance.now() - started >= 12) break;
+      }
       relax.done = relax.S.steps >= RELAX_STEPS;
       const C = RX.curves(relax.S), r = RX.tubeRadius(relax.S), comps = KM.cycles(KM.permutation(state.braid.n, state.braid.word));
       C.forEach((pts, k) => {
         const tube = relaxTubes[k]; if (!tube) return;
-        const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2])), true, 'centripetal');
+        // Draw exactly the polygon protected by the segment-distance check.
+        // An unconstrained interpolating spline could cross a neighbouring strand.
+        const curve = new THREE.Curve();
+        curve.points = pts.map(p => new THREE.Vector3(...p));
+        curve.getPoint = (t, target = new THREE.Vector3()) => {
+          const u = t * pts.length, i = Math.floor(u), f = u - i;
+          const a = pts[i % pts.length], b = pts[(i + 1) % pts.length];
+          return target.set(a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]));
+        };
+        // TubeGeometry must sample at these polygon vertices, not redistribute
+        // them using Curve's approximate arc-length table.
+        curve.getPointAt = curve.getPoint;
+        curve.getTangentAt = t => curve.getTangent(t);
         tube.geometry.dispose();
-        tube.geometry = new THREE.TubeGeometry(curve, Math.max(64, pts.length * 2), r, 12, true);
+        tube.geometry = new THREE.TubeGeometry(curve, pts.length, r, 12, true);
         const c = pal.c[COMP_COLORS[k % COMP_COLORS.length]];
         tube.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
         tube.visible = true;

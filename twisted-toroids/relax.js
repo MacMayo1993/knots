@@ -12,9 +12,14 @@
   'use strict';
   const TAU = 2 * Math.PI, R = 1.6;
 
-  // Sample each component of a closed braid as the page draws it (strands side by
-  // side around a circle of radius R), with about `per` points per strand.
+  // Resolve every crossing, including its over/under midpoint. A fixed number of
+  // samples per lap aliases long words (sigma_1^144 used to become two circles).
+  // Keep slot boundaries aligned; `per` is a minimum, never a downsampling limit.
+  const SAMPLES_PER_CROSSING = 8, MAX_POINTS = 8192;
   function fromBraid(KM, n, word, per = 72) {
+    const slots = Math.max(1, word.length);
+    per = slots * Math.max(SAMPLES_PER_CROSSING, 2 * Math.ceil(per / (2 * slots)));
+    if (n * per > MAX_POINTS) throw new Error('This braid is too large to relax while preserving every crossing. Try a shorter braid or fewer strands.');
     const lay = KM.braidLayout(n, word), comps = KM.cycles(KM.permutation(n, word));
     return comps.map(c => {
       const pts = [];
