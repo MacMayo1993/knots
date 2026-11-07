@@ -244,6 +244,56 @@ const server = http.createServer((req, res) => {
     await page.context().close();
   }
 
+  // Surface construction is visible and controllable with the phone sheet hidden.
+  for (const phone of [false, true]) {
+    page=await open('#braid=1,1,1&strands=2',phone?{viewport:{width:320,height:740},isMobile:true,hasTouch:true}:undefined);
+    if(phone) await page.click('#sheetHide');
+    const invariant=await page.textContent('#x-seifert');
+    await page.click('#braidViewSurface');
+    await page.locator('#seifQuick').waitFor({state:'visible'});
+    ok(Number(await page.inputValue('#seifQuickProgress'))<1000,'Surface starts a visible construction');
+    await page.click('#seifQuickPlay');
+    const paused=await page.inputValue('#seifQuickProgress');await page.waitForTimeout(180);
+    ok(await page.inputValue('#seifQuickProgress')===paused,'Pause holds construction progress');
+    const seek=value=>page.evaluate(value=>{
+      const slider=document.getElementById('seifQuickProgress');
+      slider.value=String(value);slider.dispatchEvent(new Event('input',{bubbles:true}));
+    },value);
+    await seek(250);
+    ok((await page.textContent('#seifQuickStatus')).includes('Disk 2 of 2'),'scrubbing reaches the disk phase');
+    ok(await drawn(page)>.02,'partially built disks draw');
+    await screenshot(page,phone?'seifert-disks-phone':'seifert-disks-desktop');
+    await seek(600);
+    ok((await page.textContent('#seifQuickStatus')).includes('Band 2 of 3'),'scrubbing reaches a signed band');
+    await screenshot(page,phone?'seifert-bands-phone':'seifert-bands-desktop');
+    await page.evaluate(()=>document.getElementById('palette-sunset').click());
+    ok(await page.inputValue('#seifQuickProgress')==='600','palette change preserves paused progress');
+    const downloadSTL=async()=>{
+      const [dl]=await Promise.all([page.waitForEvent('download'),page.evaluate(()=>document.getElementById('x-stl').click())]);
+      return fs.readFileSync(await dl.path());
+    };
+    const during=await downloadSTL();
+    await seek(900);ok((await page.textContent('#seifQuickStatus')).includes('boundary'),'final phase traces the boundary');
+    await page.click('#seifQuickFinish');
+    ok(await page.inputValue('#seifQuickProgress')==='1000','Finish completes the surface');
+    ok(await page.textContent('#x-seifert')===invariant,'construction preserves the final invariants');
+    ok(during.equals(await downloadSTL()),'STL is the identical complete surface during and after construction');
+    ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'surface controls fit the viewport');
+    await screenshot(page,phone?'seifert-built-phone':'seifert-built-desktop');
+    await page.click('#seifQuickReplay');
+    await page.waitForFunction(()=>Number(document.getElementById('seifQuickProgress').value)>0);
+    ok(Number(await page.inputValue('#seifQuickProgress'))<1000,'Replay restarts the timed construction');
+    await page.click('#braidViewRibbon');ok(await page.locator('#seifQuick').isHidden(),'leaving Surface hides its playback controls');
+    await page.context().close();
+  }
+  page=await open('#braid=1,1,1&strands=2',{viewport:{width:1400,height:900},reducedMotion:'reduce'});
+  await page.click('#braidViewSurface');
+  await page.waitForFunction(()=>document.getElementById('seifQuickStatus').textContent.startsWith('Built'));
+  ok(await page.inputValue('#seifQuickProgress')==='1000','reduced motion skips automatic construction');
+  await page.click('#seifQuickReplay');
+  ok(Number(await page.inputValue('#seifQuickProgress'))<1000,'reduced motion allows an explicitly requested replay');
+  await page.context().close();
+
   // Actual mouse and touch drags reshape the rope while the mathematical word stays fixed.
   const ropePoint = (page, blue = false) => page.evaluate(blue => new Promise(resolve => requestAnimationFrame(() => {
     const c=document.getElementById('c'), o=document.createElement('canvas'), rc=c.getBoundingClientRect();

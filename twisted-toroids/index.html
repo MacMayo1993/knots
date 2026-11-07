@@ -501,6 +501,15 @@ h2 {
             <button type="button" id="braidResetView" aria-label="Reset braid camera" title="Reset camera">⌖</button>
           </div>
           <button type="button" class="braid-return-cut" id="braidReturnCut" hidden>← Back to cut toroid</button>
+          <div class="seif-build" id="seifQuick" aria-label="Surface construction" hidden>
+            <div class="seif-build-actions">
+              <button type="button" id="seifQuickPlay">Pause</button>
+              <button type="button" id="seifQuickReplay">Replay</button>
+              <button type="button" id="seifQuickFinish">Finish</button>
+            </div>
+            <input type="range" id="seifQuickProgress" min="0" max="1000" step="1" value="0" aria-label="Surface construction progress">
+            <p id="seifQuickStatus" role="status"></p>
+          </div>
           <div class="braid-pull-options" id="braidPullOptions" hidden>
             <div class="braid-pull-row">
               <select id="pullScope" aria-label="What to pull"><option value="section">A section</option><option value="component">Whole loop</option></select>
@@ -630,6 +639,16 @@ h2 {
           <p class="note">The strands pull tight and push each other apart, like rope, but never pass through each other, so the knot stays the same knot.</p>
           <label class="check" for="seifertBox"><input type="checkbox" id="seifertBox"> Show its Seifert surface</label>
           <p class="note" id="seifertNote">An orientable surface whose edge is the knot or link: one disk per strand, one twisted band per crossing. Its two sides get two colors.</p>
+          <div class="seif-build" id="seifBuild" aria-label="Surface construction" hidden>
+            <div class="seif-build-actions">
+              <button type="button" class="secondary" id="seifBuildPlay">Pause</button>
+              <button type="button" class="secondary" id="seifBuildReplay">Replay</button>
+              <button type="button" class="secondary" id="seifBuildFinish">Finish</button>
+            </div>
+            <input type="range" id="seifBuildProgress" min="0" max="1000" step="1" value="0" aria-label="Surface construction progress">
+            <p id="seifBuildStatus" role="status"></p>
+          </div>
+          <p class="note">Surface builds the disks, attaches one signed band per crossing, then traces the boundary. Drag the progress slider to inspect a stage. The invariants and STL describe the completed surface.</p>
         </div>
       </fieldset>
 
@@ -1532,6 +1551,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       return;
     }
     if (seifertShown() && seifData) {
+      if (seifBuild.progress < 1) { hud.textContent = 'Building Seifert surface · ' + seifBuildLabel(); return; }
       const g = seifData.genus;
       hud.textContent = 'Seifert surface · ' + (g === null ? seifData.A.pieces.length + ' pieces' : 'genus ' + g) + ' · its two sides in two colors';
       return;
@@ -1798,7 +1818,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     };
     if (labCut) take(labSurface);
     else if (relaxShown()) relaxTubes.filter(t => t.visible).forEach(t => { take(t); out[out.length - 1].solid = true; });
-    else if (seifertShown()) take(seifFront);
+    // Draw ranges animate visibility only; STL always uses the complete surface.
+    else if (seifertShown()) { syncSeifert(); take(seifFront); }
     else { syncSurface(); take(surface); }
     return out;
   }
@@ -1925,6 +1946,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     document.getElementById('braidReturnCut').hidden = !cutBraidSource;
     bar.dataset.pulling = String(pullMode);
     document.getElementById('braidPullOptions').hidden = !pullMode;
+    syncSeifBuildControls();
     if (changed) measureTopTools();
   }
   function syncBraidWorkspace() {
@@ -2384,48 +2406,125 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   seifFront.visible = seifBack.visible = false; scene.add(seifFront, seifBack);
   const seifLines = Array.from({ length: 10 }, () => polyline(3.2));
   seifLines.forEach(l => { l.visible = false; });
+  const seifCursor = polyline(4); seifCursor.visible = false;
   let seifKey = '', seifData = null;
+  const seifBuild = { progress: 1, playing: false, frontierKey: '' };
   const seifertShown = () => !!state.braid && seifertBox.checked && !labCut;
+  function seifBuildLabel() {
+    if (!seifData) return 'Disks → twisted bands → boundary';
+    const f = SF.constructionAt(seifData.S, seifBuild.progress), part = f.part;
+    const prefix = !seifBuild.playing && !f.done ? 'Paused · ' : '';
+    if (part?.kind === 'disk') return prefix + 'Disk ' + (part.disk + 1) + ' of ' + seifData.S.n;
+    if (part?.kind === 'band') return prefix + 'Band ' + (part.crossing + 1) + ' of ' + seifData.S.word.length + ' · ' + KM.wordText([seifData.S.word[part.crossing]]) + ' · disks ' + (Math.abs(seifData.S.word[part.crossing])) + '–' + (Math.abs(seifData.S.word[part.crossing]) + 1);
+    if (!f.done) return prefix + 'Trace the knot or link boundary';
+    return 'Built · ' + seifData.S.n + (seifData.S.n === 1 ? ' disk' : ' disks') + ' + ' + seifData.S.word.length + (seifData.S.word.length === 1 ? ' band' : ' bands');
+  }
+  function syncSeifBuildControls() {
+    const on = seifertShown(), text = seifBuildLabel();
+    for (const prefix of ['seifBuild', 'seifQuick']) {
+      const box = document.getElementById(prefix), changed = box.hidden === on;
+      box.hidden = !on;
+      if (changed && prefix === 'seifQuick') measureTopTools();
+      const play = document.getElementById(prefix + 'Play');
+      play.textContent = seifBuild.playing ? 'Pause' : 'Play'; play.disabled = seifBuild.progress >= 1;
+      play.setAttribute('aria-label', seifBuild.playing ? 'Pause surface construction' : 'Play surface construction');
+      document.getElementById(prefix + 'Finish').disabled = seifBuild.progress >= 1;
+      const progress = document.getElementById(prefix + 'Progress');
+      progress.value = String(Math.round(seifBuild.progress * 1000)); progress.setAttribute('aria-valuetext', text);
+      const status = document.getElementById(prefix + 'Status'); if (status.textContent !== text) status.textContent = text;
+    }
+  }
+  function applySeifBuild() {
+    if (!seifData || !seifertShown()) return;
+    const f = SF.constructionAt(seifData.S, seifBuild.progress);
+    seifFront.geometry.setDrawRange(0, f.count);
+    seifLines.forEach((line, i) => {
+      const count = Math.floor((seifData.lineCounts[i] || 0) * f.trace);
+      line.geometry.instanceCount = count; line.visible = count > 0;
+    });
+    const frontierKey = f.frontier.join(',');
+    if (seifBuild.frontierKey !== frontierKey) {
+      seifBuild.frontierKey = frontierKey;
+      const arr = f.frontier.flatMap(v => seifData.S.positions.slice(3 * v, 3 * v + 3));
+      setPolyline(seifCursor, arr);
+    }
+    seifCursor.visible = f.frontier.length > 0;
+    syncSeifBuildControls();
+  }
   function syncSeifert() {
-    const on = seifertShown();
-    const key = on ? state.braid.n + ':' + state.braid.word.join(',') + '|' + pal.c.map(c => c.join(',')).join(';') : '';
+    const on = seifertShown(), source = on ? state.braid.n + ':' + state.braid.word.join(',') : '';
+    const key = on ? source + '|' + pal.c.map(c => c.join(',')).join(';') : '';
     if (key === seifKey) return;
     seifKey = key;
     seifFront.visible = seifBack.visible = on;
-    seifLines.forEach(l => { l.visible = false; });
-    if (!on) { seifData = null; return; }
-    const { n, word } = state.braid, S = SF.build(n, word);
-    // orient the triangles consistently, so "front" is one side of the whole surface
-    const { flip } = MK.orient(S.indices), idx = S.indices.slice();
-    for (let t = 0; t < flip.length; t++) if (flip[t] < 0) { const x = idx[3 * t + 1]; idx[3 * t + 1] = idx[3 * t + 2]; idx[3 * t + 2] = x; }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(S.positions, 3));
-    g.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
-    g.computeVertexNormals(); g.computeBoundingSphere();
-    seifFront.geometry.dispose(); seifFront.geometry = g; seifBack.geometry = g;
+    if (!on) {
+      seifLines.forEach(l => { l.visible = false; }); seifCursor.visible = false;
+      seifData = null; seifBuild.progress = 1; seifBuild.playing = false; seifBuild.frontierKey = '';
+      syncSeifBuildControls(); return;
+    }
+    // Paint changes must not restart or rebuild an animation already in progress.
+    if (!seifData || seifData.source !== source) {
+      const { n, word } = state.braid, S = SF.build(n, word);
+      const { flip } = MK.orient(S.indices), idx = S.indices.slice();
+      for (let t = 0; t < flip.length; t++) if (flip[t] < 0) { const x = idx[3 * t + 1]; idx[3 * t + 1] = idx[3 * t + 2]; idx[3 * t + 2] = x; }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(S.positions, 3));
+      g.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
+      g.computeVertexNormals(); g.computeBoundingSphere();
+      seifFront.geometry.dispose(); seifFront.geometry = g; seifBack.geometry = g;
+      const A = MK.analyze(idx), rb = KM.readBraid(n, word), loops = SF.orientLoops(S, A.loops), comp = SF.loopComponents(S, loops, rb.compOf);
+      seifLines.forEach(l => { l.visible = false; });
+      loops.slice(0, seifLines.length).forEach((L, i) => {
+        const arr = [];
+        [...L, L[0]].forEach(v => {
+          const x = S.positions[3 * v], y = S.positions[3 * v + 1], z = S.positions[3 * v + 2], r = Math.hypot(x, z) || 1;
+          arr.push(x + 0.012 * x / r, y, z + 0.012 * z / r);
+        });
+        setPolyline(seifLines[i], arr);
+      });
+      let radius = 0;
+      for (let v = 0; v < S.positions.length; v += 3) radius = Math.max(radius, Math.hypot(S.positions[v], S.positions[v + 1], S.positions[v + 2]));
+      seifData = { S, A, idx, source, comp, radius, lineCounts: loops.map(L => L.length), genus: A.pieces.length === 1 ? A.pieces[0].genus : null };
+      seifBuild.progress = reduceMotion ? 1 : 0; seifBuild.playing = !reduceMotion; seifBuild.frontierKey = '';
+    }
     const sc = (i, m) => { const c = pal.c[i]; m.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace); };
     sc(2, seifFront.material); sc(1, seifBack.material);
-    const A = MK.analyze(idx), rb = KM.readBraid(n, word), loops = SF.orientLoops(S, A.loops), comp = SF.loopComponents(S, loops, rb.compOf);
-    loops.slice(0, seifLines.length).forEach((L, i) => {
-      const arr = [];
-      [...L, L[0]].forEach(v => {
-        // lift the curve a hair off the surface along the outward direction
-        const x = S.positions[3 * v], y = S.positions[3 * v + 1], z = S.positions[3 * v + 2], r = Math.hypot(x, z) || 1;
-        arr.push(x + 0.012 * x / r, y, z + 0.012 * z / r);
-      });
-      setPolyline(seifLines[i], arr);
-      const c = braidRGB(comp[i]);
-      seifLines[i].material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+    seifData.comp.slice(0, seifLines.length).forEach((comp, i) => {
+      const c = braidRGB(comp); seifLines[i].material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
     });
-    seifData = { S, A, idx, genus: A.pieces.length === 1 ? A.pieces[0].genus : null };
+    seifCursor.material.color.set(token('--ink'));
+    applySeifBuild();
+  }
+  function advanceSeifBuild(dt) {
+    if (!seifertShown() || !seifData || !seifBuild.playing) return;
+    seifBuild.progress = Math.min(1, seifBuild.progress + Math.max(0, dt) / SF.constructionDuration(seifData.S));
+    if (seifBuild.progress >= 1 - 1e-12) { seifBuild.progress = 1; seifBuild.playing = false; }
+    applySeifBuild();
+  }
+  for (const prefix of ['seifBuild', 'seifQuick']) {
+    const action = (suffix, fn) => document.getElementById(prefix + suffix).addEventListener('click', () => {
+      if (!seifertShown()) return;
+      syncSeifert(); fn(); applySeifBuild(); updateHud();
+    });
+    action('Play', () => { if (seifBuild.progress < 1) seifBuild.playing = !seifBuild.playing; });
+    action('Replay', () => { seifBuild.progress = 0; seifBuild.playing = true; logOp('build Seifert surface', 'replay'); });
+    action('Finish', () => { seifBuild.progress = 1; seifBuild.playing = false; });
+    document.getElementById(prefix + 'Progress').addEventListener('input', e => {
+      if (!seifertShown()) return;
+      syncSeifert(); seifBuild.progress = Math.max(0, Math.min(1, Number(e.target.value) / 1000));
+      seifBuild.playing = false; applySeifBuild(); updateHud();
+    });
   }
   seifertBox.addEventListener('change', () => {
     logOp('seifert surface', seifertBox.checked ? 'shown' : 'hidden'); clearSelection(); seifKey = '#'; revealModel();
-    // look from lower down, where the stacked disks and the bands between them show
+    // See the disk faces as well as the bands between their stacked levels.
     if (seifertBox.checked && !state.userMoved) {
       const off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
-      sph.phi = Math.PI / 2 - 0.3; camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
+      sph.phi = Math.PI / 2 - 0.5; camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
     }
+    // Initialize playback with the view change, so the controls never briefly
+    // report the previous view's completed progress before the first frame.
+    syncSeifert();
   });
 
   // Relaxing a closed braid into a smooth knot: one tube per component, rebuilt as
@@ -2858,7 +2957,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
       if (!pullMode) controls.update(); updateViewShift(); renderer.render(scene, camera); return;
     }
-    syncSeifert();
+    syncSeifert(); advanceSeifBuild(renderDt);
     if (syncRelax(renderDt)) {
       surface.visible = false;
       [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
@@ -3548,7 +3647,10 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   // area of w x h sees tan(fov/2) * w/H sideways and tan(fov/2) * h/H vertically.
   function fitDistance(w, h) {
     const t = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-    return MODEL_RADIUS / (t * Math.max(0.15, Math.min(w, h) / H)) * 1.04;
+    // Fit the complete surface, not the wider toroid envelope or the currently
+    // revealed portion. Its scale stays steady throughout disks/bands/boundary.
+    const radius = seifertShown() && seifData ? seifData.radius : MODEL_RADIUS;
+    return radius / (t * Math.max(0.15, Math.min(w, h) / H)) * 1.04;
   }
   function updateViewShift() {
     if (pullDrag) return;

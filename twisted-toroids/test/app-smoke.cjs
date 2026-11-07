@@ -38,6 +38,7 @@ class Geometry{
  constructor(){this.attributes={};}
  setAttribute(k,v){this.attributes[k]=v;return this;}
  setIndex(v){this.index=v;return this;}
+ setDrawRange(start,count){this.drawRange={start,count};return this;}
  setPositions(a){this.positions=Array.from(a);return this;}
  setColors(a){this.colors=a;return this;}
  dispose(){}computeVertexNormals(){}computeBoundingSphere(){}
@@ -51,7 +52,7 @@ class OrbitControls{constructor(){this.target=new Vector();}addEventListener(){}
 class Raycaster{setFromCamera(){}intersectObject(){return Raycaster.hit ? [Raycaster.hit] : [];}}
 class Curve{constructor(points){this.points=points;}}
 class TubeGeometry extends Geometry{constructor(curve,segments,radius,radial,closed){super();this.curve=curve;this.parameters={segments,radius,radial,closed};const P=[],I=[];curve.points.forEach((p,i)=>{for(let k=0;k<3;k++)P.push(i,k,0);const a=3*i,b=3*((i+1)%curve.points.length);I.push(a,a+1,b,a+1,b+1,b,a+1,a+2,b+1,a+2,b+2,b+1,a+2,a,b+2,a,b,b+2);});this.attributes.position=new Attribute(new Float32Array(P),3);this.index=new Attribute(new Uint32Array(I),1);}}
-const THREE={Curve,CatmullRomCurve3:Curve,TubeGeometry,FrontSide:0,BackSide:1,DoubleSide:2,MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
+const THREE={Curve,CatmullRomCurve3:Curve,TubeGeometry,FrontSide:0,BackSide:1,DoubleSide:2,MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{setFromVector3(){return this;}},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
 const phone=process.argv.includes('--phone'),side=process.argv.includes('--landscape'),animate=process.argv.includes('--animate');
 const win={ToroidRandomizer:require(process.cwd()+'/randomize.js'),BraidControls:require(process.cwd()+'/braid-controls.js'),innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),BraidEditor:require(process.cwd()+'/braid-editor.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),KnotRelax:require(process.cwd()+'/relax.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
 const sandbox={KnotMath:win.KnotMath,THREE,OrbitControls,Line2:Object3D,LineSegments2:Object3D,LineMaterial:Material,LineGeometry:Geometry,LineSegmentsGeometry:Geometry,window:win,document:{documentElement:root,body:el(),getElementById:get,createElement:el,querySelectorAll(s){const key={'#shapeSeg button':'shape','#twistSeg button':'k','#modeSeg button':'mode','#braidExamples button':'word'}[s];return buttons.filter(b=>key in b.dataset);}},getComputedStyle(){return {getPropertyValue(k){return root.style[k]||palette[k]||'#888888';}};},MutationObserver:class{observe(){}},localStorage:{getItem(){return null;},setItem(){}},location:{hash:'',href:'https://example.test/'},history:{replaceState(){}},performance:{now(){return 0;}},requestAnimationFrame(){},setTimeout(f){timers.push(f);},URLSearchParams,console,Blob:class{constructor(parts){this.parts=parts;}},URL:{createObjectURL(){return 'blob:x';},revokeObjectURL(){}}};
@@ -63,7 +64,7 @@ sandbox.document.createElementNS=(ns,tag)=>el(tag);
 sandbox.document.addEventListener=()=>{};
 get('.lab').parentElement=el(); get('.notes').parentElement=get('.lab').parentElement;
 get('stageTools').getBoundingClientRect=()=>({width:370,height:202,left:10,top:10,bottom:212});
-vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal,makeSTL,getLabModel:()=>labModel,getRelax:()=>relax,getSeif:()=>seifData,setLabSurface,getLabLoops:()=>labLoops,braidEditor,setRelax,identifyBraid}; setTimeout(start,30);'),sandbox);
+vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal,makeSTL,getLabModel:()=>labModel,getRelax:()=>relax,getSeif:()=>seifData,seifBuild,seifFront,seifLines,seifCursor,setLabSurface,getLabLoops:()=>labLoops,braidEditor,setRelax,identifyBraid}; setTimeout(start,30);'),sandbox);
 timers.shift()();assert(!get('hud').textContent.includes('failed'));
 const p=win.probe,toggle=get('cutColors'),legend=get('cutColorLegend');get('seam').checked=false;
 if(animate){
@@ -114,6 +115,24 @@ if(animate){
  get('braidViewPull').click();assert(p.getRelax());get('randomBraid').click();
  assert.equal(p.getRelax(),null);assert.equal(get('braidViewRibbon').attrs['aria-pressed'],'true');
  console.log('PASS: randomization interrupts building, growing, cutting and Pull cleanly; animated random toroids remain cuttable.');
+ p.showBraid({n:2,word:[1,1,1]});get('seifertBox').checked=true;get('seifertBox').dispatch('change');assert.equal(p.seifBuild.progress,0);tick(1);
+ assert(p.seifBuild.playing);assert(p.seifFront.geometry.drawRange.count<p.getSeif().idx.length);
+ get('seifQuickPlay').click();const heldProgress=p.seifBuild.progress;tick(8);assert.equal(p.seifBuild.progress,heldProgress);
+ const seek=v=>{get('seifQuickProgress').value=String(v);get('seifQuickProgress').dispatch('input');};
+ seek(250);assert.match(get('seifQuickStatus').textContent,/Disk 2 of 2/);assert(p.seifCursor.visible);assert(p.seifLines.every(l=>!l.visible));
+ seek(600);assert.match(get('seifBuildStatus').textContent,/Band 2 of 3/);
+ const geom=p.seifFront.geometry, fullIndices=p.getSeif().idx.slice(), partialSTL=p.makeSTL().stl;
+ get('palette-sunset').click();tick(1);assert.equal(p.seifBuild.progress,.6);assert.equal(p.seifFront.geometry,geom);
+ seek(900);assert.match(get('seifQuickStatus').textContent,/Trace/);assert(p.seifLines.some(l=>l.visible));assert.equal(p.seifCursor.visible,false);
+ get('seifBuildFinish').click();assert.equal(p.seifBuild.progress,1);assert.equal(geom.drawRange.count,fullIndices.length);
+ assert.deepEqual(p.getSeif().idx,fullIndices);assert.deepEqual(new Uint8Array(p.makeSTL().stl),new Uint8Array(partialSTL));
+ get('seifBuildReplay').click();assert.equal(geom.drawRange.count,0);tick(1);assert(p.seifBuild.progress>0);
+ p.showBraid({n:3,word:[1,-2]});tick(1);assert.equal(p.getSeif().S.n,3);assert(p.seifBuild.progress<.02);
+ get('braidViewRibbon').click();tick(1);assert.equal(p.getSeif(),null);assert.equal(p.seifBuild.playing,false);assert.equal(p.seifCursor.visible,false);
+ assert(p.seifLines.every(l=>!l.visible));assert.equal(get('seifQuick').hidden,true);
+ p.showBraid({n:3,word:[]});get('seifertBox').checked=true;get('seifertBox').dispatch('change');tick(130);
+ assert.equal(p.seifBuild.progress,1);assert.equal(p.getSeif().A.pieces.length,3);assert.equal(p.seifLines.filter(l=>l.visible).length,3);
+ console.log('PASS: timed Seifert disks, signed bands and boundary trace; pause, replay, scrub, finish; recoloring without restart, exact final mesh/STL, source changes, zero crossings and mode cleanup.');
  process.exit(0);
 }
 const rgb=c=>[c.r,c.g,c.b];
@@ -373,6 +392,9 @@ console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sect
  // Seifert surface: shown instead of the ribbons, with its genus, and printable
  p.showBraid({n:3,word:[1,-2,1,-2]});const sb=get('seifertBox');sb.checked=true;sb.dispatch('change');p.render(false,0,[0,0,0]);
  assert.equal(p.getSeif().genus,1);assert.equal(p.surface.visible,false);tick1();assert.match(get('hud').textContent,/Seifert surface · genus 1/);
+ assert.equal(p.seifBuild.progress,1,'reduced motion shows the complete surface without autoplay');
+ get('seifBuildReplay').click();assert.equal(p.seifBuild.progress,0);get('seifBuildPlay').click();tick1();assert.equal(p.seifBuild.progress,0);
+ get('seifQuickFinish').click();assert.equal(p.seifFront.geometry.drawRange.count,p.getSeif().idx.length);
  assert.match(get('x-seifert').textContent,/3 disks \+ 4 bands · χ = −1 · genus 1/);assert.match(get('x-seifert-note').textContent,/the knot has genus 1/);
  let made=p.makeSTL();assert(made&&closed(made),'Seifert STL is a closed solid');
  sb.checked=false;sb.dispatch('change');p.render(false,0,[0,0,0]);assert.equal(p.surface.visible,true);
