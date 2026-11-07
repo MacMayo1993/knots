@@ -43,10 +43,19 @@ const server = http.createServer((req, res) => {
     o.width = 160; o.height = Math.round(160 * c.height / c.width);
     const g = o.getContext('2d'); g.drawImage(c, 0, 0, o.width, o.height);
     const d = g.getImageData(0, 0, o.width, o.height).data;
-    let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
-    res(n / (o.width * o.height));
+    // Braid framing reserves the area above the model for the toolbar. Measure
+    // model coverage in the available viewport, rather than including that UI area.
+    const bar = document.getElementById('braidToolbar'), rect = c.getBoundingClientRect();
+    const top = bar.hidden ? 0 : Math.ceil(o.height * (bar.getBoundingClientRect().bottom - rect.top) / rect.height);
+    let n = 0; for (let i = Math.max(0, top) * o.width * 4 + 3; i < d.length; i += 4) if (d[i] > 0) n++;
+    res(n / (o.width * Math.max(1, o.height - top)));
   })));
   const hud = page => page.textContent('#hud');
+  const screenshot = async (page, name) => {
+    if (!process.env.CI && !process.env.BRAID_SCREENSHOTS) return;
+    const dir = path.join(ROOT, 'test-output'); fs.mkdirSync(dir, {recursive:true});
+    await page.screenshot({path:path.join(dir, name+'.png')});
+  };
 
   // desktop: the model draws, and stays in view while the panel scrolls
   let page = await open('#shape=hex&turn=1/3');
@@ -76,15 +85,19 @@ const server = http.createServer((req, res) => {
   page = await open('#braid=1,1,1&strands=2');
   ok(/right-handed trefoil/.test(await hud(page)), 'trefoil is named: ' + await hud(page));
   ok(/t⁴/.test(await page.textContent('#x-jones')), 'Jones polynomial shown');
+  await screenshot(page, 'braid-desktop');
   await page.click('#braidViewSurface');
   ok(await page.getAttribute('#braidViewSurface','aria-pressed') === 'true', 'surface view is selected');
   await page.waitForFunction(() => /Seifert surface · genus 1/.test(document.getElementById('hud').textContent));
-  ok(await drawn(page) > 0.1, 'Seifert surface draws');
+  await screenshot(page, 'braid-surface');
+  const surfaceCoverage = await drawn(page);
+  ok(surfaceCoverage > 0.1, 'Seifert surface draws in the available viewport: '+surfaceCoverage);
   ok(await stlClosed(page), 'Seifert surface STL is a closed solid');
   await page.click('#braidViewRope');
   ok(await page.getAttribute('#braidViewRope','aria-pressed') === 'true', 'rope view is selected');
   await page.waitForFunction(() => /Relaxed/.test(document.getElementById('hud').textContent), null, { timeout: 30000 });
-  ok(await drawn(page) > 0.05, 'relaxed knot draws');
+  const ropeCoverage = await drawn(page);
+  ok(ropeCoverage > 0.05, 'relaxed knot draws in the available viewport: '+ropeCoverage);
   await page.click('#braidViewRibbon');
   ok(await page.getAttribute('#braidViewRibbon', 'aria-pressed') === 'true', 'ribbon view is selected');
   await page.locator('#braidEditor rect.be-hit').nth(1).click();
@@ -149,8 +162,10 @@ const server = http.createServer((req, res) => {
     });
     ok(layout.left >= 0 && layout.right <= layout.width && !layout.overflow, 'braid toolbar fits viewport: '+JSON.stringify(layout));
     ok(layout.taps.every(([w,h])=>w>=44 && h>=44), 'toolbar touch targets are at least 44px');
+    await screenshot(page, 'braid-phone-'+viewport.width);
     await page.click('#braidEdit');
     await page.locator('#braidEditor rect.be-hit').first().click();
+    await screenshot(page, 'braid-editor-'+viewport.width);
     await page.getByRole('button',{name:'Flip selected crossing',exact:true}).click();
     ok(await page.inputValue('#braidInput') === 'S1 S2 s1 S2', 'phone crossing edit works');
     await page.locator('#braidEditor').getByRole('button',{name:'Undo braid edit',exact:true}).click();

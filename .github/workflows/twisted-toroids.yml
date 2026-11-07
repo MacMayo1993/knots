@@ -52,6 +52,14 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.63.0
           npx playwright install --with-deps chromium
       - run: node test/browser.test.cjs
+      - name: Upload braid UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: braid-ui-screenshots
+          path: twisted-toroids/test-output/*.png
+          if-no-files-found: ignore
+          retention-days: 7
 
   snappy:
     name: Independent checks with SnapPy
