@@ -59,7 +59,7 @@ sandbox.localStorage={getItem:k=>savedPreferences.get(k)??null,setItem:(k,v)=>sa
 sandbox.document.querySelector=s=>get(s);
 sandbox.document.addEventListener=()=>{};
 get('.lab').parentElement=el(); get('.notes').parentElement=get('.lab').parentElement;
-get('stageTools').getBoundingClientRect=()=>({width:370,height:150,left:10,top:10,bottom:160});
+get('stageTools').getBoundingClientRect=()=>({width:370,height:202,left:10,top:10,bottom:212});
 vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal}; setTimeout(start,30);'),sandbox);
 timers.shift()();assert(!get('hud').textContent.includes('failed'));
 const p=win.probe,toggle=get('cutColors'),legend=get('cutColorLegend');get('seam').checked=false;
@@ -82,6 +82,22 @@ if(animate){
  }
  p.state.twisting=true;get('cutBtn').click();assert.equal(p.state.cutTarget,0);p.state.twisting=false;
  console.log('PASS: timed cut and reverse glue, moving tips, local mesh opening, unchanged material ahead, progress readouts/map, pause in explorer, mode cleanup and geometry reuse.');
+ // Construction shortcuts share the full controls' animations without opening the sheet.
+ get('shape-circle').click();p.setSheet('hidden');get('q-cut').click();tick(10);
+ assert(p.state.cut>0);get('q-build').click();
+ assert.equal(p.state.building,true);assert.equal(p.state.m,0);assert.equal(p.state.cut,0);assert.equal(p.state.cutTarget,0);
+ assert.equal(p.getSheet(),'hidden');tick(40);assert(p.state.m>0&&p.state.m<1);assert(p.cutTips.every(t=>!t.visible));
+ tick(140);assert.equal(p.state.m,2);assert.equal(p.state.building,false);
+ get('q-cut').click();tick(10);get('q-grow').click();
+ assert.equal(p.state.growing,true);assert.equal(p.state.grow,0);assert.equal(p.state.cut,0);assert.equal(p.state.cutTarget,0);
+ tick(40);assert(p.state.grow>0&&p.state.grow<1);tick(110);assert.equal(p.state.grow,null);assert.equal(p.state.growing,false);
+ assert.equal(p.getSheet(),'hidden');
+ p.setSheet('peek');get('q-grow').click();tick(30);get('q-build').click();
+ assert.equal(p.state.grow,null);assert.equal(p.state.growing,false);assert.equal(p.state.building,true);
+ tick(40);get('q-grow').click();assert.equal(p.state.building,false);assert.equal(p.state.growing,true);assert.equal(p.state.m,2);
+ get('shape-band2').click();get('q-build').click();assert.equal(p.state.growing,false);assert.equal(p.state.m,1);
+ tick(90);assert.equal(p.state.m,2);assert.equal(p.state.building,false);assert.equal(p.getSheet(),'peek');
+ console.log('PASS: quick sheet/shape construction, intermediate and completed animations, cut reset, switching constructions, flat strips, and preserved hidden/peek sheet state.');
  process.exit(0);
 }
 const rgb=c=>[c.r,c.g,c.b];
