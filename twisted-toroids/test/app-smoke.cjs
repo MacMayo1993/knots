@@ -53,7 +53,7 @@ class Curve{constructor(points){this.points=points;}}
 class TubeGeometry extends Geometry{constructor(curve,segments,radius,radial,closed){super();this.curve=curve;this.parameters={segments,radius,radial,closed};const P=[],I=[];curve.points.forEach((p,i)=>{for(let k=0;k<3;k++)P.push(i,k,0);const a=3*i,b=3*((i+1)%curve.points.length);I.push(a,a+1,b,a+1,b+1,b,a+1,a+2,b+1,a+2,b+2,b+1,a+2,a,b+2,a,b,b+2);});this.attributes.position=new Attribute(new Float32Array(P),3);this.index=new Attribute(new Uint32Array(I),1);}}
 const THREE={Curve,CatmullRomCurve3:Curve,TubeGeometry,FrontSide:0,BackSide:1,DoubleSide:2,MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
 const phone=process.argv.includes('--phone'),side=process.argv.includes('--landscape'),animate=process.argv.includes('--animate');
-const win={BraidControls:require(process.cwd()+'/braid-controls.js'),innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),BraidEditor:require(process.cwd()+'/braid-editor.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),KnotRelax:require(process.cwd()+'/relax.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
+const win={ToroidRandomizer:require(process.cwd()+'/randomize.js'),BraidControls:require(process.cwd()+'/braid-controls.js'),innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),BraidEditor:require(process.cwd()+'/braid-editor.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),KnotRelax:require(process.cwd()+'/relax.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
 const sandbox={KnotMath:win.KnotMath,THREE,OrbitControls,Line2:Object3D,LineSegments2:Object3D,LineMaterial:Material,LineGeometry:Geometry,LineSegmentsGeometry:Geometry,window:win,document:{documentElement:root,body:el(),getElementById:get,createElement:el,querySelectorAll(s){const key={'#shapeSeg button':'shape','#twistSeg button':'k','#modeSeg button':'mode','#braidExamples button':'word'}[s];return buttons.filter(b=>key in b.dataset);}},getComputedStyle(){return {getPropertyValue(k){return root.style[k]||palette[k]||'#888888';}};},MutationObserver:class{observe(){}},localStorage:{getItem(){return null;},setItem(){}},location:{hash:'',href:'https://example.test/'},history:{replaceState(){}},performance:{now(){return 0;}},requestAnimationFrame(){},setTimeout(f){timers.push(f);},URLSearchParams,console,Blob:class{constructor(parts){this.parts=parts;}},URL:{createObjectURL(){return 'blob:x';},revokeObjectURL(){}}};
 vm.createContext(sandbox);
 const savedPreferences=new Map();
@@ -103,6 +103,17 @@ if(animate){
  get('shape-band2').click();get('q-build').click();assert.equal(p.state.growing,false);assert.equal(p.state.m,1);
  tick(90);assert.equal(p.state.m,2);assert.equal(p.state.building,false);assert.equal(p.getSheet(),'peek');
  console.log('PASS: quick sheet/shape construction, intermediate and completed animations, cut reset, switching constructions, flat strips, and preserved hidden/peek sheet state.');
+ for(const start of ['q-build','q-grow']) {
+  get(start).click();tick(10);get('q-random-toroid').click();
+  assert.equal(p.state.building,false);assert.equal(p.state.grow,null);assert.equal(p.state.m,2);
+  assert.equal(p.state.cutTarget,0);assert.equal(p.getSheet(),'peek');
+  tick(80);assert.equal(p.state.twisting,false);assert(p.cutInfo().ok);
+ }
+ get('q-cut').click();tick(10);get('randomTwist').click();assert.equal(p.state.cut,0);
+ tick(80);assert(p.cutInfo().ok);get('q-cut').click();tick(80);get('q-braid').click();
+ get('braidViewPull').click();assert(p.getRelax());get('randomBraid').click();
+ assert.equal(p.getRelax(),null);assert.equal(get('braidViewRibbon').attrs['aria-pressed'],'true');
+ console.log('PASS: randomization interrupts building, growing, cutting and Pull cleanly; animated random toroids remain cuttable.');
  process.exit(0);
 }
 const rgb=c=>[c.r,c.g,c.b];
@@ -240,6 +251,36 @@ p.twistTo(.25);assert(get('cutToBraid').disabled);assert.match(get('cutBraidNote
 get('shape-gear').click();const oldTurn=p.state.twistTo;p.state.k=p.state.twistTo=12;p.syncQuick();
 assert(get('cutToBraid').disabled);assert.match(get('cutBraidNote').textContent,/400 crossings/);p.state.k=p.state.twistTo=oldTurn;p.twistTo(0);
 console.log('PASS: cut-to-braid controls, readiness/size gates, knots/links and component paint correspondence, edited-source notice, exact return to cut toroid.');
+// Random toroids use real shape definitions and finish as cuttable constructions.
+for (const button of buttons.filter(b=>'shape' in b.dataset)) {
+ button.click();const shape=p.state.shape, sh=p.getShape();
+ for(const turn of win.ToroidRandomizer.turns(sh)) {
+  assert(!sh.sym || Math.abs(turn*sh.sym-Math.round(turn*sh.sym))<1e-9);
+  assert.notEqual(win.KnotMath.stepsFor({kind:sh.open?'line':'ring',pieces:sh.colors.length,turn}),null);
+ }
+ const oldTurn=p.state.twistTo;get('randomTwist').click();
+ assert.equal(p.state.shape,shape);assert.notEqual(p.state.twistTo,oldTurn);
+ assert.equal(p.cutInfo().ok,true);assert.equal(p.state.cutTarget,0);
+}
+p.setSheet('hidden');const oldShape=p.state.shape;get('q-random-toroid').click();
+assert.notEqual(p.state.shape,oldShape);assert.equal(p.getSheet(),'hidden');
+assert.equal(p.cutInfo().ok,true);get('q-cut').click();get('q-braid').click();
+assert(p.state.braid);const originalRandom=JSON.stringify(p.state.braid.word);
+for (const level of ['simple','varied','intricate']) {
+ get('randomBraidLevel').value=level;const before=JSON.stringify({n:p.state.braid.n,word:p.state.braid.word});
+ get('randomBraid').click();const after=JSON.stringify({n:p.state.braid.n,word:p.state.braid.word});
+ assert.notEqual(after,before);assert.match(get('braidOriginNote').textContent,/Braid edited/);
+ get('braidUndo').click();assert.equal(JSON.stringify({n:p.state.braid.n,word:p.state.braid.word}),before);
+ get('braidRedo').click();assert.equal(JSON.stringify({n:p.state.braid.n,word:p.state.braid.word}),after);
+ get('braidUndo').click();
+}
+assert.equal(JSON.stringify(p.state.braid.word),originalRandom);assert.match(get('braidOriginNote').textContent,/same centerline/);
+const oldPalette=p.appearance.palette, oldMode=p.appearance.mode, oldWidth=get('braidWidth').value;
+get('randomPalette').click();assert.notEqual(p.appearance.palette,oldPalette);assert.equal(p.appearance.mode,oldMode);
+assert.equal(get('braidWidth').value,oldWidth);assert.equal(JSON.stringify(p.state.braid.word),originalRandom);
+assert(JSON.parse(savedPreferences.get(win.BraidControls.KEY)).colors.every(c=>c===null));
+get('braidReturnCut').click();get('randomToroid').click();assert.equal(p.state.cutTarget,0);assert.equal(p.cutInfo().ok,true);
+console.log('PASS: every real shape closes after shuffle, quick randomize stays on canvas, cut conversion, random braid undo/redo and saved palette without topology changes.');
 // The material remains continuous at the original gluing seam during the cut.
 const TAU=2*Math.PI;
 for(const button of buttons.filter(b=>'shape' in b.dataset)){
