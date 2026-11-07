@@ -212,6 +212,31 @@ def identify(word, strands):
     return str(names[0]).split('(')[0] if names else None
 
 
+def check_seifert(exp, n, word):
+    """Check the total surface genus, including disconnected and nonhomogeneous cases."""
+    sf = exp.get('seifert')
+    if not sf:
+        return []
+    parent = list(range(n))
+    def root(i):
+        while parent[i] != i:
+            i = parent[i]
+        return i
+    for g in word:
+        i = abs(g) - 1
+        parent[root(i)] = root(i + 1)
+    pieces = len({root(i) for i in range(n)})
+    mu = len(cycles(permutation(n, word)))
+    total_genus = (2 * pieces - n + len(word) - mu) // 2
+    problems = []
+    if sf['genus'] != total_genus:
+        problems.append('Seifert total genus %s, disk-and-band surface genus %s' % (sf['genus'], total_genus))
+    # Older exports did not include the piece count.
+    if 'pieces' in sf and sf['pieces'] != pieces:
+        problems.append('Seifert pieces %s, disk-and-band pieces %s' % (sf['pieces'], pieces))
+    return problems
+
+
 def check_braid(exp):
     c = exp['construction']
     n, word = c['strands'], c['word']
@@ -264,6 +289,7 @@ def check_braid(exp):
             problems.append('table names %s, but the complement is %s' % (claimed_names, identify_all(word, n)))
     # For a homogeneous braid, Seifert's algorithm gives a surface of least genus, so
     # the genus claimed for the drawn Seifert surface must equal the knot's genus.
+    problems.extend(check_seifert(exp, n, word))
     sf = exp.get('seifert')
     if sf and sf.get('homogeneous') and len(comps) == 1:
         g = genus(n, word, comps[0])
@@ -314,6 +340,7 @@ def check(exp):
         problems.append('stripe strands do not match the braid permutation')
         return problems
 
+    problems.extend(check_seifert(exp, n, word))
     # linking matrix
     M = exp['linkingMatrix']
     idx = [claimed.index(cm) for cm in order]
@@ -418,7 +445,7 @@ def knotmath_claims(cases):
         "construction:{type:'braid',strands:n,word:w},braid:d.braid,ribbonBraid:d.ribbonBraid,"
         "components:d.components.map(c=>({braidStrands:c.braidStrands,laps:c.laps,framing:c.framing,alexander:c.alexander})),"
         "linkingMatrix:d.linking,alexander:d.alexander,tableNames:K.identify(n,w).matches.map(m=>m.name),"
-        "seifert:{genus:K.seifertGenus(n,w),homogeneous:K.homogeneous(w)}};})));"
+        "seifert:{genus:K.seifertGenus(n,w),pieces:K.seifertPieces(n,w),homogeneous:K.homogeneous(w)}};})));"
     ) % json.dumps(os.path.join(HERE, '..', 'knotmath.js'))
     out = subprocess.run(['node', '-e', js], input=json.dumps(cases), capture_output=True, text=True, check=True)
     return json.loads(out.stdout)

@@ -21,7 +21,7 @@ const server = http.createServer((req, res) => {
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const base = 'http://127.0.0.1:' + server.address().port + '/index.html';
-  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const errors = [];
   let checks = 0;
   const ok = (c, m) => { checks++; assert(c, m); };
@@ -92,7 +92,13 @@ const server = http.createServer((req, res) => {
   await page.evaluate(() => { document.querySelector('#labSurfaceSeg [data-surface=klein]').click(); const s = document.getElementById('labCut'); s.value = 'k-between'; s.dispatchEvent(new Event('change')); document.getElementById('labShow').click(); });
   await page.waitForFunction(() => /2 Möbius bands/.test(document.getElementById('hud').textContent));
   ok(await drawn(page) > 0.1, 'Klein bottle pieces draw');
-  ok(await stlClosed(page), 'Möbius bands STL is a closed solid');
+  let kleinDownloads = 0;
+  page.on('download', () => kleinDownloads++);
+  for (const kind of ['k-between', 'k-closed']) {
+    await page.evaluate(kind => { const s = document.getElementById('labCut'); s.value = kind; s.dispatchEvent(new Event('change')); document.getElementById('x-stl').click(); }, kind);
+    ok(/STL export is unavailable for Klein-bottle/.test(await page.textContent('#x-status')), kind + ' explains the STL restriction');
+  }
+  ok(kleinDownloads === 0, 'Klein-bottle views do not download an invalid STL');
   await page.context().close();
 
   // phone: full-screen model, bottom sheet, quick tools

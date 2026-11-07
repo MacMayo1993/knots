@@ -6,7 +6,8 @@
    with a half twist joining the disks of the two strands that cross. The surface
    is orientable (its two sides can be painted two colors), its boundary is the
    closed braid, and its Euler characteristic is n - c for n strands and c
-   crossings, so its genus is (2 - n + c - components) / 2.
+   crossings. If it has k connected pieces and mu boundary components, the sum of
+   the pieces' genera is (2k - n + c - mu) / 2.
 
    Here the braid is drawn standing up: strand position p runs around a circle of
    radius RADIUS at height level(p), and at a crossing the two strands swap heights
