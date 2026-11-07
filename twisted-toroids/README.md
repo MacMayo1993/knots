@@ -83,6 +83,26 @@ Two independent checks:
 
 ## Explore: cuts, flat maps, and challenges
 
+### Watching a cut
+
+**Cut along the color lines** now runs a 3.6-second progressive cut. Visible tips advance along every paint boundary in both directions from the original gluing seam. Only material behind the tips opens; a short smooth transition lets each newly cut section separate. The opposite side stays joined until the cut arrives. The final ribbon positions are the same as before.
+
+**Glue** reverses the same animation from its current position, including if pressed midway. The HUD reports progress, and the flat map uses moving dots and solid cut segments over the dashed paint boundaries. Selected centerlines and map points follow the same deforming surface. Entering the separate cut explorer pauses the original construction's cut until Return. Reduced-motion users get the finished state immediately.
+
+The opening profile is periodic around the ring: its value at the end of one lap equals its value at the start of the next. This keeps the existing gluing intact while the cuts travel. The animation concerns the color-boundary cuts on the original tube/flat-band construction; the separate reference cut explorer still switches between its preset surfaces.
+
+Animation checks:
+
+```sh
+node test/cut-animation.test.cjs
+node test/app-smoke.cjs --animate --phone
+node test/app-smoke.cjs --animate --phone --landscape
+```
+
+These check the actual timed frame loop, mid-cut reversal, untouched regions ahead of the cut, tip visibility and reused geometry, map/HUD updates, mode changes, and the glued seam on all 20 cross-sections at positive, zero, and negative twists. They supplement the reduced-motion integration cases; they do not replace real-device WebGL visual testing.
+
+### Other experiments
+
 The **Explore** fieldset lives near the top of the existing controls, including inside the phone bottom sheet. Its three disclosures keep the controls compact.
 
 **Try different cuts** opens an independent round-torus surface. It retains the current painted construction for the Return button, including its shape, twist, paint, and cut setting. Choose an uncut reference, a meridian, a longitude, or a rectangular contractible loop. The cut meshes have duplicated boundary vertices and no end caps; their boundaries are highlighted from the actual triangle edges. Gaps and the upward translation of the disk are display deformations. The reference surface is a surface, not a solid torus.
@@ -119,6 +139,7 @@ The topology test independently traverses the generated indexed triangle meshes 
 - `knotmath.js`: braid words, reading a braid (components, linking matrix, writhe), `describe()` for a torus construction, `parseBraid()`, `describeBraid()`, the Burau `alexander()` and `braidLayout()`, the geometry the page draws for a braid. Works as a browser script (`window.KnotMath`) and as a Node module.
 - `explore.js`: cut meshes, flat-map coordinates, and challenge definitions/checks. Browser global `TorusExplore` or a Node module; no renderer dependencies.
 - `appearance.js`: preset palettes, finishes, validation and persistence of appearance settings, and pre-paint application of the saved theme.
+- `cut-animation.js`: the periodic spatial opening profile, moving cut-front coordinates, and reversible timing used by the surface and flat map.
 - `test/explore.test.cjs`, `test/app-smoke.cjs`: topology/coordinate tests and application integration checks described above.
 - `test/geometry.test.mjs`, `verify/verify.py`: the checks above.
 
