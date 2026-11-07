@@ -73,10 +73,44 @@ Two independent checks:
 - The geometry test also draws 35 braids the way the page does, five fixed and thirty random, and checks their linking numbers and blackboard framings against the braid word. It also checks the Burau Alexander polynomials of all the torus constructions against the closed formula for torus knots.
 - `python verify/verify.py <experiment.json …>` (after `pip install snappy`) rebuilds the braid from the construction alone. It then uses Spherogram to count the strips and compute the linking numbers and framings, and it uses knot Floer homology to check each strip's genus against the claimed torus knot and its handedness with the τ invariant: τ equals the genus for a right-handed torus knot and minus the genus for a left-handed one. For a braid experiment it uses Spherogram to check the component count, linking numbers and blackboard framings. It checks each knotted component's Alexander polynomial against the Euler characteristic of its knot Floer homology, and prints SnapPy's name for the link when it can find one. For a link with several components, the whole-link polynomial is not checked independently, because that needs Sage. `python verify/verify.py --random 400` runs `knotmath.js` (through Node) on random braids and checks every claim the same way. Run `python verify/verify.py --sweep` to check every preset shape with twists of up to 2 turns each way. That takes about 8 minutes; add `--max-turns 1` for a run of about 10 seconds. `verify/examples/` holds experiments exported from the page.
 
+## Explore: cuts, flat maps, and challenges
+
+The **Explore** fieldset lives near the top of the existing controls, including inside the phone bottom sheet. Its three disclosures keep the controls compact.
+
+**Try different cuts** opens an independent round-torus surface. It retains the current painted construction for the Return button, including its shape, twist, paint, and cut setting. Choose an uncut reference, a meridian, a longitude, or a rectangular contractible loop. The cut meshes have duplicated boundary vertices and no end caps; their boundaries are highlighted from the actual triangle edges. Gaps and the upward translation of the disk are display deformations. The reference surface is a surface, not a solid torus.
+
+| Cut | Connected pieces | Boundary loops | Euler characteristic |
+| --- | --- | --- | --- |
+| None | One torus | 0 | 0 |
+| Meridian: around the tube | One annulus | 2 | 0 |
+| Longitude: around the central hole | One annulus | 2 | 0 |
+| Contractible patch loop | Disk + once-punctured torus | 1 on each | +1 and −1 |
+
+Every piece is orientable. These preset cuts are on the reference torus; they do not yet implement freehand cutting of arbitrary painted shapes. Original construction readouts are hidden while the reference is displayed. On phones the quick bar becomes a Return button; choosing a cut from the full sheet lowers it to half so the model is visible.
+
+**Open the linked flat map** shows the current closed tube's painted parameter domain. With horizontal coordinate `u = theta / (2π)` and vertical coordinate `v = phi / (2π) + 1/(2n)`, painted piece `p` occupies row `[p/n, (p+1)/n]`. The gluing is `(1,v) ~ (0,v + turn mod 1)` and `(u,0) ~ (u,1)`. The latter gluing is removed when the paint boundaries are cut. The reference cut explorer instead uses ordinary, untwisted torus coordinates and shows only its remaining edge identifications. This map is a parameter domain, not an isometric flattening.
+
+Tap the map to highlight a component and locate a point in 3D, or tap the 3D surface to locate its nearest triangle vertex on the map. Points retain the clicked side of cut edges. Arrow keys move the map point; Escape or Clear map point clears it. Vertical swipes scroll the mobile sheet. The map is unavailable for braids, open flat strips, or unfinished build/twist animations. For a proposed gluing whose ends do not fit, the map explicitly labels that limitation. It redraws only when relevant state changes and its disclosure is open.
+
+**Construction challenges** includes three tasks: make three ribbons; make two linked trefoil ribbons; build the left-handed mirror of the starting right-handed trefoil. Start loads a starting construction, Check evaluates the existing `KnotMath` result, and Hint explains the arithmetic. Solutions must be closed tubes with finished cuts. Feedback reports `gcd(n, n × turn)`, component knot types, and the linking number when there are two components. Solved challenges are counted for the current session. They are not a general-purpose knot-equivalence test. Starting a challenge replaces the current construction, as the button indicates; merely opening the disclosure does not.
+
+Additional checks (from this directory):
+
+```sh
+node test/explore.test.cjs
+node test/app-smoke.cjs
+node test/app-smoke.cjs --phone
+node test/app-smoke.cjs --phone --landscape
+```
+
+The topology test independently traverses the generated indexed triangle meshes to count connected components, boundary loops and Euler characteristics, and checks consistent orientation. It also tests map seam identifications and positive/negative challenge cases. The integration harness executes the application's actual script with DOM and renderer stand-ins, exercising cut restoration, paint, picking, maps, challenges, and desktop/phone sheet state. It does **not** test CSS layout or real WebGL rendering; those need a WebGL 2 browser. The existing geometry suite remains the independent check of the knot calculations.
+
 ## Code layout
 
 - `vendor/three/`: Three.js r186.1 (MIT), with OrbitControls and the fat-line addons.
 - `knotmath.js`: braid words, reading a braid (components, linking matrix, writhe), `describe()` for a torus construction, `parseBraid()`, `describeBraid()`, the Burau `alexander()` and `braidLayout()`, the geometry the page draws for a braid. Works as a browser script (`window.KnotMath`) and as a Node module.
+- `explore.js`: cut meshes, flat-map coordinates, and challenge definitions/checks. Browser global `TorusExplore` or a Node module; no renderer dependencies.
+- `test/explore.test.cjs`, `test/app-smoke.cjs`: topology/coordinate tests and application integration checks described above.
 - `test/geometry.test.mjs`, `verify/verify.py`: the checks above.
 
 Everything else is inside `index.html`:
@@ -93,3 +127,4 @@ Everything else is inside `index.html`:
   - The phone layout section runs the bottom sheet (`setSheet()`, dragging, the quick bar's `syncQuick()`) and `updateViewShift()`, which keeps the model centered and fitted above the sheet.
 - `manifest.webmanifest` and `icons/`: the home-screen app (the icons are renders of the cut hexagon: two linked trefoil strips).
   - `frame()` is the animation loop.
+

@@ -320,6 +320,20 @@ h2 {
 /* Sheet parts: only used in the phone layout */
 .sheet-head, .sheet-fab { display: none; }
 .sheet-body { display: grid; gap: 20px; min-width: 0; }
+.explore-tools { min-width: 0; }
+.explore-tools details { border-top: 1px solid var(--rule); padding: 12px 0; }
+.explore-tools summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.explore-tools select { width: 100%; min-height: 44px; margin: 8px 0; padding: 8px; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
+.explore-tools .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.explore-tools .actions button { min-height: 44px; }
+.explore-tools p { overflow-wrap: anywhere; }
+.explore-tools [hidden] { display: none !important; }
+.flat-map { width: 100%; height: auto; display: block; border: 1px solid var(--rule); border-radius: 8px; touch-action: pan-y; cursor: crosshair; }
+.flat-map:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.explore-tools .result { font-weight: 500; line-height: 1.55; }
+.panel[data-exploring="true"] .sheet-body > :not(.explore-tools) { display: none; }
+.panel:not([data-exploring="true"]) .lab-only { display: none; }
+.panel[data-exploring="true"] .quick.torus-only, .panel[data-exploring="true"] .quick.braid-only { display: none; }
 
 /* Phone: the model fills the screen and the panel becomes a bottom sheet */
 @media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
@@ -431,6 +445,7 @@ h2 {
           <span class="q-word" id="q-word"></span>
           <button type="button" class="secondary" id="q-edit">Edit</button>
         </div>
+        <div class="quick lab-only"><span class="q-word" id="q-lab">Cut explorer</span><button type="button" class="secondary" id="q-return">Return</button></div>
       </div>
       <div class="sheet-body" id="sheetBody">
       <fieldset>
@@ -439,6 +454,44 @@ h2 {
           <button type="button" data-mode="torus" aria-pressed="true">Twisted torus</button>
           <button type="button" data-mode="braid" aria-pressed="false">Any braid</button>
         </div>
+      </fieldset>
+
+      <fieldset class="explore-tools">
+        <legend>Explore</legend>
+        <details id="cutLabDetails">
+          <summary>Try different cuts</summary>
+          <p class="note">A separate round-torus surface for comparing cuts. Your painted construction is kept when you return.</p>
+          <label for="labCut">Cut path</label>
+          <select id="labCut">
+            <option value="closed">Uncut torus</option>
+            <option value="meridian">Around the tube · meridian</option>
+            <option value="longitude">Around the central hole · longitude</option>
+            <option value="patch">Around a small patch · contractible loop</option>
+          </select>
+          <div class="actions"><button type="button" class="secondary" id="labShow">Show this cut</button><button type="button" class="secondary" id="labReturn" hidden>Return to my construction</button></div>
+          <div id="labReadout" hidden aria-live="polite">
+            <p class="result" id="labResult"></p>
+            <dl class="readout"><div><dt>Connected pieces</dt><dd id="labPieces"></dd></div><div><dt>Boundary loops, total</dt><dd id="labBoundaries"></dd></div><div><dt>Orientability</dt><dd>Every piece is two-sided</dd></div><div><dt>Euler characteristic, total</dt><dd id="labEuler"></dd></div></dl>
+            <p class="note" id="labWhy"></p>
+            <p class="note">Bright lines mark the new boundaries. Gaps and the lifted patch make the cuts visible; no caps are added. The gold patch keeps its color.</p>
+          </div>
+        </details>
+        <details id="mapDetails">
+          <summary>Open the linked flat map</summary>
+          <p class="note" id="mapHelp">Tap the map or the 3D surface to select the same point and stripe. On the map, arrow keys move the point; Escape clears it.</p>
+          <canvas class="flat-map" id="flatMap" width="640" height="280" tabindex="0" role="img" aria-label="Flat map of the torus. Arrow keys move a selected point." aria-describedby="mapHelp mapNote"></canvas>
+          <p class="note" id="mapNote" aria-live="polite"></p>
+          <button type="button" class="link-btn" id="mapClear">Clear map point</button>
+        </details>
+        <details id="challengeDetails">
+          <summary>Construction challenges</summary>
+          <label for="challengePick">Choose a challenge</label>
+          <select id="challengePick"><option value="three">Make exactly three strips</option><option value="trefoils">Make two linked trefoils</option><option value="mirror">Build the mirror trefoil</option></select>
+          <p class="result" id="challengeGoal"></p>
+          <div class="actions"><button type="button" class="secondary" id="challengeStart">Start challenge</button><button type="button" class="secondary" id="challengeCheck">Check construction</button><button type="button" class="link-btn" id="challengeHint">Show hint</button></div>
+          <p class="note" id="challengeFeedback" aria-live="polite">Choose a challenge, then start or check your current construction.</p>
+          <p class="note" id="challengeProgress" aria-live="polite"></p>
+        </details>
       </fieldset>
 
       <fieldset class="braid-only">
@@ -661,6 +714,7 @@ h2 {
 </main>
 
 <script src="knotmath.js"></script>
+<script src="explore.js"></script>
 <script type="importmap">
 { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
 </script>
@@ -824,6 +878,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     growing: false, growT: 0,
     braid: null         // { n, word, text } while showing an arbitrary closed braid
   };
+  const EX = window.TorusExplore;
+  let labCut = null, labMeshData = null, labColorKey = '', mapPick = null, mapKey = '';
 
   // ---------- geometry ----------
   let thetaArr, phiArr, pos, qIdx, qPiece, nQuads = 0, nVerts = 0;
@@ -1213,6 +1269,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncQuick();
   }
   function updateHud() {
+    if (labCut) { hud.textContent = 'Cut explorer · ' + EX.CUTS[labCut].result; return; }
     if (sel !== null) {
       const d = exactInfo(), c = d.ok && d.components[sel];
       if (c) {
@@ -1767,8 +1824,9 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     colorKey = '';
     exactKey = ''; updateExact();
     buildSelectionLines();
+    mapKey = '';
   }
-  const clearSelection = () => { if (sel !== null) select(null); };
+  const clearSelection = () => { mapPick = null; mapKey = ''; if (sel !== null) select(null); };
   // Route of a torus strip on the finished model, lap by lap: each lap is one painted
   // piece, at a fixed point of its cross-section, carried around once (as the mesh is).
   function torusRoute(comp, edge) {
@@ -1821,11 +1879,25 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (moved > 6 || !quick) return;
     const rc = canvas.getBoundingClientRect();
     raycaster.setFromCamera(new THREE.Vector2((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height) * 2 + 1), camera);
-    const hit = raycaster.intersectObject(surface)[0];
+    const hit = raycaster.intersectObject(labCut ? labSurface : surface)[0];
+    if (labCut) {
+      if (!hit) { clearSelection(); return; }
+      // Choose the closest triangle vertex; all samples are points of this exact cut mesh.
+      const v = closestHitVertex(hit, labSurface);
+      mapPick = { u: labMeshData.params[2*v], v: labMeshData.params[2*v+1], component: labMeshData.components[v] };
+      mapKey = ''; return;
+    }
     if (!hit || state.m < 2 || state.grow !== null || state.twisting) { clearSelection(); return; }
     const c = componentOfPiece(vPiece[hit.face.a]);
-    if (c === null) { flash('These ends don\'t close up yet, so there is no strip to follow.'); return; }
+    if (c === null) flash('These paint boundaries do not close up yet; the map still shows the selected point.');
     select(c === sel ? null : c);
+    const v = closestHitVertex(hit, surface);
+    if (!shapeOf().open) {
+      const n = shapeOf().colors.length, piece = vPiece[v];
+      // Keep the clicked side of a cut edge, even at a rounded Float32 boundary.
+      mapPick = { u: thetaArr[v] / TAU, v: Math.max(piece/n,Math.min((piece+1)/n,phiArr[v]/TAU+0.5/n)), piece, phi: phiArr[v] };
+    }
+    mapKey = '';
   });
   canvas.addEventListener('keydown', e => {
     if (e.key === 'Escape') { clearSelection(); return; }
@@ -1900,6 +1972,13 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   function render(showTraveler, trailCount, travelerAt) {
     if (!W || !H) return;
+    syncExplore();
+    if (labCut) {
+      surface.visible = false;
+      [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
+      controls.update(); updateViewShift(); renderer.render(scene, camera); return;
+    }
+    if (!surface.visible) { surface.visible = true; seamShown = null; buildSelectionLines(); }
     syncSurface();
     // seam: the dashed ring where the tube was cut
     const showSeam = !!seamPts && !state.braid && ((state.m >= 2 && seamBox.checked) || state.grow !== null) && state.cut < 0.02;
@@ -1968,6 +2047,205 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     updateViewShift();
     renderer.render(scene, camera);
   }
+
+  // ---------- cut explorer, linked map, and construction challenges ----------
+  const labSurface = new THREE.Mesh(new THREE.BufferGeometry(), surfMat);
+  labSurface.visible = false; scene.add(labSurface);
+  const labBoundary = segments(3.2);
+  labBoundary.visible = false;
+  const mapMarker = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 12), new THREE.MeshBasicMaterial());
+  mapMarker.visible = false; scene.add(mapMarker);
+  const mapDetails = document.getElementById('mapDetails'), mapCanvas = document.getElementById('flatMap');
+  const mapContext = mapCanvas.getContext('2d'), mapNote = document.getElementById('mapNote');
+  const labSelect = document.getElementById('labCut'), challengePick = document.getElementById('challengePick');
+  const mapRect = { x: 36, y: 28, w: 568, h: 212 };
+  let mapConstruction = '', mapDown = null;
+  function closestHitVertex(hit, object) {
+    const a = object.geometry.attributes.position.array;
+    return [hit.face.a, hit.face.b, hit.face.c].reduce((best, v) => {
+      const dist = i => (a[3*i]-hit.point.x)**2 + (a[3*i+1]-hit.point.y)**2 + (a[3*i+2]-hit.point.z)**2;
+      return dist(v) < dist(best) ? v : best;
+    }, hit.face.a);
+  }
+  function setLabCut(kind) {
+    if (kind !== null && !Object.prototype.hasOwnProperty.call(EX.CUTS, kind)) return;
+    labCut = kind; mapPick = null; mapKey = ''; labColorKey = '';
+    panelEl.dataset.exploring = String(!!kind);
+    document.getElementById('labReturn').hidden = !kind;
+    document.getElementById('labReadout').hidden = !kind;
+    labSurface.visible = !!kind; labBoundary.visible = false;
+    if (!kind) { syncQuick(); return; }
+    clearSelection();
+    labSelect.value = kind;
+    labMeshData = EX.makeCutMesh(kind);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(labMeshData.positions, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(labMeshData.positions.length), 3));
+    g.setIndex(new THREE.BufferAttribute(new Uint32Array(labMeshData.indices), 1));
+    g.computeVertexNormals(); g.computeBoundingSphere();
+    labSurface.geometry.dispose(); labSurface.geometry = g;
+    // Derive the displayed boundaries from edges belonging to exactly one face.
+    const counts = new Map(), ids = labMeshData.indices, p = labMeshData.positions;
+    for (let i = 0; i < ids.length; i += 3) for (const [a,b] of [[ids[i],ids[i+1]],[ids[i+1],ids[i+2]],[ids[i+2],ids[i]]]) {
+      const key = Math.min(a,b) + ':' + Math.max(a,b);
+      const e = counts.get(key); if (e) e.count++; else counts.set(key,{a,b,count:1});
+    }
+    const edges = [];
+    counts.forEach(e => { if (e.count === 1) edges.push(...p.slice(e.a*3,e.a*3+3),...p.slice(e.b*3,e.b*3+3)); });
+    setSegments(labBoundary, edges);
+    const info = EX.CUTS[kind];
+    for (const [id,value] of Object.entries({labResult:info.result,labPieces:info.components,labBoundaries:info.boundaries,labEuler:info.euler,labWhy:info.why,'q-lab':info.label})) document.getElementById(id).textContent = String(value);
+    document.getElementById('cutLabDetails').open = true;
+    mapDetails.open = true;
+    revealModel();
+  }
+  document.getElementById('labShow').addEventListener('click', () => setLabCut(labSelect.value));
+  labSelect.addEventListener('change', () => { if (labCut) setLabCut(labSelect.value); });
+  document.getElementById('labReturn').addEventListener('click', () => setLabCut(null));
+  document.getElementById('q-return').addEventListener('click', () => setLabCut(null));
+  function mapReady() { return !!labCut || (!state.braid && !shapeOf().open && state.m >= 2 && state.grow === null && !state.twisting); }
+  function chooseMapPoint(u, v) {
+    if (!mapReady()) return;
+    if (labCut) mapPick = { u, v, component: EX.cutComponent(labCut,u,v) };
+    else {
+      mapPick = EX.mapPoint(u,v,shapeOf().colors.length);
+      select(componentOfPiece(mapPick.piece));
+    }
+    controls.autoRotate = false; state.userMoved = true;
+    mapKey = ''; revealModel();
+  }
+  mapCanvas.addEventListener('pointerdown', e => { mapDown = {x:e.clientX,y:e.clientY}; });
+  mapCanvas.addEventListener('pointercancel', () => { mapDown = null; });
+  mapCanvas.addEventListener('pointerup', e => {
+    if (!mapDown) return;
+    const d = Math.hypot(e.clientX-mapDown.x,e.clientY-mapDown.y); mapDown = null;
+    if (d > 8) return; // preserve the sheet's vertical scrolling
+    const r = mapCanvas.getBoundingClientRect(), x = (e.clientX-r.left)*640/r.width, y = (e.clientY-r.top)*280/r.height;
+    const u = (x-mapRect.x)/mapRect.w, v = 1-(y-mapRect.y)/mapRect.h;
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) chooseMapPoint(u,v);
+  });
+  mapCanvas.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { clearSelection(); return; }
+    const moves = {ArrowLeft:[-0.025,0],ArrowRight:[0.025,0],ArrowUp:[0,0.025],ArrowDown:[0,-0.025]};
+    const d = moves[e.key]; if (!d) return;
+    e.preventDefault(); const p = mapPick || {u:0.5,v:0.5};
+    chooseMapPoint(Math.max(0,Math.min(1,p.u+d[0])),Math.max(0,Math.min(1,p.v+d[1])));
+  });
+  document.getElementById('mapClear').addEventListener('click', clearSelection);
+  mapDetails.addEventListener('toggle', () => { mapKey = ''; });
+  function drawFlatMap() {
+    if (!mapContext || !mapDetails.open) return;
+    const ready = mapReady(), sh = shapeOf(), n = sh.colors.length;
+    const key = [labCut,state.shape,state.braid ? 'braid' : '',state.k,state.cutTarget,cutColorBox.checked,sel,ready,JSON.stringify(mapPick),pal.stage,JSON.stringify(pal.c)].join('|');
+    if (key === mapKey) return; mapKey = key;
+    const c = mapContext, {x,y,w,h} = mapRect;
+    const ink = token('--ink'), stageColor = token('--stage');
+    c.clearRect(0,0,640,280); c.fillStyle = stageColor; c.fillRect(0,0,640,280);
+    c.font = '16px sans-serif'; c.textAlign = 'center'; c.fillStyle = ink;
+    if (!ready) {
+      c.fillText('Finish a closed tube to use its flat map.',320,140);
+      mapNote.textContent = 'The linked map supports closed tube surfaces. Finish the build or return from braid / flat-strip mode.';
+      return;
+    }
+    const paint = i => 'rgb(' + pal.c[i].join(',') + ')';
+    c.lineWidth = 2;
+    if (labCut) {
+      c.fillStyle = paint(5); c.fillRect(x,y,w,h);
+      c.fillStyle = paint(1); c.fillRect(x+w*3/8,y+h*5/8,w/4,h/4);
+    } else {
+      const ci = cutInfo(), rep = ci.ok && state.cutTarget && cutColorBox.checked ? ci.rep : null;
+      const selected = sel !== null && ci.ok ? ci.strips[sel]?.pieces : null;
+      for (let p = 0; p < n; p++) {
+        c.globalAlpha = selected && !selected.includes(p) ? 0.25 : 1;
+        c.fillStyle = paint(sh.colors[rep ? rep[p] : p]); c.fillRect(x,y+h*(1-(p+1)/n),w,h/n);
+      }
+      c.globalAlpha = 1;
+      c.strokeStyle = ink; c.setLineDash([5,5]);
+      for (let p = 1; p < n; p++) { c.beginPath(); c.moveTo(x,y+h*p/n); c.lineTo(x+w,y+h*p/n); c.stroke(); }
+      c.setLineDash([]);
+    }
+    c.strokeStyle = ink; c.strokeRect(x,y,w,h);
+    // Matching arrows mark the direction of the gluing; the text gives its shift.
+    const arrow = (ax,ay,bx,by) => {
+      c.beginPath(); c.moveTo(ax,ay); c.lineTo(bx,by);
+      const a = Math.atan2(by-ay,bx-ax); c.moveTo(bx-8*Math.cos(a-0.5),by-8*Math.sin(a-0.5)); c.lineTo(bx,by); c.lineTo(bx-8*Math.cos(a+0.5),by-8*Math.sin(a+0.5)); c.stroke();
+    };
+    if (labCut !== 'meridian' && (labCut || analysis().fits)) { arrow(x-16,y+h*.6,x-16,y+h*.4); arrow(x+w+16,y+h*.6,x+w+16,y+h*.4); }
+    if (labCut !== 'longitude' && (labCut || !state.cutTarget)) { arrow(x+w*.45,y-14,x+w*.55,y-14); arrow(x+w*.45,y+h+14,x+w*.55,y+h+14); }
+    if (labCut && labCut !== 'closed') {
+      c.strokeStyle = ink; c.lineWidth = 4;
+      if (labCut === 'patch') c.strokeRect(x+w*3/8,y+h*5/8,w/4,h/4);
+      if (labCut === 'meridian') { c.beginPath(); c.moveTo(x,y); c.lineTo(x,y+h); c.moveTo(x+w,y); c.lineTo(x+w,y+h); c.stroke(); }
+      if (labCut === 'longitude') { c.beginPath(); c.moveTo(x,y); c.lineTo(x+w,y); c.moveTo(x,y+h); c.lineTo(x+w,y+h); c.stroke(); }
+    }
+    if (mapPick) {
+      const dot = (u,v) => { const px=x+w*u,py=y+h*(1-v); c.beginPath(); c.arc(px,py,6,0,TAU); c.fillStyle=ink; c.fill(); c.strokeStyle=stageColor; c.lineWidth=2; c.stroke(); };
+      dot(mapPick.u,mapPick.v);
+      if (!labCut && (mapPick.u < 1e-6 || mapPick.u > 1-1e-6) && analysis().fits && !state.cutTarget) dot(1-mapPick.u,EX.seamMate(mapPick.v,mapPick.u > 0.5 ? state.k : -state.k));
+    }
+    if (labCut) mapNote.textContent = 'Horizontal: around the central hole. Vertical: around the tube. Arrows show edges still glued. ' + (labCut === 'patch' ? 'The outlined gold patch lifts out as a disk.' : EX.CUTS[labCut].result);
+    else {
+      const fit = analysis().fits;
+      mapNote.textContent = 'Horizontal: one lap. Vertical: painted cross-section. ' + (state.cutTarget ? 'Top and bottom are cut; ' : 'Top ↔ bottom; ') + 'right edge at v ↔ left edge at v + ' + turnText(state.k) + ' (mod 1). ' + (!fit ? 'These ends do not fit yet: the edge rule is only a proposed gluing.' : state.cutTarget ? 'Paint boundaries are now cut; rows in the same cycle form one ribbon.' : 'Dashed lines are paint boundaries, not cuts.') + (mapPick ? ' Point: (' + mapPick.u.toFixed(2) + ', ' + mapPick.v.toFixed(2) + ').' : '');
+    }
+  }
+  function syncExplore() {
+    const construction = [state.shape,state.twistTo,!!state.braid,labCut].join('|');
+    if (mapConstruction && construction !== mapConstruction) mapPick = null;
+    mapConstruction = construction;
+    labSurface.visible = !!labCut;
+    labBoundary.visible = !!labCut && labCut !== 'closed';
+    if (labCut) {
+      const key = JSON.stringify(pal.c) + pal.trace;
+      if (key !== labColorKey) {
+        labColorKey = key; const colors = labSurface.geometry.attributes.color.array, col = new THREE.Color();
+        labMeshData.components.forEach((_,i) => {
+          const u=labMeshData.params[2*i],v=labMeshData.params[2*i+1];
+          const gold=u>=3/8 && u<=5/8 && v>=1/8 && v<=3/8, rgb=pal.c[gold ? 1 : 5];
+          col.setRGB(rgb[0]/255,rgb[1]/255,rgb[2]/255,THREE.SRGBColorSpace);
+          colors[3*i]=col.r; colors[3*i+1]=col.g; colors[3*i+2]=col.b;
+        });
+        labSurface.geometry.attributes.color.needsUpdate = true;
+        labBoundary.material.color.set(pal.trace);
+      }
+    }
+    mapMarker.visible = !!mapPick && mapReady();
+    if (mapMarker.visible) {
+      let p;
+      if (labCut) p = EX.cutPoint(labCut,mapPick.u,mapPick.v,mapPick.component,0.018);
+      else { const a=mapPick.phi === undefined ? EX.mapPoint(mapPick.u,mapPick.v,shapeOf().colors.length) : mapPick; p=[0,0,0]; surfacePoint(a.piece,a.phi,a.u*TAU,p,0,1.025); }
+      mapMarker.position.set(...p); mapMarker.material.color.set(pal.trace);
+    }
+    drawFlatMap();
+  }
+  const challengeDone = new Set();
+  function updateChallenge() {
+    const task = EX.CHALLENGES.find(c => c.id === challengePick.value) || EX.CHALLENGES[0];
+    challengePick.value = task.id;
+    document.getElementById('challengeGoal').textContent = task.goal;
+    document.getElementById('challengeFeedback').textContent = 'Start this challenge or check your current construction.';
+    return task;
+  }
+  challengePick.addEventListener('change', updateChallenge);
+  document.getElementById('challengeStart').addEventListener('click', () => {
+    const task = updateChallenge(); setLabCut(null);
+    stopGrow(); state.building = false; uncut();
+    applyConstruction({shape:task.start.shape,turn:turnText(task.start.turn)}); if (state.m < 2) setM(2);
+    logOp('challenge',task.id); revealModel();
+    document.getElementById('challengeFeedback').textContent = 'Starting shape loaded. Change the twist or shape, cut the paint lines, then check.';
+  });
+  document.getElementById('challengeHint').addEventListener('click', () => {
+    const task = EX.CHALLENGES.find(c => c.id === challengePick.value);
+    document.getElementById('challengeFeedback').textContent = task.hint;
+  });
+  document.getElementById('challengeCheck').addEventListener('click', () => {
+    if (labCut) { document.getElementById('challengeFeedback').textContent = 'Return to your painted construction to check a challenge.'; return; }
+    const result = EX.checkChallenge(challengePick.value,{description:exactInfo(),pieces:shapeOf().colors.length,turn:state.k,cut:state.cutTarget === 1 && state.cut >= 0.999,ready:!labCut && !state.twisting && state.m >= 2 && state.grow === null,ring:!state.braid && !shapeOf().open});
+    document.getElementById('challengeFeedback').textContent = result.message;
+    if (result.pass) challengeDone.add(challengePick.value);
+    document.getElementById('challengeProgress').textContent = challengeDone.size + ' of ' + EX.CHALLENGES.length + ' solved this session.';
+  });
+  updateChallenge();
 
   // ---------- phone layout: full-screen model with a bottom sheet ----------
   // On a phone the panel is a sheet with four sizes: hidden, peek (the quick bar),
@@ -2196,3 +2474,4 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 </script>
 </body>
 </html>
+
