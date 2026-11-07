@@ -47,10 +47,10 @@
   // front of the tail tuck. The last pass is between the post and crossover.
   const clovePoints=[[2.8,-1.2,1.0],[1.1,-1.05,1.0],
     ...arc('y',[0,0],1,Math.PI/2,Math.PI/2+TAU,-1,-.55),
-    [0,-.35,1.4],[0,.35,1.4],
+    [.23,-.35,1.4],[-.23,.35,1.4],
     ...arc('y',[0,0],1,Math.PI/2,Math.PI/2+TAU,.55,1),
     [-.6,.6,1.4],[-.45,.25,1.2],[.5,-.35,.83],[2.4,-.65,.83]];
-  const clove=raw(curve(clovePoints,3));
+  const clove=raw(curve(clovePoints,14));
   // Carrick's flat, alternating weave; the two ropes stay separate.
   const carrickBlue=rope([[-2.8,-1.1,0],[-1.55,-.65,0],[-.25,.7,0],[.6,1.4,0],[1.55,1.2,0],[1.9,.5,0],[1.5,-.25,0],[.5,-.6,0],[-.7,-.1,.45],[-1.6,.9,.45],[-2.6,1.25,.45]]);
   const carrickRed=rope([[2.8,1.1,.25],[1.5,.65,.45],[.15,-.8,.45],[-.7,-1.45,.45],[-1.65,-1.15,.45],[-1.95,-.45,0],[-1.5,.25,-.45],[-.6,.55,-.45],[.35,.2,-.45],[1.25,-.8,-.45],[2.6,-1.25,-.45]],RED);
@@ -61,7 +61,7 @@
     [-1.15,-.19,0],[-.65,-.19,0],[.5,-.19,0],[1.15,-.19,0],
     [1.3,-.8,.3],[.35,-1.6,.55],[-.8,-1.7,.55],[-1.4,-1.85,.4],[-1.45,-1.95,0],
     [-1.3,-2,-.4],[-.55,-1.95,-.4],[-.2,-1.8,0],[-.4,-1.6,.1],[.3,-2.65,.15]];
-  const anchor=raw(curve(anchorPoints,3));
+  const anchor=raw(curve(anchorPoints,14));
   function crossings(ropes) {
     const out=[];
     for(let a=0;a<ropes.length;a++)for(let b=a;b<ropes.length;b++){
