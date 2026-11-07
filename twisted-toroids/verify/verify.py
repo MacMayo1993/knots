@@ -5,7 +5,10 @@ braids entered in the page's "Any braid" mode. For a braid this script checks
 the strand count, linking matrix, blackboard framings (from the ribbon braid),
 and each knotted component's Alexander polynomial against the Euler
 characteristic of its knot Floer homology, then names the link with SnapPy's
-census lookup where it can.
+census lookup where it can. When the experiment carries the page's knot-table
+names (from its Jones and Alexander polynomials), the complement of the closure
+must be isometric to the named one's (SnapPy's geometry, not polynomials), and
+for a homogeneous braid the Seifert surface's genus must equal the knot's genus.
 
 The model exports each construction as a braid word whose closure is the set of
 stripes left after cutting along the color lines, plus a "ribbon braid" that also
@@ -27,6 +30,7 @@ Usage:
   python verify.py --sweep        # every shape preset, twists -2..2 turns (a few minutes)
   python verify.py --sweep --max-turns 1
   python verify.py --random 40      # random braids, claims from knotmath.js (needs node)
+  python verify.py --named 40       # random braids with knot-table names, against SnapPy
 """
 import argparse
 import itertools
@@ -169,6 +173,32 @@ def blackboard_ribbon(word):
     return out
 
 
+def identify_all(word, strands):
+    """Every census name SnapPy finds for the complement of the closure, or None."""
+    try:
+        return [str(nm).split('(')[0] for nm in closure(word, strands).exterior().identify()]
+    except Exception:
+        return None
+
+
+def complement_matches(word, strands, names):
+    """True if the closure's complement is isometric to one named complement, False if
+    it is hyperbolic and matches none, None if SnapPy can't decide (non-hyperbolic)."""
+    try:
+        E = closure(word, strands).exterior()
+        if 'positively' not in E.solution_type():
+            return None
+        for nm in names:
+            try:
+                if E.is_isometric_to(snappy.Link(nm).exterior()):
+                    return True
+            except Exception:
+                return None
+        return False
+    except Exception:
+        return None
+
+
 def identify(word, strands):
     try:
         names = closure(word, strands).exterior().identify()
@@ -221,6 +251,24 @@ def check_braid(exp):
             problems.append('component %s Alexander: knot Floer %s, model %s' % (cc, a, cm['alexander']))
     if len(comps) == 1 and exp.get('alexander') is not None and exp['alexander'] != order[0]['alexander']:
         problems.append('whole-link Alexander differs from the knot\'s')
+    # Names from the page's knot table (Jones and Alexander polynomials) against
+    # SnapPy's geometry: the complement of the closure must be isometric to the
+    # complement of the named knot or link. For a knot this decides the knot up to
+    # mirror image (Gordon-Luecke); for a link it is a necessary condition, since
+    # different links can share a complement (7^2_8 and the Whitehead link do).
+    # Non-hyperbolic complements (torus knots, composites, the Hopf link) are skipped.
+    claimed_names = [nm for nm in exp.get('tableNames') or [] if nm not in ('unknot', 'unlink') and '#' not in nm]
+    if claimed_names:
+        verdict = complement_matches(word, n, claimed_names)
+        if verdict is False:
+            problems.append('table names %s, but the complement is %s' % (claimed_names, identify_all(word, n)))
+    # For a homogeneous braid, Seifert's algorithm gives a surface of least genus, so
+    # the genus claimed for the drawn Seifert surface must equal the knot's genus.
+    sf = exp.get('seifert')
+    if sf and sf.get('homogeneous') and len(comps) == 1:
+        g = genus(n, word, comps[0])
+        if g != sf['genus']:
+            problems.append('Seifert surface genus %s, knot Floer genus %s' % (sf['genus'], g))
     name = identify(word, n)
     return problems, name
 
@@ -369,7 +417,8 @@ def knotmath_claims(cases):
         "console.log(JSON.stringify(cases.map(([n,w])=>{const d=K.describeBraid(n,w);return {"
         "construction:{type:'braid',strands:n,word:w},braid:d.braid,ribbonBraid:d.ribbonBraid,"
         "components:d.components.map(c=>({braidStrands:c.braidStrands,laps:c.laps,framing:c.framing,alexander:c.alexander})),"
-        "linkingMatrix:d.linking,alexander:d.alexander};})));"
+        "linkingMatrix:d.linking,alexander:d.alexander,tableNames:K.identify(n,w).matches.map(m=>m.name),"
+        "seifert:{genus:K.seifertGenus(n,w),homogeneous:K.homogeneous(w)}};})));"
     ) % json.dumps(os.path.join(HERE, '..', 'knotmath.js'))
     out = subprocess.run(['node', '-e', js], input=json.dumps(cases), capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -393,19 +442,45 @@ def random_braids(count, seed=1):
     return bad
 
 
+def named_braids(count, seed=7):
+    """Random braids until `count` of them have a knot-table name; each name is checked
+    against SnapPy's census lookup of the complement (and the genus, when homogeneous)."""
+    rng = random.Random(seed)
+    checked = bad = 0
+    while checked < count:
+        cases = []
+        for _ in range(60):
+            n = rng.randint(2, 4)
+            cases.append([n, [rng.choice([-1, 1]) * rng.randint(1, n - 1) for _ in range(rng.randint(5, 14))]])
+        for exp in knotmath_claims(cases):
+            names = [nm for nm in exp['tableNames'] if nm not in ('unknot', 'unlink')]
+            if not names or checked >= count:
+                continue
+            checked += 1
+            problems, name = check_braid(exp)
+            c = exp['construction']
+            bad += bool(problems)
+            print('%d strands %-44s table %-14s SnapPy %-8s %s' % (c['strands'], str(c['word']), '/'.join(names), name or '-', 'ok' if not problems else 'FAIL ' + '; '.join(problems)))
+    print('%d named braids, %d failures' % (checked, bad))
+    return bad
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('files', nargs='*', help='experiment JSON files exported from the model')
     ap.add_argument('--sweep', action='store_true', help='check every preset construction')
     ap.add_argument('--random', type=int, default=0, metavar='N', help='check N random braids against knotmath.js (needs node)')
+    ap.add_argument('--named', type=int, default=0, metavar='N', help='check knot-table names of N random named braids against SnapPy (needs node)')
     ap.add_argument('--max-turns', type=Fraction, default=Fraction(2), help='sweep twists up to this many turns each way (default 2; 1 is much faster)')
     args = ap.parse_args()
-    if not args.files and not args.sweep and not args.random:
+    if not args.files and not args.sweep and not args.random and not args.named:
         ap.print_help()
         return 2
     failures = sweep(args.max_turns) if args.sweep else 0
     if args.random:
         failures += random_braids(args.random)
+    if args.named:
+        failures += named_braids(args.named)
     for path in args.files:
         with open(path) as f:
             exp = json.load(f)

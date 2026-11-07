@@ -108,7 +108,6 @@ h1 {
   align-items: start;
 }
 @media (max-width: 880px) { .lab { grid-template-columns: minmax(0, 1fr); } }
-@media (min-width: 881px) { .stage { position: sticky; top: 16px; } }   /* keep the model in view while using the panel */
 
 .stage {
   position: relative;
@@ -120,6 +119,9 @@ h1 {
   border-radius: 14px;
   overflow: hidden;
 }
+/* Keep the model in view while using the panel. This must come after the .stage
+   rule above: both have the same specificity, so the later one wins. */
+@media (min-width: 881px) { .stage { position: sticky; top: 16px; } }
 @media (max-width: 560px) { .stage { aspect-ratio: 1 / 1; } }
 #c {
   position: absolute;
@@ -321,6 +323,10 @@ h2 {
 .braid-form input[type="number"] { width: 5.5em; }
 .braid-help { margin: 0; font-size: 0.8rem; color: var(--muted); }
 .braid-error { margin: 0; font-size: 0.85rem; color: var(--red); min-height: 1.2em; }
+.braid-tools { display: grid; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.braid-tools .note { margin: 0; font-size: 0.8rem; color: var(--muted); }
+.table-pick { display: grid; gap: 4px; margin: 12px 0 8px; font-size: 0.82rem; color: var(--muted); }
+.table-pick select { min-height: 40px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 8px; background: var(--bg); color: var(--ink); font: 500 0.9rem var(--f-body); }
 .exact { display: grid; gap: 10px; }
 .exact .readout dd { font-size: 0.9rem; overflow-wrap: anywhere; }
 .stripes { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
@@ -592,7 +598,14 @@ h2 {
           <button type="button" data-word="s1^2 S2 s1 S2">Whitehead link</button>
           <button type="button" data-word="(s1 S2)^3">Borromean rings</button>
         </div>
+        <label class="table-pick" for="tablePick">Draw a knot or link from the table
+          <select id="tablePick"><option value="">Choose…</option></select>
+        </label>
         <button type="button" class="link-btn" id="braidFromTorus">Start from the last torus construction</button>
+        <div class="braid-tools">
+          <label class="check" for="seifertBox"><input type="checkbox" id="seifertBox"> Show its Seifert surface</label>
+          <p class="note" id="seifertNote">An orientable surface whose edge is the knot or link: one disk per strand, one twisted band per crossing. Its two sides get two colors.</p>
+        </div>
       </fieldset>
 
       <fieldset class="torus-only">
@@ -687,6 +700,21 @@ h2 {
               <dt>Alexander polynomial of the whole link</dt>
               <dd id="x-alex">–</dd>
               <dd class="note">Written as in knot tables: lowest term a constant, leading coefficient positive. It is 0 for a split link.</dd>
+            </div>
+            <div>
+              <dt>Jones polynomial of the whole link</dt>
+              <dd id="x-jones">–</dd>
+              <dd class="note">A mirror image swaps t and 1/t, so unlike the Alexander polynomial this one usually tells a knot from its mirror image. Links with an even number of components have half-integer powers.</dd>
+            </div>
+            <div class="braid-only">
+              <dt>Seifert surface</dt>
+              <dd id="x-seifert">–</dd>
+              <dd class="note" id="x-seifert-note"></dd>
+            </div>
+            <div>
+              <dt>In the knot table</dt>
+              <dd id="x-name">–</dd>
+              <dd class="note" id="x-name-note">Compared by Jones and Alexander polynomials with SnapPy's copy of the Rolfsen tables: prime knots up to 10 crossings, prime links up to 8, and sums of two small knots. "Mirror image" is relative to the table's diagram; torus knots are named right- or left-handed. Larger knots can share these polynomials, so a match is a strong hint, not a proof.</dd>
             </div>
           </dl>
           <div class="exact-actions">
@@ -786,7 +814,10 @@ h2 {
   </section>
 </main>
 
+<script src="knot-table.js"></script>
 <script src="knotmath.js"></script>
+<script src="meshkit.js"></script>
+<script src="seifert.js"></script>
 <script src="explore.js"></script>
 <script src="cut-animation.js"></script>
 <script type="importmap">
@@ -1356,16 +1387,22 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       const d = exactInfo(), c = d.ok && d.components[sel];
       if (c) {
         const what = state.braid ? 'Component' : 'Strip', N = d.components.length;
-        const name = state.braid ? '' : ' · ' + (c.knot.chirality ? c.knot.name : 'unknot');
+        const bn = state.braid ? shortName(identifyBraid(c.subBraid.n, c.subBraid.word)) : '';
+        const name = state.braid ? (bn ? ' · ' + bn : '') : ' · ' + (c.knot.chirality ? c.knot.name : 'unknot');
         const fr = c.oneSided ? ' · a Möbius band, so it has one edge and no framing'
           : ' · its edge (dashed) winds ' + minus(c.framing) + (Math.abs(c.framing) === 1 ? ' time' : ' times') + ' around its centerline';
         hud.textContent = what + ' ' + (sel + 1) + ' of ' + N + ' · ' + c.laps + (c.laps === 1 ? (state.braid ? ' strand' : ' lap') : (state.braid ? ' strands' : ' laps')) + name + fr;
         return;
       }
     }
+    if (seifertShown() && seifData) {
+      const g = seifData.genus;
+      hud.textContent = 'Seifert surface · ' + (g === null ? seifData.A.pieces.length + ' pieces' : 'genus ' + g) + ' · its two sides in two colors';
+      return;
+    }
     if (state.braid) {
-      const d = exactInfo(), N = d.components.length;
-      hud.textContent = 'Closed braid on ' + state.braid.n + (state.braid.n === 1 ? ' strand' : ' strands') + ' · ' + N + (N === 1 ? ' component' : ' components');
+      const d = exactInfo(), N = d.components.length, nm = shortName(identifyBraid(state.braid.n, state.braid.word));
+      hud.textContent = 'Closed braid on ' + state.braid.n + (state.braid.n === 1 ? ' strand' : ' strands') + ' · ' + (nm || N + (N === 1 ? ' component' : ' components'));
       return;
     }
     if (state.grow !== null) {
@@ -1433,6 +1470,24 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     return d;
   }
   let braidCache = null;
+  // Jones polynomial and knot-table names, cached by braid. A braid too large for the
+  // work budget reports that instead of freezing the page.
+  const identCache = new Map();
+  function identifyBraid(n, word) {
+    const key = n + ':' + word.join(',');
+    if (!identCache.has(key)) {
+      if (identCache.size > 200) identCache.clear();
+      identCache.set(key, KM.identify(n, word, { budget: 8e6 }));
+    }
+    return identCache.get(key);
+  }
+  function nameText(idn) {
+    if (idn.error) return 'Too large to look up here';
+    if (!idn.matches.length) return idn.components === 1 ? 'Not in the table: a knot with more than 10 crossings, or a sum of more knots' : 'Not in the table of links up to 8 crossings';
+    if (idn.matches.length === 1) return 'Matches the ' + idn.matches[0].label;
+    return 'Matches one of: ' + idn.matches.map(m => m.label).join('; ');
+  }
+  const shortName = idn => !idn || idn.error || idn.matches.length !== 1 ? '' : idn.matches[0].label;
   function exactInfo() {
     if (!state.braid) return torusInfo();
     const b = state.braid;
@@ -1453,6 +1508,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         components: d.components.map(c => ({ braidStrands: c.braidStrands, laps: c.laps, framing: c.framing, writhe: c.writhe, alexander: c.alexander })),
         linkingMatrix: d.linking,
         alexander: d.alexander,
+        ...knotExtras(d.strands, d.word),
         verify: 'python verify/verify.py <this file>'
       });
     }
@@ -1464,8 +1520,19 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       components: d.components.map(c => ({ pieces: c.pieces, braidStrands: c.braidStrands, laps: c.laps, turns: c.turns, knot: c.knot, framing: c.framing, oneSided: c.oneSided, alexander: c.alexander })),
       linkingMatrix: d.linking,
       alexander: d.alexander,
+      ...knotExtras(d.braid.strands, d.braid.word),
       verify: 'python verify/verify.py <this file>'
     });
+  }
+  // Jones polynomial, knot-table names and the braid's Seifert surface, for the record.
+  function knotExtras(n, word) {
+    const idn = identifyBraid(n, word);
+    return {
+      jones: idn.error ? null : { lowestHalfPower: idn.jones.o, coefficients: idn.jones.c, text: KM.jonesText(idn.jones), note: 'Coefficient i multiplies t^((lowestHalfPower + i) / 2).' },
+      tableNames: idn.error ? [] : idn.matches.map(m => m.name),
+      tableMatches: idn.error ? [] : idn.matches.map(m => m.label),
+      seifert: { genus: KM.seifertGenus(n, word), homogeneous: KM.homogeneous(word), note: 'Seifert\'s algorithm on the closed braid: one disk per strand, one twisted band per crossing. For a homogeneous braid this genus is the genus of the knot or link.' }
+    };
   }
   const matrixText = M => {
     const cells = M.map(r => r.map(minus));
@@ -1491,7 +1558,10 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     set('x-framing-note', state.braid
       ? 'Framing: the blackboard framing of the flat ribbon drawn, which equals the component\'s writhe in the braid.'
       : 'Framing: how many times a strip\'s edge winds around its own centerline.');
-    if (!d.ok) { set('x-braid', '–'); set('x-braid-note', d.reason); set('x-matrix', '–'); set('x-alex', '–'); return; }
+    if (!d.ok) { set('x-braid', '–'); set('x-braid-note', d.reason); set('x-matrix', '–'); set('x-alex', '–'); set('x-jones', '–'); set('x-name', '–'); return; }
+    const idn = identifyBraid(d.braid.strands, d.braid.word);
+    set('x-jones', idn.error ? 'Too large to compute here (' + d.braid.strands + ' strands, ' + d.braid.word.length + ' crossings)' : KM.jonesText(idn.jones));
+    set('x-name', nameText(idn));
     const n = d.braid.strands, m = d.braid.word.length;
     const counts = n + (n === 1 ? ' strand' : ' strands') + ' · ' + m + (m === 1 ? ' crossing' : ' crossings');
     if (state.braid) {
@@ -1504,7 +1574,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     d.components.forEach((c, i) => {
       const li = document.createElement('li');
       if (state.braid) {
-        li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' strand' : ' strands') + ' · framing ' + minus(c.framing) + ' · Δ = ' + KM.polyText(c.alexander);
+        const cname = d.components.length > 1 ? shortName(identifyBraid(c.subBraid.n, c.subBraid.word)) : shortName(idn);
+        li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' strand' : ' strands') + ' · framing ' + minus(c.framing) + ' · Δ = ' + KM.polyText(c.alexander) + (cname ? ' · ' + cname : '');
       } else {
         const knot = c.knot.name === 'unknot' ? 'unknot'
           : (c.knot.name.startsWith('T(') ? c.knot.chirality + ' ' : c.knot.name + ' ') + 'T(' + c.knot.torus.map(minus).join(',') + ')';
@@ -1522,6 +1593,14 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     });
     set('x-matrix', matrixText(d.linking));
     set('x-alex', KM.polyText(d.alexander));
+    if (state.braid) {
+      const n = state.braid.n, c = state.braid.word.length, g = KM.seifertGenus(n, state.braid.word), comps = d.components.length;
+      const used = new Set(state.braid.word.map(Math.abs)); let pieces = 1; for (let i = 1; i < n; i++) if (!used.has(i)) pieces++;
+      set('x-seifert', n + (n === 1 ? ' disk' : ' disks') + ' + ' + c + (c === 1 ? ' band' : ' bands') + ' · χ = ' + minus(n - c) + (pieces === 1 ? ' · genus ' + g : ' · ' + pieces + ' separate pieces'));
+      set('x-seifert-note', pieces > 1 ? 'Some neighbouring strands never cross, so the surface comes in pieces and the link is split.'
+        : KM.homogeneous(state.braid.word) ? 'Each generator appears with one sign only (a homogeneous braid), so no surface with this edge has smaller genus: the ' + (comps === 1 ? 'knot' : 'link') + ' has genus ' + g + '.'
+        : 'Some generator appears with both signs, so a surface of smaller genus may exist: the ' + (comps === 1 ? 'knot\'s' : 'link\'s') + ' genus is at most ' + g + '.');
+    }
   }
   function flash(msg) { document.getElementById('x-status').textContent = msg; }
   async function copyText(t, what) {
@@ -1604,6 +1683,26 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (btn.dataset.mode === 'torus') showBraid(null);
     else if (!state.braid) drawFromForm();
   }));
+  // Every knot and link in the table, grouped by crossing number, drawn from its braid word.
+  const tablePick = document.getElementById('tablePick');
+  (function buildTablePicker() {
+    const groups = new Map();
+    for (const e of KM.knotTable().primes) {
+      const key = e.kind === 'knot' ? 'Knots with ' + e.crossings + ' crossings' : 'Links with ' + e.crossings + ' crossings';
+      if (!groups.has(key)) { const g = document.createElement('optgroup'); g.label = key; groups.set(key, g); tablePick.appendChild(g); }
+      const o = document.createElement('option');
+      o.value = e.name; o.textContent = e.label + (e.alias ? ' · ' + e.alias : '');
+      groups.get(key).appendChild(o);
+    }
+  })();
+  tablePick.addEventListener('change', () => {
+    const e = KM.knotTable().primes.find(x => x.name === tablePick.value);
+    if (!e) return;
+    braidInput.value = e.word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ');
+    braidStrandsIn.value = String(e.n);
+    drawFromForm();
+    logOp('table', e.name);
+  });
   document.getElementById('braidFromTorus').addEventListener('click', () => {
     const d = torusInfo();
     if (!d.ok) { braidError.textContent = 'The last torus construction has no closed stripes (' + twistLabel(state.twistTo).toLowerCase() + ' on the ' + shapeOf().label + ').'; return; }
@@ -1905,6 +2004,59 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const selEdgeHidden = polyline(1.6, Object.assign({ transparent: true, opacity: 0.28, depthTest: false }, DASH));
   selCoreHidden.renderOrder = selEdgeHidden.renderOrder = 5;
 
+  // Seifert surface of a closed braid: the same triangles drawn twice, once per side,
+  // so its two sides show in two colors, and its boundary curves in component colors.
+  const SF = window.SeifertSurface, MK = window.MeshKit;
+  const seifertBox = document.getElementById('seifertBox');
+  const seifFront = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ side: THREE.FrontSide, roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+  const seifBack = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ side: THREE.BackSide, roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+  seifFront.visible = seifBack.visible = false; scene.add(seifFront, seifBack);
+  const seifLines = Array.from({ length: 10 }, () => polyline(3.2));
+  seifLines.forEach(l => { l.visible = false; });
+  let seifKey = '', seifData = null;
+  const seifertShown = () => !!state.braid && seifertBox.checked && !labCut;
+  function syncSeifert() {
+    const on = seifertShown();
+    const key = on ? state.braid.n + ':' + state.braid.word.join(',') + '|' + pal.c.map(c => c.join(',')).join(';') : '';
+    if (key === seifKey) return;
+    seifKey = key;
+    seifFront.visible = seifBack.visible = on;
+    seifLines.forEach(l => { l.visible = false; });
+    if (!on) { seifData = null; return; }
+    const { n, word } = state.braid, S = SF.build(n, word);
+    // orient the triangles consistently, so "front" is one side of the whole surface
+    const { flip } = MK.orient(S.indices), idx = S.indices.slice();
+    for (let t = 0; t < flip.length; t++) if (flip[t] < 0) { const x = idx[3 * t + 1]; idx[3 * t + 1] = idx[3 * t + 2]; idx[3 * t + 2] = x; }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(S.positions, 3));
+    g.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
+    g.computeVertexNormals(); g.computeBoundingSphere();
+    seifFront.geometry.dispose(); seifFront.geometry = g; seifBack.geometry = g;
+    const sc = (i, m) => { const c = pal.c[i]; m.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace); };
+    sc(2, seifFront.material); sc(1, seifBack.material);
+    const A = MK.analyze(idx), rb = KM.readBraid(n, word), loops = SF.orientLoops(S, A.loops), comp = SF.loopComponents(S, loops, rb.compOf);
+    loops.slice(0, seifLines.length).forEach((L, i) => {
+      const arr = [];
+      [...L, L[0]].forEach(v => {
+        // lift the curve a hair off the surface along the outward direction
+        const x = S.positions[3 * v], y = S.positions[3 * v + 1], z = S.positions[3 * v + 2], r = Math.hypot(x, z) || 1;
+        arr.push(x + 0.012 * x / r, y, z + 0.012 * z / r);
+      });
+      setPolyline(seifLines[i], arr);
+      const c = pal.c[COMP_COLORS[comp[i] % COMP_COLORS.length]];
+      seifLines[i].material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+    });
+    seifData = { S, A, idx, genus: A.pieces.length === 1 ? A.pieces[0].genus : null };
+  }
+  seifertBox.addEventListener('change', () => {
+    logOp('seifert surface', seifertBox.checked ? 'shown' : 'hidden'); clearSelection(); seifKey = '#'; revealModel();
+    // look from lower down, where the stacked disks and the bands between them show
+    if (seifertBox.checked && !state.userMoved) {
+      const off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
+      sph.phi = Math.PI / 2 - 0.3; camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
+    }
+  });
+
   let seamShown = null, trailShown = null;
   function retint() {
     readPalette();
@@ -1915,7 +2067,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     cutTipMaterial.color.copy(trace);
     travelerRing.material.color.set(pal.stage);
     growFill.material.color.set(pal.panel);
-    colorKey = '';
+    colorKey = ''; seifKey = '#';
+    Object.assign(seifFront.material, AP.FINISHES[appearance.finish]); Object.assign(seifBack.material, AP.FINISHES[appearance.finish]);
     syncAppearanceControls();
   }
 
@@ -1990,6 +2143,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (moved > 6 || !quick) return;
     const rc = canvas.getBoundingClientRect();
     raycaster.setFromCamera(new THREE.Vector2((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height) * 2 + 1), camera);
+    if (seifertShown()) return;
     const hit = raycaster.intersectObject(labCut ? labSurface : surface)[0];
     if (labCut) {
       if (!hit) { clearSelection(); return; }
@@ -2086,6 +2240,13 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncExplore();
     syncCutTips();
     if (labCut) {
+      syncSeifert();
+      surface.visible = false;
+      [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
+      controls.update(); updateViewShift(); renderer.render(scene, camera); return;
+    }
+    syncSeifert();
+    if (seifertShown()) {
       surface.visible = false;
       [seamLine, sheetSolid, sheetDashed, trailLine, growOutline, growFill, traveler, travelerRing, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => { o.visible = false; });
       controls.update(); updateViewShift(); renderer.render(scene, camera); return;
