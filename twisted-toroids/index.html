@@ -363,6 +363,11 @@ h2 {
 .flat-map { width: 100%; height: auto; display: block; border: 1px solid var(--rule); border-radius: 8px; touch-action: pan-y; cursor: crosshair; }
 .flat-map:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
 .explore-tools .result { font-weight: 500; line-height: 1.55; }
+.lab-slope { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 4px 0 8px; }
+.lab-slope label { display: grid; gap: 4px; font-size: 0.82rem; color: var(--muted); }
+.lab-slope input { width: 6em; min-height: 40px; font: 500 0.95rem var(--f-mono); color: var(--ink); background: var(--bg); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 8px; }
+.lab-draw .note { margin: 4px 0; }
+#labSurfaceSeg { margin: 8px 0; }
 .panel[data-exploring="true"] .sheet-body > :not(.explore-tools):not(.appearance-tools) { display: none; }
 .panel:not([data-exploring="true"]) .lab-only { display: none; }
 .panel[data-exploring="true"] .quick.torus-only, .panel[data-exploring="true"] .quick.braid-only { display: none; }
@@ -539,20 +544,35 @@ h2 {
         <legend>Explore</legend>
         <details id="cutLabDetails">
           <summary>Try different cuts</summary>
-          <p class="note">A separate round-torus surface for comparing cuts. Your painted construction is kept when you return.</p>
+          <p class="note">A separate surface for comparing cuts: a round torus, or a Klein bottle. Your painted construction is kept when you return.</p>
+          <div class="seg" id="labSurfaceSeg" role="group" aria-label="Surface to cut">
+            <button type="button" data-surface="torus" aria-pressed="true">Torus</button>
+            <button type="button" data-surface="klein" aria-pressed="false">Klein bottle</button>
+          </div>
           <label for="labCut">Cut path</label>
           <select id="labCut">
             <option value="closed">Uncut torus</option>
             <option value="meridian">Around the tube · meridian</option>
             <option value="longitude">Around the central hole · longitude</option>
             <option value="patch">Around a small patch · contractible loop</option>
+            <option value="slope">Along an (a, b) curve</option>
+            <option value="draw">Draw your own loops on the map</option>
           </select>
+          <div class="lab-slope" id="labSlope" hidden>
+            <label for="labA">a: times around the hole <input type="number" id="labA" min="-6" max="6" value="2"></label>
+            <label for="labB">b: times around the tube <input type="number" id="labB" min="-6" max="6" value="3"></label>
+          </div>
+          <div class="lab-draw" id="labDraw" hidden>
+            <p class="note">Tap points on the flat map below. Each step takes the shortest way across the map, wrapping over its edges. Close the loop to cut along it; you can draw several. On the map, arrow keys move a cursor and Enter adds a point.</p>
+            <div class="actions"><button type="button" class="secondary" id="labClose">Close loop and cut</button><button type="button" class="link-btn" id="labUndo">Undo last point</button><button type="button" class="link-btn" id="labClear">Clear all loops</button></div>
+            <p class="note" id="labDrawStatus" aria-live="polite"></p>
+          </div>
           <div class="actions"><button type="button" class="secondary" id="labShow">Show this cut</button><button type="button" class="secondary" id="labReturn" hidden>Return to my construction</button></div>
           <div id="labReadout" hidden aria-live="polite">
             <p class="result" id="labResult"></p>
-            <dl class="readout"><div><dt>Connected pieces</dt><dd id="labPieces"></dd></div><div><dt>Boundary loops, total</dt><dd id="labBoundaries"></dd></div><div><dt>Orientability</dt><dd>Every piece is two-sided</dd></div><div><dt>Euler characteristic, total</dt><dd id="labEuler"></dd></div></dl>
+            <dl class="readout"><div><dt>Connected pieces</dt><dd id="labPieces"></dd></div><div><dt>Boundary loops, total</dt><dd id="labBoundaries"></dd></div><div><dt>Orientability</dt><dd id="labOrient">Every piece is two-sided</dd></div><div><dt>Euler characteristic, total</dt><dd id="labEuler"></dd></div></dl>
             <p class="note" id="labWhy"></p>
-            <p class="note">Bright lines mark the new boundaries. Gaps and the lifted patch make the cuts visible; no caps are added. The gold patch keeps its color.</p>
+            <p class="note" id="labNote">Bright lines mark the new boundaries. Gaps and the lifted patch make the cuts visible; no caps are added. The gold patch keeps its color.</p>
           </div>
         </details>
         <details id="mapDetails">
@@ -722,6 +742,8 @@ h2 {
             <button type="button" class="link-btn" id="x-download">Download experiment</button>
             <button type="button" class="link-btn" id="x-link">Copy link</button>
             <button type="button" class="link-btn" id="x-load-btn">Load experiment</button>
+            <button type="button" class="link-btn" id="x-png">Save picture (PNG)</button>
+            <button type="button" class="link-btn" id="x-stl">Download for 3D printing (STL)</button>
             <input type="file" id="x-load" accept="application/json,.json" hidden>
           </div>
           <p class="exact-status" id="x-status" aria-live="polite"></p>
@@ -818,6 +840,7 @@ h2 {
 <script src="knotmath.js"></script>
 <script src="meshkit.js"></script>
 <script src="seifert.js"></script>
+<script src="surfaces.js"></script>
 <script src="explore.js"></script>
 <script src="cut-animation.js"></script>
 <script type="importmap">
@@ -1377,7 +1400,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncQuick();
   }
   function updateHud() {
-    if (labCut) { hud.textContent = 'Cut explorer · ' + EX.CUTS[labCut].result; return; }
+    if (labCut) { hud.textContent = (labModel && labModel.surface === 'klein' ? 'Klein bottle · ' : 'Cut explorer · ') + (labIsDraw() && labDraft.length ? 'drawing loop ' + (labLoops.length + 1) + ', ' + labDraft.length + (labDraft.length === 1 ? ' point' : ' points') : labModel ? labModel.text.result : ''); return; }
     if (!state.braid && state.cut !== state.cutTarget) {
       const cutting = state.cutTarget === 1;
       hud.textContent = (cutting ? 'Cutting paint boundaries' : 'Gluing paint boundaries') + ' · ' + Math.round(100*(cutting ? state.cut : 1-state.cut)) + '% · follow the moving tips';
@@ -1625,6 +1648,59 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     flash('Saved ' + a.download + '.');
+  });
+
+  function saveBlob(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    flash('Saved ' + name + '.');
+  }
+  const fileStem = () => labCut ? 'twisted-toroids-' + (labCut.startsWith('k-') ? 'klein-' + labCut.slice(2) : 'torus-' + labCut)
+    : state.braid ? 'twisted-toroids-braid-' + (state.braid.word.length ? state.braid.word.join('_').replace(/-/g, 'm') : 'identity').slice(0, 50) + (seifertShown() ? '-seifert' : '')
+    : 'twisted-toroids-' + state.shape + '-turn-' + turnText(state.twistTo).replace('/', 'over') + (state.cutTarget ? '-cut' : '');
+  // The picture: draw a frame now and copy it, on the stage color, in the same task
+  // (the WebGL canvas keeps its pixels only until the browser shows them).
+  document.getElementById('x-png').addEventListener('click', () => {
+    try {
+      renderer.render(scene, camera);
+      const out = document.createElement('canvas');
+      out.width = canvas.width; out.height = canvas.height;
+      const c = out.getContext('2d');
+      c.fillStyle = pal.stage; c.fillRect(0, 0, out.width, out.height);
+      c.drawImage(canvas, 0, 0);
+      out.toBlob(b => { if (b) saveBlob(b, fileStem() + '.png'); else flash('This browser could not make the picture.'); }, 'image/png');
+    } catch (err) { flash('Could not save the picture: ' + err.message); }
+  });
+  // A 3D-printable solid of what is on screen: the surface thickened to a 1.2 mm
+  // wall, about 100 mm across. One-sided pieces are slit so each side is consistent.
+  const PRINT_SCALE = 22, PRINT_WALL = 1.2;
+  function visibleMeshes() {
+    const out = [];
+    const take = obj => {
+      const g = obj.geometry, P = g.attributes.position, I = g.index;
+      if (!P || !I) return;
+      out.push({ positions: Array.from(P.array), indices: Array.from(I.array) });
+    };
+    if (labCut) take(labSurface);
+    else if (seifertShown()) take(seifFront);
+    else { syncSurface(); take(surface); }
+    return out;
+  }
+  function makeSTL() {
+    const parts = visibleMeshes().map(m => MK.thicken(m.positions, m.indices, PRINT_WALL / 2 / PRINT_SCALE));
+    const positions = [], indices = [];
+    for (const p of parts) { const base = positions.length / 3; for (const x of p.positions) positions.push(x); for (const i of p.indices) indices.push(i + base); }
+    return indices.length ? { stl: MK.toSTL(positions, indices, PRINT_SCALE, 'Twisted Toroids ' + fileStem()), positions, indices } : null;
+  }
+  document.getElementById('x-stl').addEventListener('click', () => {
+    try {
+      const made = makeSTL();
+      if (!made) { flash('Nothing to print yet.'); return; }
+      saveBlob(new Blob([made.stl], { type: 'model/stl' }), fileStem() + '.stl');
+      logOp('stl', fileStem());
+    } catch (err) { flash('Could not make the STL file: ' + err.message); }
   });
 
   // ---------- braid mode ----------
@@ -2340,18 +2416,95 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       return dist(v) < dist(best) ? v : best;
     }, hit.face.a);
   }
+  // ---------- the cut explorer's surfaces ----------
+  // labModel gives every cut the same shape: the mesh, a color slot per vertex, the
+  // piece and 3D point at a map position, segments to draw on the map, and readouts.
+  // The four original torus presets come from explore.js; the (a, b) curves, drawn
+  // loops and the Klein bottle use the general cutting engine in surfaces.js.
+  const SL = window.SurfaceLab;
+  const LAB_OPTIONS = {
+    torus: [['closed', 'Uncut torus'], ['meridian', 'Around the tube · meridian'], ['longitude', 'Around the central hole · longitude'], ['patch', 'Around a small patch · contractible loop'], ['slope', 'Along an (a, b) curve'], ['draw', 'Draw your own loops on the map']],
+    klein: [['k-closed', 'Uncut Klein bottle'], ['k-meridian', 'Around the tube · undoes the flip'], ['k-between', 'Between its two Möbius bands'], ['k-core', 'Along the center line of one Möbius band'], ['k-draw', 'Draw your own loops on the map']]
+  };
+  const LAB_KINDS = new Set(Object.values(LAB_OPTIONS).flat().map(o => o[0]));
+  const PIECE_SLOTS = [5, 1, 0, 2, 3, 4, 6, 7];
+  let labSurfaceName = 'torus', labLoops = [], labDraft = [], labModel = null, labVersion = 0, labEdgeCount = 0;
+  const labHasEdges = () => labEdgeCount > 0;
+  const labIsDraw = () => labCut === 'draw' || labCut === 'k-draw';
+  const plural = (k, one, many) => k + ' ' + (k === 1 ? one : many);
+  // "torus with one hole" -> "tori with one hole", "Möbius band" -> "Möbius bands"
+  function pluralName(nm) {
+    for (const [one, many] of [['annulus', 'annuli'], ['torus', 'tori'], ['Möbius band', 'Möbius bands'], ['Klein bottle', 'Klein bottles'], ['disk', 'disks'], ['sphere', 'spheres'], ['projective plane', 'projective planes'], ['surface', 'surfaces']])
+      if (nm.includes(one)) return nm.replace(one, many);
+    return nm;
+  }
+  const LAB_WHY = {
+    'k-closed': 'Left and right edges of the map are glued with a flip, so crossing that edge turns you over: the surface has one side. A tube whose figure-eight cross-section makes half a turn on the way round meets itself flipped like this. In 3D it has to pass through itself, along the dark ring.',
+    'k-meridian': 'Cutting across the tube undoes the flipped gluing. What is left is an annulus, which has two sides.',
+    'k-between': 'The line between the two colors goes round twice before it closes. Cutting along it splits the Klein bottle into two Möbius bands: a Klein bottle is two Möbius bands glued along their edges.',
+    'k-core': 'The center line of a Möbius band is one-sided. Cutting along it opens that band into a long two-sided strip, still attached to the other band, and the whole thing is a single Möbius band.'
+  };
+  function makeLabModel(kind) {
+    if (EX.CUTS[kind]) {
+      const d = EX.makeCutMesh(kind), info = EX.CUTS[kind];
+      const gold = (u, v) => u >= 3 / 8 && u <= 5 / 8 && v >= 1 / 8 && v <= 3 / 8;
+      const segs = { meridian: [[0, 0, 0, 1], [1, 0, 1, 1]], longitude: [[0, 0, 1, 0], [0, 1, 1, 1]], patch: [[3 / 8, 1 / 8, 5 / 8, 1 / 8], [5 / 8, 1 / 8, 5 / 8, 3 / 8], [5 / 8, 3 / 8, 3 / 8, 3 / 8], [3 / 8, 3 / 8, 3 / 8, 1 / 8]] }[kind] || [];
+      return {
+        kind, surface: 'torus', data: d, segs, flip: false, gluedLR: kind !== 'meridian', gluedTB: kind !== 'longitude',
+        slot: v => gold(d.params[2 * v], d.params[2 * v + 1]) ? 1 : 5,
+        mapSlot: (u, v) => gold(u, v) ? 1 : 5,
+        componentAt: (u, v) => EX.cutComponent(kind, u, v),
+        pointAt: (u, v, c, lift) => EX.cutPoint(kind, u, v, c, lift),
+        text: { result: info.result, pieces: info.components, boundaries: info.boundaries, euler: info.euler, why: info.why, label: info.label, orient: 'Every piece is two-sided', note: 'Bright lines mark the new boundaries. Gaps and the lifted patch make the cuts visible; no caps are added. The gold patch keeps its color.' },
+        count: info.components
+      };
+    }
+    const surface = kind.startsWith('k-') ? 'klein' : 'torus', base = kind.replace(/^k-/, '');
+    const a = Number(document.getElementById('labA').value) || 0, b = Number(document.getElementById('labB').value) || 0;
+    const paths = base === 'draw' ? labLoops.map(L => L.path) : SL.presetPaths(surface, base, { a, b });
+    const r = SL.build(surface, paths), info = r.info;
+    const slot = surface === 'klein' ? (v => r.colors[v]) : (v => PIECE_SLOTS[r.components[v] % PIECE_SLOTS.length]);
+    const mapSlot = surface === 'klein' ? ((u, v) => SL.SURFACES.klein.paint(u, v)) : ((u, v) => PIECE_SLOTS[r.componentAt(u, v) % PIECE_SLOTS.length]);
+    const list = info.pieces.map(p => p.name), counts = new Map();
+    list.forEach(nm => counts.set(nm, (counts.get(nm) || 0) + 1));
+    const words = [...counts].map(([nm, k]) => k === 1 ? (/^[aeiou]/i.test(nm) ? 'an ' : 'a ') + nm : k + ' ' + pluralName(nm));
+    const edges = info.boundaries === 0 ? 'no boundary' : info.count === 1 ? plural(info.boundaries, 'boundary loop', 'boundary loops') : plural(info.boundaries, 'boundary loop', 'boundary loops') + ' in all';
+    const result = (info.count === 1 ? 'One piece, ' : plural(info.count, 'piece', 'pieces') + ': ') + words.join(' and ') + ', with ' + edges + '.';
+    let why = LAB_WHY[kind] || '';
+    if (base === 'slope') {
+      const g = SL.gcd(a, b);
+      why = !g ? 'Choose a and b, not both 0.' : 'An (a, b) curve goes a times around the central hole and b times around the tube. ' + (g > 1 ? 'Here a and b share the factor ' + g + ', so the cut is ' + g + ' parallel copies of the (' + a / g + ', ' + b / g + ') curve, and each copy leaves another annulus.' : 'Cutting along it leaves one annulus.') + (Math.abs(a / g) >= 2 && Math.abs(b / g) >= 2 ? ' In space the curve itself is a torus knot, T(' + Math.abs(a / g) + ', ' + Math.abs(b / g) + ').' : '');
+    }
+    if (base === 'draw') {
+      why = !labLoops.length ? 'No loops cut yet: tap points on the map, then close the loop.'
+        : labLoops.map((L, i) => 'Loop ' + (i + 1) + ' goes ' + plural(Math.abs(L.a), 'time', 'times') + ' around the hole and ' + plural(Math.abs(L.b), 'time', 'times') + ' around the tube' + (surface === 'klein' && Math.abs(L.a) % 2 ? ', crossing the flipped edge, so it is one-sided' : L.a === 0 && L.b === 0 ? ', so it can shrink to a point' : '') + '.').join(' ')
+          + (surface === 'torus' ? ' A loop that can shrink to a point cuts off a disk; any other single loop leaves one annulus.' : '');
+    }
+    const orient = info.pieces.every(p => p.orientable) ? 'Every piece is two-sided' : info.pieces.every(p => !p.orientable) ? (info.count === 1 ? 'One-sided' : 'Every piece is one-sided') : plural(info.pieces.filter(p => !p.orientable).length, 'piece is', 'pieces are') + ' one-sided';
+    const label = (surface === 'klein' ? 'Klein bottle · ' : 'Torus · ') + (LAB_OPTIONS[surface].find(o => o[0] === kind) || [0, ''])[1].split(' · ')[0];
+    return {
+      kind, surface, data: r, segs: SL.mapSegments(surface, paths), flip: surface === 'klein', gluedLR: true, gluedTB: true,
+      slot, mapSlot, componentAt: r.componentAt, pointAt: (u, v, c, lift) => r.pointAt(u, v, lift),
+      text: { result, pieces: info.count, boundaries: info.boundaries, euler: info.euler, why, label, orient,
+        note: 'Bright lines mark the new boundaries. Small gaps show the cuts, and separate pieces are pulled apart; no caps are added.' + (surface === 'klein' ? ' Red and blue are the two Möbius bands that make up the Klein bottle.' : ' Each piece has its own color.') },
+      count: info.count
+    };
+  }
   function setLabCut(kind) {
-    if (kind !== null && !Object.prototype.hasOwnProperty.call(EX.CUTS, kind)) return;
+    if (kind !== null && !LAB_KINDS.has(kind)) return;
+    if (kind && (kind.startsWith('k-') ? 'klein' : 'torus') !== labSurfaceName) setLabSurface(kind.startsWith('k-') ? 'klein' : 'torus', false);
+    if (kind !== labCut) labDraft = [];
     labCut = kind; mapPick = null; mapKey = ''; labColorKey = '';
     panelEl.dataset.exploring = String(!!kind);
     if (isPhone()) setSheet(sheet, false); else syncMobileTools();
     document.getElementById('labReturn').hidden = !kind;
     document.getElementById('labReadout').hidden = !kind;
     labSurface.visible = !!kind; labBoundary.visible = false;
-    if (!kind) { syncQuick(); return; }
+    if (!kind) { labModel = null; syncLabTools(); syncQuick(); return; }
     clearSelection();
     labSelect.value = kind;
-    labMeshData = EX.makeCutMesh(kind);
+    labModel = makeLabModel(kind);
+    labMeshData = labModel.data;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(labMeshData.positions, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(labMeshData.positions.length), 3));
@@ -2366,21 +2519,70 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     }
     const edges = [];
     counts.forEach(e => { if (e.count === 1) edges.push(...p.slice(e.a*3,e.a*3+3),...p.slice(e.b*3,e.b*3+3)); });
-    setSegments(labBoundary, edges);
-    const info = EX.CUTS[kind];
-    for (const [id,value] of Object.entries({labResult:info.result,labPieces:info.components,labBoundaries:info.boundaries,labEuler:info.euler,labWhy:info.why,'q-lab':info.label})) document.getElementById(id).textContent = String(value);
+    setSegments(labBoundary, edges); labEdgeCount = edges.length; labVersion++;
+    const t = labModel.text;
+    for (const [id,value] of Object.entries({labResult:t.result,labPieces:t.pieces,labBoundaries:t.boundaries,labEuler:minus(t.euler),labWhy:t.why,labOrient:t.orient,labNote:t.note,'q-lab':t.label})) document.getElementById(id).textContent = String(value);
+    // the Klein bottle's self-intersection: where the figure-eight crosses itself
+    const ring = [];
+    if (labModel.surface === 'klein' && labModel.count === 1) for (let i = 0; i < 96; i += 2) {
+      const a = SL.SURFACES.klein.point(i / 96, 0), b = SL.SURFACES.klein.point((i + 1) / 96, 0);
+      ring.push(...a, ...b);
+    }
+    setSegments(labRing, ring);
+    syncLabTools();
     document.getElementById('cutLabDetails').open = true;
     mapDetails.open = true;
     revealModel();
   }
+  const labRing = segments(2.4, { transparent: true, opacity: 0.9, depthTest: false });
+  labRing.visible = false; labRing.renderOrder = 6;
+  function syncLabTools() {
+    const v = labSelect.value;
+    document.getElementById('labSlope').hidden = v !== 'slope';
+    document.getElementById('labDraw').hidden = !(v === 'draw' || v === 'k-draw');
+    const st = document.getElementById('labDrawStatus');
+    st.textContent = labDraft.length ? 'Loop ' + (labLoops.length + 1) + ': ' + plural(labDraft.length, 'point', 'points') + ' so far.' : labLoops.length ? plural(labLoops.length, 'loop', 'loops') + ' cut. Tap the map to start another.' : 'Tap the map to start a loop.';
+    document.getElementById('labClose').disabled = labDraft.length < 2;
+  }
+  function setLabSurface(name, rebuild = true) {
+    if (!LAB_OPTIONS[name]) return;
+    if (name !== labSurfaceName) { labLoops = []; labDraft = []; }
+    labSurfaceName = name;
+    document.querySelectorAll('#labSurfaceSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.surface === name)));
+    const keep = labSelect.value.replace(/^k-/, '');
+    labSelect.textContent = '';
+    LAB_OPTIONS[name].forEach(([value, text]) => { const o = document.createElement('option'); o.value = value; o.textContent = text; labSelect.appendChild(o); });
+    const want = (name === 'klein' ? 'k-' : '') + keep;
+    labSelect.value = LAB_OPTIONS[name].some(o => o[0] === want) ? want : LAB_OPTIONS[name][0][0];
+    syncLabTools();
+    if (rebuild && labCut) setLabCut(labSelect.value);
+  }
+  document.querySelectorAll('#labSurfaceSeg button').forEach(b => b.addEventListener('click', () => { setLabSurface(b.dataset.surface); logOp('lab surface', b.dataset.surface); }));
+  ['labA', 'labB'].forEach(id => document.getElementById(id).addEventListener('input', () => { if (labCut === 'slope') setLabCut('slope'); }));
+  function addDraftPoint(u, v) {
+    labDraft.push([Math.max(0, Math.min(1, u)), Math.max(0, Math.min(1, v))]);
+    mapKey = ''; syncLabTools();
+  }
+  document.getElementById('labClose').addEventListener('click', () => {
+    if (labDraft.length < 2 || !labIsDraw()) return;
+    const L = SL.loopPath(labSurfaceName, labDraft);
+    labLoops.push(Object.assign({ pts: labDraft.slice() }, L)); labDraft = [];
+    logOp('lab loop', { surface: labSurfaceName, a: L.a, b: L.b });
+    setLabCut(labCut);
+  });
+  document.getElementById('labUndo').addEventListener('click', () => {
+    if (labDraft.length) { labDraft.pop(); mapKey = ''; syncLabTools(); }
+    else if (labLoops.length && labIsDraw()) { labDraft = labLoops.pop().pts.slice(0, -1); setLabCut(labCut); }
+  });
+  document.getElementById('labClear').addEventListener('click', () => { labLoops = []; labDraft = []; if (labIsDraw()) setLabCut(labCut); else syncLabTools(); });
   document.getElementById('labShow').addEventListener('click', () => setLabCut(labSelect.value));
-  labSelect.addEventListener('change', () => { if (labCut) setLabCut(labSelect.value); });
+  labSelect.addEventListener('change', () => { syncLabTools(); if (labCut) setLabCut(labSelect.value); });
   document.getElementById('labReturn').addEventListener('click', () => setLabCut(null));
   document.getElementById('q-return').addEventListener('click', () => setLabCut(null));
   function mapReady() { return !!labCut || (!state.braid && !shapeOf().open && state.m >= 2 && state.grow === null && !state.twisting); }
   function chooseMapPoint(u, v) {
     if (!mapReady()) return;
-    if (labCut) mapPick = { u, v, component: EX.cutComponent(labCut,u,v) };
+    if (labCut) mapPick = { u, v, component: labModel.componentAt(u,v) };
     else {
       mapPick = EX.mapPoint(u,v,shapeOf().colors.length);
       select(componentOfPiece(mapPick.piece));
@@ -2396,10 +2598,11 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (d > 8) return; // preserve the sheet's vertical scrolling
     const r = mapCanvas.getBoundingClientRect(), x = (e.clientX-r.left)*640/r.width, y = (e.clientY-r.top)*280/r.height;
     const u = (x-mapRect.x)/mapRect.w, v = 1-(y-mapRect.y)/mapRect.h;
-    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) chooseMapPoint(u,v);
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) { if (labIsDraw()) addDraftPoint(u, v); else chooseMapPoint(u,v); }
   });
   mapCanvas.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { clearSelection(); return; }
+    if (e.key === 'Escape') { if (labIsDraw() && labDraft.length) { labDraft = []; mapKey = ''; syncLabTools(); } else clearSelection(); return; }
+    if (e.key === 'Enter' && labIsDraw()) { e.preventDefault(); const p = mapPick || {u:0.5,v:0.5}; addDraftPoint(p.u, p.v); return; }
     const moves = {ArrowLeft:[-0.025,0],ArrowRight:[0.025,0],ArrowUp:[0,0.025],ArrowDown:[0,-0.025]};
     const d = moves[e.key]; if (!d) return;
     e.preventDefault(); const p = mapPick || {u:0.5,v:0.5};
@@ -2410,7 +2613,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   function drawFlatMap() {
     if (!mapContext || !mapDetails.open) return;
     const ready = mapReady(), sh = shapeOf(), n = sh.colors.length;
-    const key = [labCut,state.shape,state.braid ? 'braid' : '',state.k,state.cut,state.cutTarget,cutColorBox.checked,sel,ready,JSON.stringify(mapPick),pal.stage,JSON.stringify(pal.c)].join('|');
+    const key = [labCut,labVersion,JSON.stringify(labDraft),state.shape,state.braid ? 'braid' : '',state.k,state.cut,state.cutTarget,cutColorBox.checked,sel,ready,JSON.stringify(mapPick),pal.stage,JSON.stringify(pal.c)].join('|');
     if (key === mapKey) return; mapKey = key;
     const c = mapContext, {x,y,w,h} = mapRect;
     const ink = token('--ink'), stageColor = token('--stage');
@@ -2424,8 +2627,15 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const paint = i => 'rgb(' + pal.c[i].join(',') + ')';
     c.lineWidth = 2;
     if (labCut) {
-      c.fillStyle = paint(5); c.fillRect(x,y,w,h);
-      c.fillStyle = paint(1); c.fillRect(x+w*3/8,y+h*5/8,w/4,h/4);
+      // paint the map cell by cell (runs of one color per row), as the surface is painted
+      const NU = SL.NU, NV = SL.NV;
+      for (let j = 0; j < NV; j++) {
+        let i0 = 0, cur = labModel.mapSlot(0.5 / NU, (j + 0.5) / NV);
+        for (let i = 1; i <= NU; i++) {
+          const nx = i < NU ? labModel.mapSlot((i + 0.5) / NU, (j + 0.5) / NV) : -1;
+          if (nx !== cur) { c.fillStyle = paint(cur); c.fillRect(x + w * i0 / NU, y + h * (1 - (j + 1) / NV), w * (i - i0) / NU + 0.6, h / NV + 0.6); i0 = i; cur = nx; }
+        }
+      }
     } else {
       const ci = cutInfo(), rep = ci.ok && state.cutTarget && cutColorBox.checked ? ci.rep : null;
       const selected = sel !== null && ci.ok ? ci.strips[sel]?.pieces : null;
@@ -2457,20 +2667,34 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       c.beginPath(); c.moveTo(ax,ay); c.lineTo(bx,by);
       const a = Math.atan2(by-ay,bx-ax); c.moveTo(bx-8*Math.cos(a-0.5),by-8*Math.sin(a-0.5)); c.lineTo(bx,by); c.lineTo(bx-8*Math.cos(a+0.5),by-8*Math.sin(a+0.5)); c.stroke();
     };
-    if (labCut !== 'meridian' && (labCut || analysis().fits)) { arrow(x-16,y+h*.6,x-16,y+h*.4); arrow(x+w+16,y+h*.6,x+w+16,y+h*.4); }
-    if (labCut !== 'longitude' && (labCut || CUT.reach(state.cut)<1)) { arrow(x+w*.45,y-14,x+w*.55,y-14); arrow(x+w*.45,y+h+14,x+w*.55,y+h+14); }
-    if (labCut && labCut !== 'closed') {
-      c.strokeStyle = ink; c.lineWidth = 4;
-      if (labCut === 'patch') c.strokeRect(x+w*3/8,y+h*5/8,w/4,h/4);
-      if (labCut === 'meridian') { c.beginPath(); c.moveTo(x,y); c.lineTo(x,y+h); c.moveTo(x+w,y); c.lineTo(x+w,y+h); c.stroke(); }
-      if (labCut === 'longitude') { c.beginPath(); c.moveTo(x,y); c.lineTo(x+w,y); c.moveTo(x,y+h); c.lineTo(x+w,y+h); c.stroke(); }
+    // Matching arrows: same direction for an ordinary gluing, opposite for the Klein bottle's flip.
+    c.strokeStyle = ink; c.lineWidth = 2;
+    if (labCut ? labModel.gluedLR : analysis().fits) { arrow(x-16,y+h*.6,x-16,y+h*.4); if (labCut && labModel.flip) arrow(x+w+16,y+h*.4,x+w+16,y+h*.6); else arrow(x+w+16,y+h*.6,x+w+16,y+h*.4); }
+    if (labCut ? labModel.gluedTB : CUT.reach(state.cut)<1) { arrow(x+w*.45,y-14,x+w*.55,y-14); arrow(x+w*.45,y+h+14,x+w*.55,y+h+14); }
+    const mx = u => x + w * u, my = v => y + h * (1 - v);
+    if (labCut && labModel.segs.length) {
+      c.strokeStyle = ink; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath();
+      for (const [u0, v0, u1, v1] of labModel.segs) { c.moveTo(mx(u0), my(v0)); c.lineTo(mx(u1), my(v1)); }
+      c.stroke(); c.lineCap = 'butt';
+    }
+    // a loop being drawn: its points, and the shortest way between them across the edges
+    if (labCut && labIsDraw() && labDraft.length) {
+      c.strokeStyle = ink; c.lineWidth = 2.5; c.setLineDash([7, 5]); c.beginPath();
+      let P = labDraft[0];
+      for (let k = 1; k < labDraft.length; k++) {
+        const Q = SL.nearestCopy(labSurfaceName, P, labDraft[k]);
+        for (const [u0, v0, u1, v1] of SL.mapLine(labSurfaceName, P, Q)) { c.moveTo(mx(u0), my(v0)); c.lineTo(mx(u1), my(v1)); }
+        P = Q;
+      }
+      c.stroke(); c.setLineDash([]);
+      labDraft.forEach(([u, v], k) => { c.beginPath(); c.arc(mx(u), my(v), k ? 4.5 : 6, 0, TAU); c.fillStyle = ink; c.fill(); });
     }
     if (mapPick) {
       const dot = (u,v) => { const px=x+w*u,py=y+h*(1-v); c.beginPath(); c.arc(px,py,6,0,TAU); c.fillStyle=ink; c.fill(); c.strokeStyle=stageColor; c.lineWidth=2; c.stroke(); };
       dot(mapPick.u,mapPick.v);
       if (!labCut && (mapPick.u < 1e-6 || mapPick.u > 1-1e-6) && analysis().fits && !state.cutTarget) dot(1-mapPick.u,EX.seamMate(mapPick.v,mapPick.u > 0.5 ? state.k : -state.k));
     }
-    if (labCut) mapNote.textContent = 'Horizontal: around the central hole. Vertical: around the tube. Arrows show edges still glued. ' + (labCut === 'patch' ? 'The outlined gold patch lifts out as a disk.' : EX.CUTS[labCut].result);
+    if (labCut) mapNote.textContent = 'Horizontal: around the central hole. Vertical: around the tube. Arrows show edges still glued' + (labModel.flip ? '; the left and right arrows point opposite ways because those edges are glued with a flip' : '') + '. ' + (labIsDraw() ? 'Tap to add points to a loop; thick lines are cuts.' : labCut === 'patch' ? 'The outlined gold patch lifts out as a disk.' : labModel.text.result);
     else {
       const fit = analysis().fits;
       const edge = state.cut === 0 ? 'Top ↔ bottom; ' : CUT.reach(state.cut) >= 1 ? 'Top and bottom are cut; ' : 'Top/bottom stay joined only along the uncut portions; ';
@@ -2484,25 +2708,25 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (mapConstruction && construction !== mapConstruction) mapPick = null;
     mapConstruction = construction;
     labSurface.visible = !!labCut;
-    labBoundary.visible = !!labCut && labCut !== 'closed';
+    labBoundary.visible = !!labCut && labHasEdges();
+    labRing.visible = !!labCut && !!labModel && labModel.surface === 'klein' && labModel.count === 1;
     if (labCut) {
       const key = JSON.stringify(pal.c) + pal.trace;
       if (key !== labColorKey) {
         labColorKey = key; const colors = labSurface.geometry.attributes.color.array, col = new THREE.Color();
         labMeshData.components.forEach((_,i) => {
-          const u=labMeshData.params[2*i],v=labMeshData.params[2*i+1];
-          const gold=u>=3/8 && u<=5/8 && v>=1/8 && v<=3/8, rgb=pal.c[gold ? 1 : 5];
+          const rgb=pal.c[labModel.slot(i)];
           col.setRGB(rgb[0]/255,rgb[1]/255,rgb[2]/255,THREE.SRGBColorSpace);
           colors[3*i]=col.r; colors[3*i+1]=col.g; colors[3*i+2]=col.b;
         });
         labSurface.geometry.attributes.color.needsUpdate = true;
-        labBoundary.material.color.set(pal.trace);
+        labBoundary.material.color.set(pal.trace); labRing.material.color.set(pal.trace);
       }
     }
     mapMarker.visible = !!mapPick && mapReady();
     if (mapMarker.visible) {
       let p;
-      if (labCut) p = EX.cutPoint(labCut,mapPick.u,mapPick.v,mapPick.component,0.018);
+      if (labCut) p = labModel.pointAt(mapPick.u,mapPick.v,mapPick.component,0.018);
       else { const a=mapPick.phi === undefined ? EX.mapPoint(mapPick.u,mapPick.v,shapeOf().colors.length) : mapPick; p=[0,0,0]; surfacePoint(a.piece,a.phi,a.u*TAU,p,0,1.025); }
       mapMarker.position.set(...p); mapMarker.material.color.set(pal.trace);
     }
