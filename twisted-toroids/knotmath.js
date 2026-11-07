@@ -341,6 +341,258 @@
     return terms.map((tm, k) => (k ? (tm.neg ? ' − ' : ' + ') : (tm.neg ? '−' : '')) + tm.s).join('');
   }
 
+  // ---------- Kauffman bracket and Jones polynomial ----------
+  // The bracket of a closed braid, computed in the Temperley-Lieb algebra: each
+  // crossing is A * (pass straight through) + A^-1 * (cup-cap), for sigma_i, and the
+  // reverse for its inverse. A state is a planar matching of the 2n endpoints
+  // (bottom 0..n-1, top n..2n-1); closing the braid joins bottom j to top j, and a
+  // state with L loops contributes delta^(L-1), delta = -A^2 - A^-2.
+  // Polynomials in A are { o: lowest exponent, c: number[] }. Coefficients stay far
+  // below 2^53 for anything the page allows, and `bracket` refuses to go on if not.
+  const MAX_SAFE = 2 ** 52;
+  const AP = {
+    shift(p, k) { return { o: p.o + k, c: p.c }; },
+    addInto(acc, p) {
+      if (!acc) return { o: p.o, c: p.c.slice() };
+      const o = Math.min(acc.o, p.o), hi = Math.max(acc.o + acc.c.length, p.o + p.c.length);
+      if (o === acc.o && hi === acc.o + acc.c.length) { p.c.forEach((x, i) => { acc.c[p.o - o + i] += x; }); return acc; }
+      const c = new Array(hi - o).fill(0);
+      acc.c.forEach((x, i) => { c[acc.o - o + i] += x; });
+      p.c.forEach((x, i) => { c[p.o - o + i] += x; });
+      return { o, c };
+    },
+    // times delta = -A^2 - A^-2
+    delta(p) {
+      const c = new Array(p.c.length + 4).fill(0);
+      p.c.forEach((x, i) => { c[i] -= x; c[i + 4] -= x; });
+      return { o: p.o - 2, c };
+    },
+    trim(p) {
+      let a = 0, b = p.c.length;
+      while (a < b && p.c[a] === 0) a++;
+      while (b > a && p.c[b - 1] === 0) b--;
+      return a === b ? { o: 0, c: [] } : { o: p.o + a, c: p.c.slice(a, b) };
+    }
+  };
+  function bracket(n, word, opts = {}) {
+    const budget = opts.budget || 6e7;
+    let work = 0;
+    const id = new Int8Array(2 * n);
+    for (let j = 0; j < n; j++) { id[j] = n + j; id[n + j] = j; }
+    let states = new Map([[String.fromCharCode(...id), { m: id, p: { o: 0, c: [1] } }]]);
+    for (const g of word) {
+      const i = Math.abs(g) - 1, e = Math.sign(g), a = n + i, b = n + i + 1, next = new Map();
+      const put = (m, p) => {
+        const key = String.fromCharCode(...m), cur = next.get(key);
+        if (cur) cur.p = AP.addInto(cur.p, p); else next.set(key, { m, p: { o: p.o, c: p.c.slice() } });
+      };
+      for (const { m, p } of states.values()) {
+        work += p.c.length + 8;
+        put(m, AP.shift(p, e));                  // pass straight through
+        if (m[a] === b) put(m, AP.delta(AP.shift(p, -e)));   // the cup-cap closes a loop
+        else {
+          const m2 = m.slice(), x = m[a], y = m[b];
+          m2[x] = y; m2[y] = x; m2[a] = b; m2[b] = a;
+          put(m2, AP.shift(p, -e));
+        }
+      }
+      states = new Map();
+      for (const [k, v] of next) {
+        const p = AP.trim(v.p);
+        if (!p.c.length) continue;
+        if (p.c.some(x => Math.abs(x) > MAX_SAFE)) throw new Error('Coefficients are too large to compute exactly here.');
+        states.set(k, { m: v.m, p });
+      }
+      if (work > budget) throw new Error('This braid is too large to compute its Jones polynomial here.');
+    }
+    // close up: count loops of matching edges plus closure edges j <-> n + j
+    let out = null;
+    for (const { m, p } of states.values()) {
+      const seen = new Uint8Array(2 * n);
+      let loops = 0;
+      for (let s = 0; s < 2 * n; s++) {
+        if (seen[s]) continue;
+        loops++;
+        let x = s;
+        while (!seen[x]) { seen[x] = 1; const y = m[x]; seen[y] = 1; x = y < n ? y + n : y - n; }
+      }
+      let q = p;
+      for (let k = 1; k < loops; k++) q = AP.delta(q);
+      out = AP.addInto(out, q);
+    }
+    return AP.trim(out || { o: 0, c: [] });
+  }
+  // Jones polynomial V(t) = (-A^3)^(-writhe) <closure> at A = t^(-1/4). Links with an
+  // even number of components have half-integer powers, so the result is written in
+  // s = t^(1/2): { o, c } with c[i] the coefficient of t^((o + i) / 2).
+  function jones(n, word, opts) {
+    if (n < 1) return { o: 0, c: [1] };
+    const br = bracket(n, word, opts);
+    const w = word.reduce((s, g) => s + Math.sign(g), 0);
+    const sign = w % 2 ? -1 : 1;
+    // A^k -> t^(-k/4) = s^(-k/2): reverse and halve the exponents
+    const terms = [];
+    br.c.forEach((x, i) => {
+      if (!x) return;
+      const k = br.o + i - 3 * w;
+      if (k % 2) throw new Error('odd exponent in the bracket');
+      terms.push([-k / 2, sign * x]);
+    });
+    if (!terms.length) return { o: 0, c: [] };
+    const lo = Math.min(...terms.map(t => t[0])), hi = Math.max(...terms.map(t => t[0]));
+    const c = new Array(hi - lo + 1).fill(0);
+    terms.forEach(([e, x]) => { c[e - lo] += x; });
+    return { o: lo, c };
+  }
+  // The same polynomial for the mirror image: t -> 1/t.
+  const mirrorPoly = p => p.c.length ? { o: -(p.o + p.c.length - 1), c: p.c.slice().reverse() } : p;
+  const polyKey = p => p.c.length ? p.o + ':' + p.c.join(',') : '0';
+  function jonesText(p) {
+    if (!p.c.length) return '0';
+    const exp = e => {
+      if (e % 2 === 0) { const k = e / 2; return k === 0 ? '' : k === 1 ? 't' : 't' + SUP(k); }
+      return 't' + SUP(e) + 'ᐟ²';
+    };
+    const terms = [];
+    p.c.forEach((x, i) => {
+      if (!x) return;
+      const e = p.o + i, a = Math.abs(x), v = exp(e);
+      terms.push({ neg: x < 0, s: (a === 1 && v ? '' : String(a)) + v });
+    });
+    terms.reverse();
+    return terms.map((tm, k) => (k ? (tm.neg ? ' − ' : ' + ') : (tm.neg ? '−' : '')) + tm.s).join('');
+  }
+  // Evaluate at t = x (for checks): sum c * x^((o + i) / 2), for x > 0 or x = -1 via
+  // |V(-1)|, which is the determinant of the link (equal to |Alexander(-1)|).
+  function jonesAt(p, x) {
+    if (x > 0) return p.c.reduce((s, c, i) => s + c * Math.pow(x, (p.o + i) / 2), 0);
+    // t = -1, s = i: s^e cycles through 1, i, -1, -i
+    let re = 0, im = 0;
+    p.c.forEach((c, i) => { const e = ((p.o + i) % 4 + 4) % 4; if (e === 0) re += c; else if (e === 1) im += c; else if (e === 2) re -= c; else im -= c; });
+    return Math.hypot(re, im);
+  }
+  // The braid's mirror image: every crossing changes sign.
+  const mirrorWord = word => word.map(g => -g);
+  // A braid is homogeneous if each generator appears with only one sign. Seifert's
+  // algorithm on the closure of a homogeneous braid gives a surface of least genus
+  // (Stallings; Cromwell), so its genus is the genus of the knot or link.
+  function homogeneous(word) {
+    const s = new Map();
+    for (const g of word) { const i = Math.abs(g); if (s.has(i) && s.get(i) !== Math.sign(g)) return false; s.set(i, Math.sign(g)); }
+    return true;
+  }
+  // Genus of the Seifert surface of a closed braid: n disks and one band per crossing,
+  // chi = n - c, genus = (2 - chi - components) / 2.
+  function seifertGenus(n, word) {
+    const mu = cycles(permutation(n, word)).length;
+    return (2 - (n - word.length) - mu) / 2;
+  }
+
+  // ---------- naming knots and links from the table ----------
+  // knot-table.js lists prime knots up to 10 crossings and prime links up to 8, each
+  // with a braid word and its Jones and Alexander polynomials. A knot is matched by
+  // its exact Jones polynomial (which tells most knots from their mirror images)
+  // and its Alexander polynomial. A link's Jones polynomial also depends on the
+  // directions of its components, so a link is matched against every choice of
+  // directions: reversing a set S of components multiplies V by t^(-3 lk(S, rest)).
+  // A match means "has the same polynomials as": different knots with more than ten
+  // crossings can share them, and the readouts say "matches".
+  const SUB = s => String(s).replace(/\d/g, d => '₀₁₂₃₄₅₆₇₈₉'[d]);
+  const tableName = nm => nm.includes('^') ? nm.replace(/^(\d+)\^(\d+)_(\d+)$/, (m, c, k, i) => c + SUP(k) + SUB(i)) : nm.replace(/^(\d+)_(\d+)$/, (m, c, i) => c + SUB(i));
+  const polyMul = (p, q) => {
+    if (!p.c.length || !q.c.length) return { o: 0, c: [] };
+    const c = new Array(p.c.length + q.c.length - 1).fill(0);
+    p.c.forEach((x, i) => q.c.forEach((y, j) => { c[i + j] += x * y; }));
+    return { o: p.o + q.o, c };
+  };
+  const alexMul = (a, b) => { const c = new Array(a.length + b.length - 1).fill(0); a.forEach((x, i) => b.forEach((y, j) => { c[i + j] += x * y; })); if (c[c.length - 1] < 0) return c.map(x => -x); return c; };
+  const palindromic = p => polyKey(p) === polyKey(mirrorPoly(p));
+  let TABLE = null;
+  function knotTable() {
+    if (TABLE) return TABLE;
+    const entries = root.KnotTableEntries || (typeof require === 'function' ? require('./knot-table.js') : []);
+    const primes = entries.map(e => Object.assign({}, e, { V: { o: e.jones[0], c: e.jones[1] }, label: tableName(e.name) }));
+    // right-handed torus knots have a Jones polynomial with only positive powers
+    primes.forEach(e => { if (e.torus) e.hand = e.V.o > 0 ? 'right-handed' : 'left-handed'; });
+    // composites of two prime knots with ten crossings or fewer in all
+    const small = primes.filter(e => e.kind === 'knot' && e.crossings <= 7);
+    const composites = [];
+    for (let i = 0; i < small.length; i++) for (let j = i; j < small.length; j++) {
+      const A = small[i], B = small[j];
+      if (A.crossings + B.crossings > 10) continue;
+      const flips = A.amphichiral || B.amphichiral ? [false] : [false, true];
+      for (const flipB of flips) {
+        const VB = flipB ? mirrorPoly(B.V) : B.V;
+        composites.push({ kind: 'knot', components: 1, composite: [[A, false], [B, flipB]], crossings: A.crossings + B.crossings, name: A.name + '#' + (flipB ? 'm' : '') + B.name,
+          V: polyMul(A.V, VB), alexander: alexMul(A.alexander, B.alexander), amphichiral: A === B && flipB && !A.amphichiral ? true : (A.amphichiral && B.amphichiral) || null });
+      }
+    }
+    TABLE = { primes, composites };
+    return TABLE;
+  }
+  // Text for one prime factor, `mirrored` relative to the table's diagram.
+  function primeLabel(e, mirrored) {
+    const name = e.label + (e.alias ? ' ' + e.alias : '');
+    if (e.torus) {
+      const hand = mirrored ? (e.hand === 'right-handed' ? 'left-handed' : 'right-handed') : e.hand;
+      return hand + ' ' + (e.alias || 'torus knot') + ' (' + e.label + ')';
+    }
+    if (e.amphichiral) return name;
+    return mirrored ? 'mirror image of ' + name : name;
+  }
+  function compositeLabel(c, mirrored) {
+    const parts = c.composite.map(([e, m]) => primeLabel(e, m !== mirrored));
+    const [[A, ma], [B, mb]] = c.composite;
+    let alias = '';
+    if (A === B && A.name === '3_1') alias = (ma === mb ? 'granny knot: ' : 'square knot: ');
+    return alias + parts.join(' # ');
+  }
+  // identify(n, word) -> { components, jones, matches: [{ label, chirality, name }], note }
+  function identify(n, word, opts = {}) {
+    const mu = cycles(permutation(n, word)).length;
+    let V;
+    try { V = jones(n, word, opts); } catch (err) { return { components: mu, error: err.message, matches: [] }; }
+    const key = polyKey(V), mkey = polyKey(mirrorPoly(V)), T = knotTable(), matches = [];
+    if (mu === 1) {
+      const alex = alexander(n, word).join(',');
+      if (key === '0:1') return { components: 1, jones: V, matches: [{ label: 'unknot', name: 'unknot', chirality: 'amphichiral' }] };
+      const consider = (e, labelOf) => {
+        if (e.alexander.join(',') !== alex) return;
+        const same = polyKey(e.V) === key, mirr = polyKey(e.V) === mkey;
+        if (!same && !mirr) return;
+        if (e.amphichiral) matches.push({ label: labelOf(e, false), name: e.name || null, chirality: 'amphichiral' });
+        else if (palindromic(V)) matches.push({ label: labelOf(e, false) + ' or its mirror image', name: e.name || null, chirality: 'undetected' });
+        else matches.push({ label: labelOf(e, !same), name: e.name || null, chirality: same ? 'as listed' : 'mirror' });
+      };
+      T.primes.filter(e => e.kind === 'knot').forEach(e => consider(e, primeLabel));
+      T.composites.forEach(c => consider(c, compositeLabel));
+    } else {
+      // the unlink: V = (-t^(1/2) - t^(-1/2))^(mu - 1)
+      let U = { o: 0, c: [1] };
+      for (let k = 1; k < mu; k++) U = polyMul(U, { o: -1, c: [-1, 0, -1] });
+      if (key === polyKey(U)) matches.push({ label: 'unlink of ' + mu + ' components (as far as the Jones polynomial can tell)', name: 'unlink', chirality: 'amphichiral' });
+      for (const e of T.primes) {
+        if (e.kind !== 'link' || e.components !== mu) continue;
+        // Compare with every choice of directions. If both the link and its mirror
+        // match (possibly with different directions), the Jones polynomial cannot
+        // tell them apart as unoriented links.
+        let same = false, mirr = false;
+        for (let S = 0; S < 1 << (mu - 1); S++) {
+          let lam = 0;
+          for (let i = 0; i < mu; i++) for (let j = 0; j < mu; j++) if (((S >> i) & 1) && !((S >> j) & 1)) lam += e.linking[i][j];
+          const wk = polyKey({ o: e.V.o - 6 * lam, c: e.V.c });
+          if (wk === key) same = true;
+          if (wk === mkey) mirr = true;
+        }
+        if (!same && !mirr) continue;
+        const found = same && mirr ? 'either' : same ? 'as listed' : 'mirror';
+        const name = e.label + (e.alias ? ' ' + e.alias : '');
+        matches.push({ label: found === 'mirror' && !e.amphichiral ? 'mirror image of ' + name : name, name: e.name, chirality: e.amphichiral ? 'amphichiral' : found });
+      }
+    }
+    return { components: mu, jones: V, matches };
+  }
+
   // Blackboard ribbon: each strand doubled by a parallel edge on its +a side.
   // Generator i becomes the pair of strands i crossing the pair i+1 flat.
   function blackboardRibbon(n, word) {
@@ -430,7 +682,8 @@
     return base.length === 1 || !e ? inner + e : '(' + inner + ')' + e;
   }
 
-  const api = { laneWidth, gcd, wordFormula, parseBraid, freeReduce, keepStrands, alexander, polyText, blackboardRibbon, describeBraid, braidLayout, braidWord, permutation, cycles, readBraid, stepsFor, torusKnot, describe, wordText };
+  const api = { laneWidth, gcd, wordFormula, parseBraid, freeReduce, keepStrands, alexander, polyText, blackboardRibbon, describeBraid, braidLayout, braidWord, permutation, cycles, readBraid, stepsFor, torusKnot, describe, wordText,
+    bracket, jones, jonesText, jonesAt, mirrorPoly, polyKey, mirrorWord, homogeneous, seifertGenus, identify, knotTable, tableName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KnotMath = api;
 })(typeof window !== 'undefined' ? window : globalThis);
