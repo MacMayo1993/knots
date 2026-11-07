@@ -1,8 +1,8 @@
 /* A braid diagram you can edit: strands run left to right, one column per crossing.
 
    diagram(n, word) is pure geometry (testable without a browser). mount() draws it
-   as SVG and handles taps: a tap on a crossing flips it (sigma <-> sigma inverse) or
-   deletes it, buttons add crossings at the end, and the strand count can change.
+   as SVG with explicit selection, flip/delete tools and insertion beside a crossing.
+   Application history unifies diagram, typed-word and preset changes.
 
    Drawing convention: with the strands running left to right, a positive crossing
    sigma_i has its over-strand running from upper left to lower right (a right-handed
@@ -10,7 +10,7 @@
    SnapPy. Strand position 1 is the top row. */
 (function (root) {
   'use strict';
-  const COL = 34, ROW = 30, PAD = 18;
+  const COL = 52, ROW = 42, PAD = 26;
 
   // Segments of the diagram: each strand's piece in each column, with its component
   // and whether it passes over or under at a crossing.
@@ -50,75 +50,103 @@
   }
   const genText = g => 'σ' + String(Math.abs(g)).replace(/\d/g, d => '₀₁₂₃₄₅₆₇₈₉'[d]) + (g < 0 ? '⁻¹' : '');
 
-  // opts: { color(comp) -> css color, ink, paper, onChange(n, word), maxStrands, maxCrossings }
+  // The application owns history so diagram edits, examples and typed words undo together.
   function mount(box, opts) {
     const doc = opts.document || box.ownerDocument || root.document, NS = 'http://www.w3.org/2000/svg';
-    let n = 2, word = [], mode = 'flip';
+    let n = 2, word = [], mode = 'select', selected = -1;
     const el = (tag, attrs = {}, parent) => { const e = doc.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
     const sv = (tag, attrs = {}, parent) => { const e = doc.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+    const button = (label, parent, fn, attrs = {}) => { const b = el('button', { type: 'button', ...attrs }, parent); b.textContent = label; b.addEventListener('click', fn); return b; };
     box.textContent = '';
-    const tools = el('div', { class: 'be-tools' }, box);
-    const strands = el('div', { class: 'be-strands' }, tools);
-    const minusB = el('button', { type: 'button', class: 'step', 'aria-label': 'One strand fewer' }, strands); minusB.textContent = '−';
+    const tools = el('div', { class: 'be-tools' }, box), strands = el('div', { class: 'be-strands', role: 'group', 'aria-label': 'Strand count' }, tools);
+    const minusB = button('−', strands, () => {
+      if (n <= 1) return;
+      if (word.some(g => Math.abs(g) >= n - 1)) { status.textContent = 'Remove the bottom strand’s crossings first, or undo an edit.'; return; }
+      n--; change('Removed the bottom strand.');
+    }, { class: 'step', 'aria-label': 'One strand fewer' });
     const count = el('output', { class: 'be-count', 'aria-live': 'polite' }, strands);
-    const plusB = el('button', { type: 'button', class: 'step', 'aria-label': 'One strand more' }, strands); plusB.textContent = '+';
-    const modeSeg = el('div', { class: 'seg be-mode', role: 'group', 'aria-label': 'Tapping a crossing' }, tools);
-    const flipB = el('button', { type: 'button', 'aria-pressed': 'true' }, modeSeg); flipB.textContent = 'Tap flips';
-    const delB = el('button', { type: 'button', 'aria-pressed': 'false' }, modeSeg); delB.textContent = 'Tap deletes';
+    const plusB = button('+', strands, () => { if (n < (opts.maxStrands || 10)) { n++; change('Added a strand.'); } }, { class: 'step', 'aria-label': 'One strand more' });
+    const history = el('div', { class: 'be-history' }, tools);
+    const undoB = button('↶ Undo', history, () => opts.onUndo?.(), { class: 'secondary', 'aria-label': 'Undo braid edit' });
+    const redoB = button('↷ Redo', history, () => opts.onRedo?.(), { class: 'secondary', 'aria-label': 'Redo braid edit' });
+    const modeSeg = el('div', { class: 'seg be-mode', role: 'group', 'aria-label': 'Diagram editing tool' }, box);
+    const modes = [['select', 'Select'], ['flip', 'Tap flips'], ['delete', 'Tap deletes']].map(([key, label]) => [key, button(label, modeSeg, () => setMode(key))]);
     const scroller = el('div', { class: 'be-scroll' }, box);
     const svg = sv('svg', { class: 'be-svg', role: 'group', 'aria-label': 'Braid diagram' }, scroller);
-    const add = el('div', { class: 'be-add', role: 'group', 'aria-label': 'Add a crossing at the end' }, box);
+    const selection = el('div', { class: 'be-selection' }, box);
+    const selectedText = el('span', { class: 'be-selected-text', 'aria-live': 'polite' }, selection);
+    const flipOne = button('Flip', selection, () => flip(), { class: 'secondary', 'aria-label': 'Flip selected crossing' });
+    const deleteOne = button('Delete', selection, () => remove(), { class: 'secondary', 'aria-label': 'Delete selected crossing' });
+    const insertion = el('label', { class: 'be-insertion' }, box); insertion.textContent = 'Add crossings';
+    const where = el('select', { 'aria-label': 'Insert crossing position' }, insertion);
+    for (const [value, label] of [['end', 'At the end'], ['before', 'Before selection'], ['after', 'After selection'], ['start', 'At the start']]) {
+      const o = el('option', { value }, where); o.value = value; o.textContent = label;
+    }
+    where.value = 'end';
+    const add = el('div', { class: 'be-add', role: 'group', 'aria-label': 'Add a crossing' }, box);
     const actions = el('div', { class: 'be-actions' }, box);
-    const undoB = el('button', { type: 'button', class: 'link-btn' }, actions); undoB.textContent = 'Remove last crossing';
-    const clearB = el('button', { type: 'button', class: 'link-btn' }, actions); clearB.textContent = 'Clear';
+    const mirrorB = button('⇄ Mirror braid', actions, () => { word = word.map(g => -g); change('Mirrored every crossing. Undo restores the original.'); }, { class: 'secondary' });
+    const lastB = button('Remove last crossing', actions, () => { if (word.length) { word.pop(); selected = -1; change('Removed the last crossing.'); } }, { class: 'link-btn' });
+    const clearB = button('Clear', actions, () => { word = []; selected = -1; change('Cleared the crossings. Undo restores them.'); }, { class: 'link-btn' });
     const status = el('p', { class: 'be-status', 'aria-live': 'polite' }, box);
-    const change = (msg) => { if (msg) status.textContent = msg; opts.onChange(n, word.slice()); };
-    function setMode(m) { mode = m; flipB.setAttribute('aria-pressed', String(m === 'flip')); delB.setAttribute('aria-pressed', String(m === 'delete')); render(n, word); }
-    flipB.addEventListener('click', () => setMode('flip'));
-    delB.addEventListener('click', () => setMode('delete'));
-    minusB.addEventListener('click', () => {
-      if (n <= 2) return;
-      if (word.some(g => Math.abs(g) >= n - 1)) { status.textContent = 'The bottom strand still crosses: remove its crossings first.'; return; }
-      n--; change('Removed the bottom strand.');
-    });
-    plusB.addEventListener('click', () => { if (n >= (opts.maxStrands || 10)) return; n++; change('Added a strand at the bottom.'); });
-    undoB.addEventListener('click', () => { if (!word.length) return; const g = word.pop(); change('Removed ' + genText(g) + '.'); });
-    clearB.addEventListener('click', () => { if (!word.length) return; word = []; change('Cleared the crossings.'); });
+    function change(msg) { status.textContent = msg; render(n, word); opts.onChange(n, word.slice()); }
+    function setMode(m) { mode = m; render(n, word); }
+    function flip() { if (selected < 0) return; word[selected] = -word[selected]; change('Flipped crossing ' + (selected + 1) + '.'); }
+    function remove() { if (selected < 0) return; word.splice(selected, 1); selected = Math.min(selected, word.length - 1); change('Deleted the selected crossing.'); }
     function act(k) {
-      const g = word[k];
-      if (mode === 'delete') { word.splice(k, 1); change('Deleted crossing ' + (k + 1) + ' (' + genText(g) + ').'); }
-      else { word[k] = -g; change('Crossing ' + (k + 1) + ' is now ' + genText(-g) + '.'); }
+      selected = k;
+      if (mode === 'delete') remove();
+      else if (mode === 'flip') flip();
+      else { where.value = 'after'; render(n, word); }
+    }
+    function insert(g) {
+      if (word.length >= (opts.maxCrossings || 400)) { status.textContent = 'Maximum crossing count reached. Delete a crossing to add another.'; return; }
+      let at = word.length;
+      if (where.value === 'start') at = 0;
+      if (selected >= 0 && where.value === 'before') at = selected;
+      if (selected >= 0 && where.value === 'after') at = selected + 1;
+      word.splice(at, 0, g); selected = at;
+      change('Added ' + genText(g) + ' at crossing ' + (at + 1) + '.');
+      scroller.scrollLeft = Math.max(0, PAD + at * COL - (scroller.clientWidth || 260) / 2);
     }
     function render(nn, ww) {
+      const externalChange = n !== nn || word.length !== ww.length || word.some((g, i) => g !== ww[i]);
+      if (externalChange) selected = -1;
       n = nn; word = ww.slice();
-      count.textContent = n + ' strands';
-      minusB.disabled = n <= 2; plusB.disabled = n >= (opts.maxStrands || 10);
+      if (selected >= word.length) selected = -1;
+      count.textContent = n + (n === 1 ? ' strand' : ' strands');
+      minusB.disabled = n <= 1; plusB.disabled = n >= (opts.maxStrands || 10);
+      undoB.disabled = !opts.history?.().canUndo; redoB.disabled = !opts.history?.().canRedo;
+      modes.forEach(([key, b]) => b.setAttribute('aria-pressed', String(key === mode)));
       const D = diagram(n, word);
       svg.setAttribute('viewBox', '0 0 ' + D.width + ' ' + D.height);
       svg.setAttribute('width', String(D.width)); svg.setAttribute('height', String(D.height));
       svg.textContent = '';
-      const line = (s, w, color) => sv('line', { x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2, style: 'stroke:' + color, 'stroke-width': w, 'stroke-linecap': 'round' }, svg);
-      // under-strands first, then each over-strand on a halo of paper so the under one looks broken
-      for (const s of D.segs) if (s.role !== 'over') line(s, 4, opts.color(s.comp));
-      for (const s of D.segs) if (s.role === 'over') { line(s, 11, opts.paper()); line(s, 4, opts.color(s.comp)); }
-      D.cols.forEach(c => {
-        const hit = sv('rect', { x: c.x - 15, y: c.y - ROW / 2 - 4, width: 30, height: ROW + 8, rx: 6, class: 'be-hit', tabindex: '0', role: 'button',
-          'aria-label': 'Crossing ' + (c.k + 1) + ': ' + genText(c.gen) + (mode === 'delete' ? '. Activate to delete.' : '. Activate to flip.') }, svg);
-        hit.addEventListener('click', () => act(c.k));
-        hit.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(c.k); } });
-      });
-      // the add-a-crossing buttons, one pair per gap between neighbouring strands
-      add.textContent = '';
-      for (let i = 1; i < n; i++) for (const sgn of [1, -1]) {
-        const b = el('button', { type: 'button', class: 'be-gen', 'aria-label': 'Add ' + genText(sgn * i) + ' at the end' }, add);
-        b.textContent = genText(sgn * i);
-        b.addEventListener('click', () => {
-          if (word.length >= (opts.maxCrossings || 400)) { status.textContent = 'That is the most crossings allowed.'; return; }
-          word.push(sgn * i); change('Added ' + genText(sgn * i) + '.');
-          scroller.scrollLeft = 1e6;
-        });
+      for (let r = 0; r < n; r++) {
+        const label = sv('text', { x: 7, y: D.rowY(r) + 4, class: 'be-row-label' }, svg); label.textContent = r + 1;
       }
-      undoB.disabled = clearB.disabled = !word.length;
+      const line = (s, w, color) => sv('line', { x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2, style: 'stroke:' + color, 'stroke-width': w, 'stroke-linecap': 'round' }, svg);
+      for (const s of D.segs) if (s.role !== 'over') line(s, 5, opts.color(s.comp));
+      for (const s of D.segs) if (s.role === 'over') { line(s, 13, opts.paper()); line(s, 5, opts.color(s.comp)); }
+      const hits = [];
+      D.cols.forEach(c => {
+        const hit = sv('rect', { x: c.x - 23, y: c.y - 23, width: 46, height: 46, rx: 10, class: 'be-hit', 'data-crossing': c.k, tabindex: '0', role: 'button', 'aria-pressed': String(selected === c.k),
+          'aria-label': 'Crossing ' + (c.k + 1) + ': ' + genText(c.gen) + '. Activate to ' + mode + '.' }, svg);
+        hits.push(hit); hit.addEventListener('click', () => act(c.k));
+        hit.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(c.k); svg.querySelector?.('[data-crossing="' + Math.max(0, selected) + '"]')?.focus(); }
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); hits[Math.max(0, Math.min(hits.length - 1, c.k + (e.key === 'ArrowLeft' ? -1 : 1)))].focus(); }
+          if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); selected = c.k; remove(); svg.querySelector?.('[data-crossing="' + Math.max(0, selected) + '"]')?.focus(); }
+        });
+      });
+      selectedText.textContent = selected >= 0 ? 'Crossing ' + (selected + 1) + ' · ' + genText(word[selected]) : word.length ? 'Select a crossing to edit it' : 'Add a crossing to start your braid';
+      flipOne.disabled = deleteOne.disabled = selected < 0;
+      add.textContent = '';
+      for (let i = 1; i < n; i++) {
+        const pair = el('div', { class: 'be-pair' }, add), label = el('span', { class: 'be-pair-label' }, pair); label.textContent = 'Strands ' + i + '–' + (i + 1);
+        for (const sgn of [1, -1]) button(genText(sgn * i), pair, () => insert(sgn * i), { class: 'be-gen', 'data-sign': sgn, 'aria-label': 'Add ' + genText(sgn * i) });
+      }
+      lastB.disabled = clearB.disabled = mirrorB.disabled = !word.length;
     }
     return { render, setMode, get word() { return word.slice(); }, get n() { return n; } };
   }

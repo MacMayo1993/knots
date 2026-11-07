@@ -53,7 +53,7 @@ class Curve{constructor(points){this.points=points;}}
 class TubeGeometry extends Geometry{constructor(curve,segments,radius,radial,closed){super();this.curve=curve;this.parameters={segments,radius,radial,closed};const P=[],I=[];curve.points.forEach((p,i)=>{for(let k=0;k<3;k++)P.push(i,k,0);const a=3*i,b=3*((i+1)%curve.points.length);I.push(a,a+1,b,a+1,b+1,b,a+1,a+2,b+1,a+2,b+2,b+1,a+2,a,b+2,a,b,b+2);});this.attributes.position=new Attribute(new Float32Array(P),3);this.index=new Attribute(new Uint32Array(I),1);}}
 const THREE={Curve,CatmullRomCurve3:Curve,TubeGeometry,FrontSide:0,BackSide:1,DoubleSide:2,MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
 const phone=process.argv.includes('--phone'),side=process.argv.includes('--landscape'),animate=process.argv.includes('--animate');
-const win={innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),BraidEditor:require(process.cwd()+'/braid-editor.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),KnotRelax:require(process.cwd()+'/relax.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
+const win={BraidControls:require(process.cwd()+'/braid-controls.js'),innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),BraidEditor:require(process.cwd()+'/braid-editor.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),KnotRelax:require(process.cwd()+'/relax.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
 const sandbox={KnotMath:win.KnotMath,THREE,OrbitControls,Line2:Object3D,LineSegments2:Object3D,LineMaterial:Material,LineGeometry:Geometry,LineSegmentsGeometry:Geometry,window:win,document:{documentElement:root,body:el(),getElementById:get,createElement:el,querySelectorAll(s){const key={'#shapeSeg button':'shape','#twistSeg button':'k','#modeSeg button':'mode','#braidExamples button':'word'}[s];return buttons.filter(b=>key in b.dataset);}},getComputedStyle(){return {getPropertyValue(k){return root.style[k]||palette[k]||'#888888';}};},MutationObserver:class{observe(){}},localStorage:{getItem(){return null;},setItem(){}},location:{hash:'',href:'https://example.test/'},history:{replaceState(){}},performance:{now(){return 0;}},requestAnimationFrame(){},setTimeout(f){timers.push(f);},URLSearchParams,console,Blob:class{constructor(parts){this.parts=parts;}},URL:{createObjectURL(){return 'blob:x';},revokeObjectURL(){}}};
 vm.createContext(sandbox);
 const savedPreferences=new Map();
@@ -257,10 +257,49 @@ console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sect
  for(const label of ['σ₁','σ₂⁻¹','σ₁','σ₂⁻¹'])gens().find(b=>b.text===label).click();
  assert.deepEqual(p.state.braid.word,[1,-2,1,-2]);assert.match(get('x-name').textContent,/figure-eight/);
  const hits=()=>walk(editorBox,n=>n.tag==='rect'&&n.attrs.class==='be-hit');
- assert.equal(hits().length,4);hits()[1].dispatch('click');assert.deepEqual(p.state.braid.word,[1,2,1,-2]);
+ assert.equal(hits().length,4);hits()[1].dispatch('click');assert.deepEqual(p.state.braid.word,[1,-2,1,-2]);
+ walk(editorBox,n=>n.attrs['aria-label']==='Flip selected crossing')[0].click();assert.deepEqual(p.state.braid.word,[1,2,1,-2]);
  walk(editorBox,n=>n.tag==='button'&&n.text==='Tap deletes')[0].click();hits()[1].dispatch('click');assert.deepEqual(p.state.braid.word,[1,1,-2]);
  walk(editorBox,n=>n.tag==='button'&&n.text==='Remove last crossing')[0].click();assert.deepEqual(p.state.braid.word,[1,1]);
  walk(editorBox,n=>n.tag==='button'&&n.attrs['aria-label']==='One strand more')[0].click();assert.equal(p.state.braid.n,4);
+ // One history covers diagram edits, examples, strand counts and typed words.
+ get('braidUndo').click();assert.equal(p.state.braid.n,3);assert.deepEqual(p.state.braid.word,[1,1]);
+ get('braidRedo').click();assert.equal(p.state.braid.n,4);
+ p.braidEditor.setMode('select');p.showBraid({n:3,word:[1,-2]});
+ hits()[0].dispatch('click');const insertion=walk(editorBox,n=>n.attrs['aria-label']==='Insert crossing position')[0];
+ insertion.value='before';gens().find(b=>b.text==='σ₂').click();assert.deepEqual(p.state.braid.word,[2,1,-2]);
+ get('braidUndo').click();assert.deepEqual(p.state.braid.word,[1,-2]);
+ walk(editorBox,n=>n.tag==='button'&&n.text==='⇄ Mirror braid')[0].click();assert.deepEqual(p.state.braid.word,[-1,2]);assert(get('braidRedo').disabled);
+ get('braidUndo').click();assert.deepEqual(p.state.braid.word,[1,-2]);
+ walk(editorBox,n=>n.tag==='button'&&n.text==='Clear')[0].click();assert.deepEqual(p.state.braid.word,[]);
+ get('braidUndo').click();assert.deepEqual(p.state.braid.word,[1,-2]);
+ assert.equal(get('braidInput').value,'s1 S2');assert.equal(get('braidStrands').value,'3');
+ p.showBraid({n:1,word:[]});assert.equal(p.braidEditor.n,1);assert.equal(gens().length,0);assert(get('braidStats').textContent.includes('1 strand'));
+ // Custom styling keeps centerlines and exact invariants, and uses matching component colors.
+ p.showBraid({n:3,word:[1,-2,1,-2,1,-2]});p.clearSelection();p.syncSurface();
+ const beforeStyle=Array.from(p.surface.geometry.attributes.position.array), beforeMath=['x-jones','x-alex','x-matrix'].map(id=>get(id).textContent);
+ const colorInput=get('braidComponentColors').children[1].children[0];colorInput.value='#12abef';colorInput.dispatch('input');
+ match(rows()[1],rgb(new Color('#12abef')));assert.equal(get('x-stripes').children[1].style.color,'#12abef');
+ get('braidWidth').value='140';get('braidWidth').dispatch('input');p.syncSurface();
+ const afterStyle=p.surface.geometry.attributes.position.array;
+ assert.notDeepEqual(Array.from(afterStyle),beforeStyle);
+ for(let i=0;i<beforeStyle.length;i+=6)for(let k=0;k<3;k++)assert(Math.abs(beforeStyle[i+k]+beforeStyle[i+3+k]-afterStyle[i+k]-afterStyle[i+3+k])<1e-6,'ribbon centerlines unchanged');
+ assert.deepEqual(['x-jones','x-alex','x-matrix'].map(id=>get(id).textContent),beforeMath);
+ assert.equal(JSON.parse(savedPreferences.get(win.BraidControls.KEY)).width,1.4);
+ assert.equal(JSON.parse(savedPreferences.get(win.BraidControls.KEY)).colors[1],'#12abef');
+ get('braidStyleReset').click();assert.equal(get('braidWidth').value,'100');paint([0,2,1]);
+ p.setSheet('hidden');p.syncQuick();assert.equal(get('braidToolbar').hidden,false);p.setLabCut('meridian');p.syncQuick();assert.equal(get('braidToolbar').hidden,true);p.setLabCut(null);p.syncQuick();assert.equal(get('braidToolbar').hidden,false);
+ console.log('PASS: braid selection/insertion/mirror/clear/undo/redo, single strand, persistent component colors, ribbon widths preserve centerlines/invariants, toolbar visibility.');
+ // Pull tool starts from the original braid, pauses between gestures, and cleans up.
+ get('braidViewPull').click();p.render(false,0,[0,0,0]);
+ assert(p.getRelax().paused);assert.equal(get('braidPullOptions').hidden,false);assert.equal(get('pullComponent').children.length,4);
+ const pullStart=Array.from(p.getRelax().S.P);tick1();assert.deepEqual(Array.from(p.getRelax().S.P),pullStart);
+ get('pullTighten').click();tick1();assert.notDeepEqual(Array.from(p.getRelax().S.P),pullStart);
+ get('pullTighten').click();const held=Array.from(p.getRelax().S.P);tick1();assert.deepEqual(Array.from(p.getRelax().S.P),held);
+ get('pullReset').click();p.render(false,0,[0,0,0]);assert.deepEqual(Array.from(p.getRelax().S.P),pullStart);
+ get('pullUndo').click();p.render(false,0,[0,0,0]);assert.deepEqual(Array.from(p.getRelax().S.P),held);
+ get('braidViewRibbon').click();assert.equal(get('braidPullOptions').hidden,true);assert.equal(p.getRelax(),null);
+ console.log('PASS: Pull view, paused geometry, tightening, pause, reset, shape undo and view cleanup.');
  // Seifert surface: shown instead of the ribbons, with its genus, and printable
  p.showBraid({n:3,word:[1,-2,1,-2]});const sb=get('seifertBox');sb.checked=true;sb.dispatch('change');p.render(false,0,[0,0,0]);
  assert.equal(p.getSeif().genus,1);assert.equal(p.surface.visible,false);tick1();assert.match(get('hud').textContent,/Seifert surface · genus 1/);

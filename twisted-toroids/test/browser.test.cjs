@@ -10,7 +10,7 @@ let chromium, devices;
 try { ({ chromium, devices } = require('playwright')); } catch (_) { console.log('SKIP: Playwright is not installed (npm install playwright, then npx playwright install chromium).'); process.exit(0); }
 const MK = require('../meshkit.js');
 const ROOT = path.join(__dirname, '..');
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+const TYPES = { '.css': 'text/css', '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 const server = http.createServer((req, res) => {
   const file = path.join(ROOT, decodeURIComponent(new URL(req.url, 'http://x').pathname));
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
@@ -43,10 +43,19 @@ const server = http.createServer((req, res) => {
     o.width = 160; o.height = Math.round(160 * c.height / c.width);
     const g = o.getContext('2d'); g.drawImage(c, 0, 0, o.width, o.height);
     const d = g.getImageData(0, 0, o.width, o.height).data;
-    let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
-    res(n / (o.width * o.height));
+    // Braid framing reserves the area above the model for the toolbar. Measure
+    // model coverage in the available viewport, rather than including that UI area.
+    const bar = document.getElementById('braidToolbar'), rect = c.getBoundingClientRect();
+    const top = bar.hidden ? 0 : Math.ceil(o.height * (bar.getBoundingClientRect().bottom - rect.top) / rect.height);
+    let n = 0; for (let i = Math.max(0, top) * o.width * 4 + 3; i < d.length; i += 4) if (d[i] > 0) n++;
+    res(n / (o.width * Math.max(1, o.height - top)));
   })));
   const hud = page => page.textContent('#hud');
+  const screenshot = async (page, name) => {
+    if (!process.env.CI && !process.env.BRAID_SCREENSHOTS) return;
+    const dir = path.join(ROOT, 'test-output'); fs.mkdirSync(dir, {recursive:true});
+    await page.screenshot({path:path.join(dir, name+'.png')});
+  };
 
   // desktop: the model draws, and stays in view while the panel scrolls
   let page = await open('#shape=hex&turn=1/3');
@@ -76,13 +85,41 @@ const server = http.createServer((req, res) => {
   page = await open('#braid=1,1,1&strands=2');
   ok(/right-handed trefoil/.test(await hud(page)), 'trefoil is named: ' + await hud(page));
   ok(/t⁴/.test(await page.textContent('#x-jones')), 'Jones polynomial shown');
-  await page.evaluate(() => document.getElementById('seifertBox').click());
+  await screenshot(page, 'braid-desktop');
+  await page.click('#braidViewSurface');
+  ok(await page.getAttribute('#braidViewSurface','aria-pressed') === 'true', 'surface view is selected');
   await page.waitForFunction(() => /Seifert surface · genus 1/.test(document.getElementById('hud').textContent));
-  ok(await drawn(page) > 0.1, 'Seifert surface draws');
+  await screenshot(page, 'braid-surface');
+  const surfaceCoverage = await drawn(page);
+  ok(surfaceCoverage > 0.1, 'Seifert surface draws in the available viewport: '+surfaceCoverage);
   ok(await stlClosed(page), 'Seifert surface STL is a closed solid');
-  await page.evaluate(() => document.getElementById('relaxBtn').click());
+  await page.click('#braidViewRope');
+  ok(await page.getAttribute('#braidViewRope','aria-pressed') === 'true', 'rope view is selected');
   await page.waitForFunction(() => /Relaxed/.test(document.getElementById('hud').textContent), null, { timeout: 30000 });
-  ok(await drawn(page) > 0.05, 'relaxed knot draws');
+  const ropeCoverage = await drawn(page);
+  ok(ropeCoverage > 0.05, 'relaxed knot draws in the available viewport: '+ropeCoverage);
+  await page.click('#braidViewRibbon');
+  ok(await page.getAttribute('#braidViewRibbon', 'aria-pressed') === 'true', 'ribbon view is selected');
+  await page.locator('#braidEditor rect.be-hit').nth(1).click();
+  ok(await page.inputValue('#braidInput') === 's1 s1 s1', 'selecting a crossing does not change it');
+  await page.getByRole('button', { name: 'Flip selected crossing', exact: true }).click();
+  ok(await page.inputValue('#braidInput') === 's1 S1 s1', 'selected crossing flips');
+  await page.click('#braidUndo');
+  ok(await page.inputValue('#braidInput') === 's1 s1 s1', 'on-canvas undo restores the trefoil');
+  await page.click('#braidRedo');
+  ok(await page.inputValue('#braidInput') === 's1 S1 s1', 'on-canvas redo restores the edit');
+  await page.click('#braidUndo');
+  await page.click('#braidCustomize');
+  await page.locator('#braidCustomizeDetails[open]').waitFor();
+  const invariant = await page.textContent('#x-jones');
+  await page.evaluate(() => { const w=document.getElementById('braidWidth'); w.value='140'; w.dispatchEvent(new Event('input',{bubbles:true})); const c=document.querySelector('#braidComponentColors input'); c.value='#12abef'; c.dispatchEvent(new Event('input',{bubbles:true})); });
+  ok(await page.textContent('#braidWidthValue') === '140%', 'width feedback updates');
+  ok(await page.textContent('#x-jones') === invariant, 'styling preserves the Jones polynomial');
+  ok(await page.$eval('#braidEditor line', e => e.style.stroke) === 'rgb(18, 171, 239)', 'custom color reaches the diagram');
+  await page.reload({waitUntil:'load'});
+  await page.waitForFunction(() => document.getElementById('braidStats').textContent.includes('3 crossings'));
+  ok(await page.inputValue('#braidWidth') === '140', 'width persists after reload');
+  ok(await page.locator('#braidComponentColors input').first().inputValue() === '#12abef', 'component color persists after reload');
   // the diagram editor drew a crossing per generator
   ok(await page.$$eval('#braidEditor rect.be-hit', r => r.length) === 3, 'editor shows three crossings');
   await page.context().close();
@@ -112,6 +149,100 @@ const server = http.createServer((req, res) => {
   ok(phone.stage === 'fixed' && phone.panel === 'fixed' && phone.tools && phone.sheetTop > phone.vh * 0.6, 'phone layout: ' + JSON.stringify(phone));
   ok(await drawn(page) > 0.1, 'phone draws the torus');
   await page.context().close();
+
+  // Braid controls remain useful with the phone sheet hidden, including narrow screens.
+  for (const viewport of [{width:390,height:844},{width:320,height:740},{width:844,height:390}]) {
+    page = await open('#braid=1,-2,1,-2&strands=3', {viewport, isMobile:true, hasTouch:true, deviceScaleFactor:1});
+    await page.click('#sheetHide');
+    await page.locator('#braidToolbar').waitFor({state:'visible'});
+    const layout = await page.evaluate(() => {
+      const bar = document.getElementById('braidToolbar').getBoundingClientRect();
+      return {left:bar.left,right:bar.right,width:innerWidth,overflow:document.documentElement.scrollWidth > innerWidth,
+        taps:[...document.querySelectorAll('#braidToolbar button')].filter(e=>e.getBoundingClientRect().width).map(e=>{const r=e.getBoundingClientRect();return [r.width,r.height];})};
+    });
+    ok(layout.left >= 0 && layout.right <= layout.width && !layout.overflow, 'braid toolbar fits viewport: '+JSON.stringify(layout));
+    ok(layout.taps.every(([w,h])=>w>=44 && h>=44), 'toolbar touch targets are at least 44px');
+    await screenshot(page, 'braid-phone-'+viewport.width);
+    await page.click('#braidEdit');
+    await page.locator('#braidEditor rect.be-hit').first().click();
+    await screenshot(page, 'braid-editor-'+viewport.width);
+    await page.getByRole('button',{name:'Flip selected crossing',exact:true}).click();
+    ok(await page.inputValue('#braidInput') === 'S1 S2 s1 S2', 'phone crossing edit works');
+    await page.locator('#braidEditor').getByRole('button',{name:'Undo braid edit',exact:true}).click();
+    ok(await page.inputValue('#braidInput') === 's1 S2 s1 S2', 'phone undo restores the braid');
+    await page.click('#sheetHide');
+    await page.click('#braidViewSurface');
+    ok(await page.getAttribute('#braidViewSurface','aria-pressed') === 'true', 'surface switch works with sheet hidden');
+    await page.context().close();
+  }
+
+  // Actual mouse and touch drags reshape the rope while the mathematical word stays fixed.
+  const ropePoint = (page, blue = false) => page.evaluate(blue => new Promise(resolve => requestAnimationFrame(() => {
+    const c=document.getElementById('c'), o=document.createElement('canvas'), rc=c.getBoundingClientRect();
+    o.width=c.width;o.height=c.height;const g=o.getContext('2d');g.drawImage(c,0,0);const a=g.getImageData(0,0,o.width,o.height).data;
+    const top=Math.ceil((document.getElementById('braidToolbar').getBoundingClientRect().bottom-rc.top+12)*o.height/rc.height);
+    for(let x=o.width-10;x>=10;x-=2)for(let y=top;y<o.height-15;y+=2){
+      const i=4*(y*o.width+x),r=a[i],b=a[i+2];
+      if(a[i+3]>200 && (blue?b>r*1.4&&b>60:r>b*1.4&&r>60)) return resolve({x:rc.left+x*rc.width/o.width,y:rc.top+y*rc.height/o.height});
+    }
+    resolve(null);
+  })), blue);
+  async function ropeSTL(page) {
+    const [dl]=await Promise.all([page.waitForEvent('download'),page.evaluate(()=>document.getElementById('x-stl').click())]);
+    return fs.readFileSync(await dl.path());
+  }
+  async function stableFrame(page) { await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))); }
+  for(const touch of [false,true]) {
+    page=await open('#braid=1,1&strands=2',touch?{viewport:{width:390,height:844},isMobile:true,hasTouch:true}:undefined);
+    await page.click('#braidViewPull');
+    await page.waitForFunction(()=>document.getElementById('pullTighten').textContent==='Tighten');
+    await page.waitForTimeout(350); // let sheet/camera framing settle before grabbing
+    ok(await page.getAttribute('#braidViewPull','aria-pressed')==='true','Pull tool activates');
+    const original=await ropeSTL(page), word=await page.inputValue('#braidInput');
+    await page.selectOption('#pullScope', touch?'component':'section');
+    await page.selectOption('#pullComponent',touch?'1':'0');
+    const point=await ropePoint(page,touch);ok(point,'a visible selectable rope pixel');
+    const to={x:Math.min((touch?390:1400)-20,point.x+25),y:Math.max(240,point.y-65)};
+    let cdp;
+    if(touch) {
+      cdp=await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...point,id:1}]});
+    } else { await page.mouse.move(point.x,point.y);await page.mouse.down(); }
+    await page.waitForFunction(()=>document.getElementById('pullStatus').textContent.startsWith('Pulling component'));
+    for(let i=1;i<=12;i++) {
+      const at={x:point.x+(to.x-point.x)*i/12,y:point.y+(to.y-point.y)*i/12};
+      if(touch)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...at,id:1}]});
+      else await page.mouse.move(at.x,at.y);
+      await page.waitForTimeout(20);
+    }
+    if(touch)await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});else await page.mouse.up();
+    await stableFrame(page);
+    ok(!original.equals(await ropeSTL(page)),(touch?'touch whole-component':'mouse section')+' drag changes actual exported geometry');
+    ok(await page.inputValue('#braidInput')===word,'pull does not rewrite the braid word');
+    await screenshot(page,touch?'braid-pull-phone':'braid-pull-desktop');
+    await page.click('#pullUndo');await stableFrame(page);
+    ok(original.equals(await ropeSTL(page)),'Undo pull restores exact geometry');
+    // Cancellation also restores geometry, including native touch cancellation.
+    const q=await ropePoint(page,touch);
+    if(touch) {
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...q,id:2}]});
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:q.x-25,y:q.y-20,id:2}]});
+      await page.waitForTimeout(80);
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
+    } else {
+      await page.mouse.move(q.x,q.y);await page.mouse.down();await page.mouse.move(q.x-25,q.y-20,{steps:4});
+      await page.keyboard.press('Escape');await page.mouse.up();
+    }
+    await stableFrame(page);
+    ok(original.equals(await ropeSTL(page)),'cancelled pull restores exact geometry');
+    await page.click('#pullTighten');await page.waitForTimeout(200);await page.click('#pullTighten');await stableFrame(page);
+    ok(!original.equals(await ropeSTL(page)),'Tighten and Pause shape the rope');
+    await page.click('#pullReset');await stableFrame(page);
+    ok(original.equals(await ropeSTL(page)),'Reset returns to original braid shape');
+    await page.click('#braidViewRibbon');
+    ok(await page.locator('#braidPullOptions').isHidden(),'leaving Pull clears its controls');
+    await page.context().close();
+  }
 
   ok(errors.length === 0, 'no console or page errors: ' + errors.join(' | '));
   await browser.close(); server.close();

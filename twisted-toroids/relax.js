@@ -6,7 +6,7 @@
    rope. The knot type never changes: each step moves every vertex by less than
    half the smallest distance between two segments that do not share a vertex, so
    no two segments can pass through each other (a point of a segment moves no more
-   than its endpoints do). test/relax.test.cjs checks that rule on every step and
+   than its endpoints do). test/editor-relax.test.cjs checks that rule on every step and
    compares linking numbers before and after with the Gauss integral. */
 (function (root) {
   'use strict';
@@ -98,32 +98,52 @@
   }
   // One step. Returns { gap, move }: the smallest gap before the step and the largest
   // distance any vertex moved (always less than gap / 2).
-  function step(S) {
+  function step(S, opts = {}) {
     const { P, N, prev, next, thick } = S, F = new Float64Array(3 * N);
-    for (let i = 0; i < N; i++) for (let d = 0; d < 3; d++) F[3 * i + d] = S.pull * ((P[3 * prev[i] + d] + P[3 * next[i] + d]) / 2 - P[3 * i + d]);
-    // vertices closer than the thickness push apart (unless they are neighbours on the rope)
-    const grid = new Map(), cell = thick, key = (x, y, z) => x + ',' + y + ',' + z, C = new Int32Array(3 * N);
-    for (let i = 0; i < N; i++) {
-      for (let d = 0; d < 3; d++) C[3 * i + d] = Math.floor(P[3 * i + d] / cell);
-      const k = key(C[3 * i], C[3 * i + 1], C[3 * i + 2]);
-      if (!grid.has(k)) grid.set(k, []);
-      grid.get(k).push(i);
-    }
-    const near = Math.max(3, Math.ceil(S.N / S.len.length / 40));
-    for (let i = 0; i < N; i++) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
-      const list = grid.get(key(C[3 * i] + dx, C[3 * i + 1] + dy, C[3 * i + 2] + dz));
-      if (!list) continue;
-      for (const j of list) {
-        if (j <= i || ropeNear(S, i, j, near)) continue;
-        const ex = P[3 * i] - P[3 * j], ey = P[3 * i + 1] - P[3 * j + 1], ez = P[3 * i + 2] - P[3 * j + 2], dd = Math.hypot(ex, ey, ez);
-        if (dd >= thick || dd < 1e-12) continue;
-        const f = S.push * (thick - dd) / dd / 2;
-        F[3 * i] += f * ex; F[3 * i + 1] += f * ey; F[3 * i + 2] += f * ez;
-        F[3 * j] -= f * ex; F[3 * j + 1] -= f * ey; F[3 * j + 2] -= f * ez;
+    if (opts.relax !== false) {
+      for (let i = 0; i < N; i++) for (let d = 0; d < 3; d++) F[3 * i + d] = S.pull * ((P[3 * prev[i] + d] + P[3 * next[i] + d]) / 2 - P[3 * i + d]);
+      // vertices closer than the thickness push apart (unless they are neighbours on the rope)
+      const grid = new Map(), cell = thick, key = (x, y, z) => x + ',' + y + ',' + z, C = new Int32Array(3 * N);
+      for (let i = 0; i < N; i++) {
+        for (let d = 0; d < 3; d++) C[3 * i + d] = Math.floor(P[3 * i + d] / cell);
+        const k = key(C[3 * i], C[3 * i + 1], C[3 * i + 2]);
+        if (!grid.has(k)) grid.set(k, []);
+        grid.get(k).push(i);
+      }
+      const near = Math.max(3, Math.ceil(S.N / S.len.length / 40));
+      for (let i = 0; i < N; i++) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+        const list = grid.get(key(C[3 * i] + dx, C[3 * i + 1] + dy, C[3 * i + 2] + dz));
+        if (!list) continue;
+        for (const j of list) {
+          if (j <= i || ropeNear(S, i, j, near)) continue;
+          const ex = P[3 * i] - P[3 * j], ey = P[3 * i + 1] - P[3 * j + 1], ez = P[3 * i + 2] - P[3 * j + 2], dd = Math.hypot(ex, ey, ez);
+          if (dd >= thick || dd < 1e-12) continue;
+          const f = S.push * (thick - dd) / dd / 2;
+          F[3 * i] += f * ex; F[3 * i + 1] += f * ey; F[3 * i + 2] += f * ez;
+          F[3 * j] -= f * ex; F[3 * j + 1] -= f * ey; F[3 * j + 2] -= f * ez;
+        }
       }
     }
-    // the safety rule: no vertex moves as much as half the smallest gap
-    const gap = minGap(S), cap = 0.45 * gap;
+    // A mouse/touch handle adds forces, never overwrites positions. Whole-component
+    // pulls translate all its vertices; a local pull tapers along the closed rope.
+    const h = opts.handle;
+    if (h && Number.isInteger(h.vertex) && h.vertex >= 0 && h.vertex < N && Array.isArray(h.target) && h.target.length === 3 && h.target.every(Number.isFinite)) {
+      const v = h.vertex, c = S.comp[v], spread = Math.max(2, Math.ceil(S.len[c] * 0.035));
+      for (let j = 0; j < S.len[c]; j++) {
+        const i = S.start[c] + j, delta = Math.abs(j - S.idx[v]), dist = Math.min(delta, S.len[c] - delta);
+        const weight = h.whole ? 1 : Math.max(0, 1 - dist / spread);
+        for (let d = 0; d < 3; d++) F[3 * i + d] += weight * 0.6 * (h.target[d] - P[3 * v + d]);
+      }
+    }
+    // the safety rule applies to ALL forces, including arbitrarily distant handles:
+    // no vertex moves as much as half the smallest gap
+    const gap = minGap(S);
+    let scale = 1;
+    for (const x of P) scale = Math.max(scale, Math.abs(x));
+    // Stop before floating-point rounding can consume the gap/2 safety margin.
+    // An impossible pull against a linked component must resist, not tunnel.
+    if (!(gap > 1e-7 * scale)) { S.steps++; return { gap, move: 0, blocked: true }; }
+    const cap = 0.45 * gap;
     let move = 0;
     for (let i = 0; i < N; i++) {
       let m = Math.hypot(F[3 * i], F[3 * i + 1], F[3 * i + 2]);
@@ -134,26 +154,32 @@
     S.steps++;
     return { gap, move };
   }
-  // The curves, centered and scaled so they fit a ball of the given radius.
-  function curves(S, radius = 2.1) {
-    const { P, N } = S;
-    let cx = 0, cy = 0, cz = 0;
-    for (let i = 0; i < N; i++) { cx += P[3 * i] / N; cy += P[3 * i + 1] / N; cz += P[3 * i + 2] / N; }
+  // A frozen display transform keeps a pulled point under the pointer. Automatic
+  // relaxation can still re-center/re-scale on each frame using the default.
+  function displayFrame(S, radius = 2.1) {
+    const center = [0, 0, 0];
+    for (let i = 0; i < S.N; i++) for (let d = 0; d < 3; d++) center[d] += S.P[3 * i + d] / S.N;
     let far = 0;
-    for (let i = 0; i < N; i++) far = Math.max(far, Math.hypot(P[3 * i] - cx, P[3 * i + 1] - cy, P[3 * i + 2] - cz));
-    const s = far > 1e-9 ? radius / far : 1;
-    return S.start.map((o, k) => Array.from({ length: S.len[k] }, (_, i) => [(P[3 * (o + i)] - cx) * s, (P[3 * (o + i) + 1] - cy) * s, (P[3 * (o + i) + 2] - cz) * s]));
+    for (let i = 0; i < S.N; i++) far = Math.max(far, Math.hypot(...center.map((v, d) => S.P[3 * i + d] - v)));
+    return { center, scale: far > 1e-9 ? radius / far : 1 };
   }
-  // The tube radius to draw with, in the same scaled units as curves().
-  function tubeRadius(S, radius = 2.1) {
-    const { P, N } = S;
-    let cx = 0, cy = 0, cz = 0, far = 0;
-    for (let i = 0; i < N; i++) { cx += P[3 * i] / N; cy += P[3 * i + 1] / N; cz += P[3 * i + 2] / N; }
-    for (let i = 0; i < N; i++) far = Math.max(far, Math.hypot(P[3 * i] - cx, P[3 * i + 1] - cy, P[3 * i + 2] - cz));
-    return Math.min(0.12, 0.42 * S.thick * radius / Math.max(far, 1e-9));
+  function curves(S, radius = 2.1, frame = displayFrame(S, radius)) {
+    return S.start.map((o, k) => Array.from({ length: S.len[k] }, (_, i) => frame.center.map((v, d) => (S.P[3 * (o + i) + d] - v) * frame.scale)));
+  }
+  function tubeRadius(S, radius = 2.1, frame = displayFrame(S, radius)) {
+    return Math.min(0.12, 0.42 * S.thick * frame.scale);
+  }
+  function nearestVertex(S, point, component = -1) {
+    let vertex = -1, best = Infinity;
+    for (let i = 0; i < S.N; i++) {
+      if (component >= 0 && S.comp[i] !== component) continue;
+      const distance = Math.hypot(...point.map((v, d) => S.P[3 * i + d] - v));
+      if (distance < best) { best = distance; vertex = i; }
+    }
+    return vertex;
   }
 
-  const api = { fromBraid, create, step, curves, tubeRadius, minGap, segDist };
+  const api = { fromBraid, create, step, curves, tubeRadius, minGap, segDist, displayFrame, nearestVertex };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KnotRelax = api;
 })(typeof window !== 'undefined' ? window : globalThis);
