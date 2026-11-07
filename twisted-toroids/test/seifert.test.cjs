@@ -70,7 +70,8 @@ for (const [n, word] of [[1,[]],[3,[]],[2,[1,1,1]],[3,[1,-2,1,-2]],[4,[1,3,-1,-3
   if(f.trace>0)assert.equal(f.count,S.indices.length);
  }
  for(let k=0;k<=word.length;k++) {
-  const f=SF.constructionAt(S,(n+k)/(S.parts.length+1));
+  // one opening stage smooths the crossings into circles, then one stage per disk and band
+  const f=SF.constructionAt(S,(1+n+k)/(S.parts.length+2));
   const A=MK.analyze(S.indices.slice(0,f.count)), prefix=word.slice(0,k);
   assert.equal(A.euler,n-k);assert(A.pieces.every(p=>p.orientable&&p.nonManifoldEdges===0));
   assert.equal(A.loops.length,KM.cycles(KM.permutation(n,prefix)).length);

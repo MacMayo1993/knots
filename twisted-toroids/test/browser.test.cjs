@@ -163,6 +163,10 @@ const server = http.createServer((req, res) => {
     ok(layout.left >= 0 && layout.right <= layout.width && !layout.overflow, 'braid toolbar fits viewport: '+JSON.stringify(layout));
     ok(layout.taps.every(([w,h])=>w>=44 && h>=44), 'toolbar touch targets are at least 44px');
     await screenshot(page, 'braid-phone-'+viewport.width);
+    // on a phone, editing sits behind ⋯ so the toolbar is a single row
+    ok(await page.locator('#braidEdit').isHidden(), 'phone toolbar is one row until ⋯ opens');
+    await page.click('#braidMore');
+    ok(await page.getAttribute('#braidMore','aria-expanded') === 'true', '⋯ opens the actions row');
     await page.click('#braidEdit');
     await page.locator('#braidEditor rect.be-hit').first().click();
     await screenshot(page, 'braid-editor-'+viewport.width);
@@ -223,7 +227,7 @@ const server = http.createServer((req, res) => {
     await page.click(phone?'#q-cut':'#cutBtn');
     await page.waitForFunction(()=>!document.getElementById('cutToBraid').disabled,null,{timeout:15000});
     await page.click(phone?'#q-braid':'#cutToBraid');
-    if(phone) await page.click('#braidEdit');
+    if(phone) { await page.click('#braidMore'); await page.click('#braidEdit'); }
     const before={word:await page.inputValue('#braidInput'),n:await page.inputValue('#braidStrands')};
     await page.selectOption('#randomBraidLevel','simple');
     await page.click('#randomBraid');
@@ -259,7 +263,9 @@ const server = http.createServer((req, res) => {
       const slider=document.getElementById('seifQuickProgress');
       slider.value=String(value);slider.dispatchEvent(new Event('input',{bubbles:true}));
     },value);
-    await seek(250);
+    await seek(60);
+    ok((await page.textContent('#seifQuickStatus')).includes('Seifert circles'),'construction starts by smoothing crossings into circles');
+    await seek(350);
     ok((await page.textContent('#seifQuickStatus')).includes('Disk 2 of 2'),'scrubbing reaches the disk phase');
     ok(await drawn(page)>.02,'partially built disks draw');
     await screenshot(page,phone?'seifert-disks-phone':'seifert-disks-desktop');
@@ -298,8 +304,10 @@ const server = http.createServer((req, res) => {
   const ropePoint = (page, blue = false) => page.evaluate(blue => new Promise(resolve => requestAnimationFrame(() => {
     const c=document.getElementById('c'), o=document.createElement('canvas'), rc=c.getBoundingClientRect();
     o.width=c.width;o.height=c.height;const g=o.getContext('2d');g.drawImage(c,0,0);const a=g.getImageData(0,0,o.width,o.height).data;
-    const top=Math.ceil((document.getElementById('braidToolbar').getBoundingClientRect().bottom-rc.top+12)*o.height/rc.height);
-    for(let x=o.width-10;x>=10;x-=2)for(let y=top;y<o.height-15;y+=2){
+    // search the model's free area: right of the desktop rail, or below the phone row
+    const bar=document.getElementById('braidToolbar'), br=bar.getBoundingClientRect(), rail=bar.dataset.place==='rail';
+    const top=rail?10:Math.ceil((br.bottom-rc.top+12)*o.height/rc.height), left=rail?Math.ceil((br.right-rc.left+12)*o.width/rc.width):10;
+    for(let x=o.width-10;x>=left;x-=2)for(let y=top;y<o.height-15;y+=2){
       const i=4*(y*o.width+x),r=a[i],b=a[i+2];
       if(a[i+3]>200 && (blue?b>r*1.4&&b>60:r>b*1.4&&r>60)) return resolve({x:rc.left+x*rc.width/o.width,y:rc.top+y*rc.height/o.height});
     }

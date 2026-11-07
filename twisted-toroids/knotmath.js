@@ -639,29 +639,57 @@
   // positive twist of the model (so the strand moving inward passes above).
   // Returns, for each starting position, a function theta in [0, 2pi] -> [a, b].
   const laneWidth = n => Math.min(0.4, 1.6 / Math.max(n, 1));
+  // Columns for drawing a braid: each crossing moves left until it meets an earlier
+  // crossing that shares a strand position. Crossings in one column use disjoint
+  // pairs of neighbouring positions, so they commute (far commutativity) and drawing
+  // them side by side is an isotopy of the closed braid. Long words get fewer, wider
+  // slots: (sigma1 sigma2)^k on 3 strands keeps one crossing per column, but
+  // sigma1 sigma3 sigma1 sigma3 needs only two columns.
+  function braidColumns(word) {
+    const end = new Map(), col = [];
+    for (const g of word) {
+      const i = Math.abs(g) - 1, a = end.has(i) ? end.get(i) : -1, b = end.has(i + 1) ? end.get(i + 1) : -1;
+      const c = Math.max(a, b) + 1;
+      col.push(c); end.set(i, c); end.set(i + 1, c);
+    }
+    return col;
+  }
   function braidLayout(n, word, opts = {}) {
     const lw = opts.laneWidth || laneWidth(n);
     const lift = opts.lift || 2.2;
     const lane = j => (j - (n - 1) / 2) * lw;
-    const m = Math.max(word.length, 1), slot = (2 * Math.PI) / m;
-    // where each strand is at the start of each slot
+    const columns = opts.pack === false ? word.map((_, k) => k) : braidColumns(word);
+    const m = word.length ? Math.max(...columns) + 1 : 1, slot = (2 * Math.PI) / m;
+    // the crossings of each column, by the upper position i of the pair (i, i + 1)
+    const colGen = Array.from({ length: m }, () => new Map());
+    word.forEach((g, k) => colGen[columns[k]].set(Math.abs(g) - 1, g));
+    // where each strand is at the start of each column, and which positions cross there
     const posAt = [Array.from({ length: n }, (_, i) => i)];   // posAt[k][strand] = position
-    const at = Array.from({ length: n }, (_, i) => i);
-    word.forEach(g => { const i = Math.abs(g) - 1; [at[i], at[i + 1]] = [at[i + 1], at[i]]; const p = new Array(n); at.forEach((s, q) => { p[s] = q; }); posAt.push(p); });
+    const busy = [], at = Array.from({ length: n }, (_, i) => i);
+    for (let c = 0; c < m; c++) {
+      const b = new Array(n).fill(false);
+      for (const i of colGen[c].keys()) { b[i] = b[i + 1] = true; [at[i], at[i + 1]] = [at[i + 1], at[i]]; }
+      busy.push(b);
+      const p = new Array(n); at.forEach((st, q) => { p[st] = q; }); posAt.push(p);
+    }
     const ease = u => u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u);
-    return Array.from({ length: n }, (_, strand) => theta => {
+    const out = Array.from({ length: n }, (_, strand) => theta => {
       let k = Math.floor(theta / slot);
       if (k >= m) k = m - 1; if (k < 0) k = 0;
       const p0 = posAt[k][strand];
       if (!word.length) return [lane(p0), 0];
-      const g = word[k], i = Math.abs(g) - 1;
-      if (p0 !== i && p0 !== i + 1) return [lane(p0), 0];
+      const upper = colGen[k].has(p0), g = upper ? colGen[k].get(p0) : colGen[k].get(p0 - 1);
+      if (g === undefined) return [lane(p0), 0];
+      const i = Math.abs(g) - 1;
       const u = ease((theta / slot - k - 0.1) / 0.8);
       const mid = (lane(i) + lane(i + 1)) / 2, r = lw / 2;
       const start = p0 === i + 1 ? 0 : Math.PI;            // angle about the midpoint
       const al = start + Math.sign(g) * Math.PI * u;
       return [mid + r * Math.cos(al), lift * r * Math.sin(al)];
     });
+    out.slots = m; out.busy = busy; out.columns = columns;
+    out.position = (st, c) => posAt[Math.max(0, Math.min(m, c))][st];
+    return out;
   }
 
   const SUP = e => String(e).replace('-', '⁻').replace(/\d/g, d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]);
@@ -688,7 +716,7 @@
   }
 
   const api = { laneWidth, gcd, wordFormula, parseBraid, freeReduce, keepStrands, alexander, polyText, blackboardRibbon, describeBraid, braidLayout, braidWord, permutation, cycles, readBraid, stepsFor, torusKnot, describe, wordText,
-    bracket, jones, jonesText, jonesAt, mirrorPoly, polyKey, mirrorWord, homogeneous, seifertPieces, seifertGenus, identify, knotTable, tableName };
+    braidColumns, bracket, jones, jonesText, jonesAt, mirrorPoly, polyKey, mirrorWord, homogeneous, seifertPieces, seifertGenus, identify, knotTable, tableName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KnotMath = api;
 })(typeof window !== 'undefined' ? window : globalThis);
