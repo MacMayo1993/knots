@@ -1,8 +1,9 @@
 {
   "format": "half-twisted-torus/experiment",
-  "version": 1,
-  "created": "2026-11-07T03:41:17.469Z",
+  "version": 2,
+  "created": "2026-11-07T03:51:54.425Z",
   "construction": {
+    "type": "torus",
     "shape": "band2",
     "label": "flat strip",
     "kind": "line",
@@ -14,7 +15,7 @@
     {
       "op": "open link",
       "value": "#shape=band2&turn=1/2",
-      "at": "2026-11-07T03:41:17.025Z"
+      "at": "2026-11-07T03:51:54.007Z"
     }
   ],
   "braid": {
@@ -42,11 +43,13 @@
         "crossingNumber": 0
       },
       "framing": null,
-      "oneSided": true
+      "oneSided": true,
+      "alexander": [1]
     }
   ],
   "linkingMatrix": [
     [0]
   ],
+  "alexander": [1],
   "verify": "python verify/verify.py <this file>"
 }

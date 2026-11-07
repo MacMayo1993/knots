@@ -1,5 +1,12 @@
 """Check experiments exported from the twisted-torus model with SnapPy / Spherogram.
 
+Two kinds of experiment are checked: twisted-torus constructions, and arbitrary
+braids entered in the page's "Any braid" mode. For a braid this script checks
+the strand count, linking matrix, blackboard framings (from the ribbon braid),
+and each knotted component's Alexander polynomial against the Euler
+characteristic of its knot Floer homology, then names the link with SnapPy's
+census lookup where it can.
+
 The model exports each construction as a braid word whose closure is the set of
 stripes left after cutting along the color lines, plus a "ribbon braid" that also
 carries one edge of every stripe (so a stripe's framing is the linking number of
@@ -19,10 +26,14 @@ Usage:
   python verify.py experiment.json [more.json ...]
   python verify.py --sweep        # every shape preset, twists -2..2 turns (a few minutes)
   python verify.py --sweep --max-turns 1
+  python verify.py --random 40      # random braids, claims from knotmath.js (needs node)
 """
 import argparse
 import itertools
 import json
+import os
+import random
+import subprocess
 import sys
 import warnings
 from fractions import Fraction
@@ -126,6 +137,94 @@ def genus(n, word, comp):
     return K.knot_floer_homology()['seifert_genus']
 
 
+def alexander_hfk(n, word, comp):
+    """Alexander polynomial of one component, from knot Floer homology (lowest degree first)."""
+    m, w = keep_strands(n, word, comp)
+    if m < 2 or not w:
+        return [1]
+    K = closure(w, m)
+    K.simplify('global')
+    if not K.crossings:
+        return [1]
+    ranks = K.knot_floer_homology()['ranks']
+    coeffs = {}
+    for (a, mas), r in ranks.items():
+        coeffs[a] = coeffs.get(a, 0) + (-1) ** (mas % 2) * r
+    lo, hi = min(coeffs), max(coeffs)
+    c = [coeffs.get(e, 0) for e in range(lo, hi + 1)]
+    while c and c[-1] == 0:
+        c.pop()
+    while c and c[0] == 0:
+        c.pop(0)
+    if c and c[-1] < 0:
+        c = [-x for x in c]
+    return c
+
+
+def blackboard_ribbon(word):
+    out = []
+    for g in word:
+        i, s = abs(g), (1 if g > 0 else -1)
+        out += [s * 2 * i, s * (2 * i - 1), s * (2 * i + 1), s * 2 * i]
+    return out
+
+
+def identify(word, strands):
+    try:
+        names = closure(word, strands).exterior().identify()
+    except Exception:
+        return None
+    # prefer the Rolfsen / link-table style names
+    for nm in names:
+        t = str(nm).split('(')[0]
+        if '_' in t and not t.startswith(('m', 's', 'v', 't', 'o', 'K')):
+            return t
+    return str(names[0]).split('(')[0] if names else None
+
+
+def check_braid(exp):
+    c = exp['construction']
+    n, word = c['strands'], c['word']
+    problems = []
+    if word != exp['braid']['word'] or n != exp['braid']['strands']:
+        problems.append('braid word differs from the construction')
+    if any(abs(g) < 1 or abs(g) >= n for g in word):
+        problems.append('generator out of range for %d strands' % n)
+        return problems, None
+    if blackboard_ribbon(word) != exp['ribbonBraid']['word']:
+        problems.append('ribbon braid differs from the blackboard double of the word')
+
+    comps = cycles(permutation(n, word))
+    claimed = exp['components']
+    got = components(word, n)
+    if got != len(claimed) or len(comps) != len(claimed):
+        problems.append('components: Spherogram %d, model %d' % (got, len(claimed)))
+    by_strands = {tuple(sorted(cm['braidStrands'])): cm for cm in claimed}
+    order = [by_strands.get(tuple(sorted(cc))) for cc in comps]
+    if None in order:
+        problems.append('component strands do not match the braid permutation')
+        return problems, None
+    idx = [claimed.index(cm) for cm in order]
+    M = exp['linkingMatrix']
+    for a, b in itertools.combinations(range(len(comps)), 2):
+        v = lk(n, word, comps[a], comps[b])
+        if v != M[idx[a]][idx[b]]:
+            problems.append('lk(%d, %d): Spherogram %s, model %s' % (idx[a], idx[b], v, M[idx[a]][idx[b]]))
+    rword = blackboard_ribbon(word)
+    rcomp = {p: tuple(cc) for cc in cycles(permutation(2 * n, rword)) for p in cc}
+    for cc, cm in zip(comps, order):
+        f = lk(2 * n, rword, rcomp[2 * cc[0]], rcomp[2 * cc[0] + 1])
+        if f != cm['framing']:
+            problems.append('component %s framing: Spherogram %s, model %s' % (cc, f, cm['framing']))
+        a = alexander_hfk(n, word, cc)
+        if a != cm['alexander']:
+            problems.append('component %s Alexander: knot Floer %s, model %s' % (cc, a, cm['alexander']))
+    if len(comps) == 1 and exp.get('alexander') is not None and exp['alexander'] != order[0]['alexander']:
+        problems.append('whole-link Alexander differs from the knot\'s')
+    name = identify(word, n)
+    return problems, name
+
+
 def torus_genus(q, p):
     q, p = abs(q), abs(p)
     return 0 if q < 2 or p < 2 else (q - 1) * (p - 1) // 2
@@ -170,6 +269,8 @@ def check(exp):
     comp_of = {p: tuple(cc) for cc in rcomps for p in cc}
     cores, edges = exp['ribbonBraid']['cores'], exp['ribbonBraid']['edges']
     for cc, cm in zip(comps, order):
+        if 'alexander' in cm and alexander_hfk(n, word, cc) != cm['alexander']:
+            problems.append('stripe %s Alexander: knot Floer %s, model %s' % (cm['pieces'], alexander_hfk(n, word, cc), cm['alexander']))
         g = genus(n, word, cc)
         if g != torus_genus(cm['laps'], cm['turns']):
             problems.append('stripe %s genus: Spherogram %d, T(%d,%d) has %d' % (cm['pieces'], g, cm['laps'], cm['turns'], torus_genus(cm['laps'], cm['turns'])))
@@ -238,29 +339,74 @@ def sweep(max_turns=2):
     return bad
 
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def knotmath_claims(cases):
+    """Ask knotmath.js (via node) to describe each braid, shaped like an exported experiment."""
+    js = (
+        "const K=require(%s);const cases=JSON.parse(require('fs').readFileSync(0,'utf8'));"
+        "console.log(JSON.stringify(cases.map(([n,w])=>{const d=K.describeBraid(n,w);return {"
+        "construction:{type:'braid',strands:n,word:w},braid:d.braid,ribbonBraid:d.ribbonBraid,"
+        "components:d.components.map(c=>({braidStrands:c.braidStrands,laps:c.laps,framing:c.framing,alexander:c.alexander})),"
+        "linkingMatrix:d.linking,alexander:d.alexander};})));"
+    ) % json.dumps(os.path.join(HERE, '..', 'knotmath.js'))
+    out = subprocess.run(['node', '-e', js], input=json.dumps(cases), capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def random_braids(count, seed=1):
+    rng = random.Random(seed)
+    cases = []
+    for _ in range(count):
+        n = rng.randint(2, 5)
+        w = [rng.choice([-1, 1]) * rng.randint(1, n - 1) for _ in range(rng.randint(1, 12))]
+        cases.append([n, w])
+    bad = 0
+    for exp in knotmath_claims(cases):
+        problems, name = check_braid(exp)
+        c = exp['construction']
+        status = 'ok' if not problems else 'FAIL ' + '; '.join(problems)
+        bad += bool(problems)
+        print('%d strands %-40s %-8s %s' % (c['strands'], str(c['word']), name or '', status))
+    print('%d random braids, %d failures' % (count, bad))
+    return bad
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('files', nargs='*', help='experiment JSON files exported from the model')
     ap.add_argument('--sweep', action='store_true', help='check every preset construction')
+    ap.add_argument('--random', type=int, default=0, metavar='N', help='check N random braids against knotmath.js (needs node)')
     ap.add_argument('--max-turns', type=Fraction, default=Fraction(2), help='sweep twists up to this many turns each way (default 2; 1 is much faster)')
     args = ap.parse_args()
-    if not args.files and not args.sweep:
+    if not args.files and not args.sweep and not args.random:
         ap.print_help()
         return 2
     failures = sweep(args.max_turns) if args.sweep else 0
+    if args.random:
+        failures += random_braids(args.random)
     for path in args.files:
         with open(path) as f:
             exp = json.load(f)
-        problems = check(exp)
         c = exp['construction']
-        head = '%s: %s, turn %s' % (path, c['shape'], c['turn'])
+        if c.get('type') == 'braid':
+            problems, name = check_braid(exp)
+            head = '%s: braid %s on %d strands' % (path, c['word'], c['strands'])
+            k = len(exp['components'])
+            summary = '%d component%s%s' % (k, '' if k == 1 else 's', ', SnapPy names it ' + name if name else '')
+        else:
+            problems = check(exp)
+            head = '%s: %s, turn %s' % (path, c['shape'], c['turn'])
+            k = len(exp['components'])
+            summary = '%d stripe%s, braid on %d strands' % (k, '' if k == 1 else 's', exp['braid']['strands'])
         if problems:
             failures += 1
             print(head + ': FAIL')
             for p in problems:
                 print('  - ' + p)
         else:
-            print(head + ': ok (%d stripes, braid on %d strands)' % (len(exp['components']), exp['braid']['strands']))
+            print(head + ': ok (' + summary + ')')
     return 1 if failures else 0
 
 

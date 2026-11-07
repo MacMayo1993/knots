@@ -134,7 +134,8 @@
       const cc = ribbon.compOf[corePos(lane)], ec = ribbon.compOf[edgePos(lane)];
       const oneSided = ribbon.components[ec].length !== laps;
       const framing = oneSided ? null : ribbon.linking[cc][ec];
-      return { braidStrands: c, pieces, laps, turns, knot: torusKnot(laps, turns), framing, oneSided, writhe: rb.writhe[idx] };
+      const sub = keepStrands(n, word, c);
+      return { braidStrands: c, pieces, laps, turns, knot: torusKnot(laps, turns), framing, oneSided, writhe: rb.writhe[idx], alexander: alexander(sub.n, sub.word) };
     });
     return {
       ok: true,
@@ -144,6 +145,253 @@
       components,
       linking: rb.linking
     };
+  }
+
+
+  // ---------- general braids ----------
+  // Parse a braid word. Accepts integers (1 -2 3), s1 / σ1 / sigma1 with ^-1, ^3,
+  // ⁻¹ or ' for inverse, uppercase S for an inverse generator, and (…)^k groups.
+  const SUPS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+  function parseBraid(text) {
+    const src = String(text).replace(/[⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, m => '^' + m.replace('⁻', '-').replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, d => SUPS.indexOf(d)))
+      .replace(/sigma/gi, 's').replace(/σ/g, 's').replace(/[−–]/g, '-').replace(/\{|\[/g, '(').replace(/\}|\]/g, ')');
+    let i = 0;
+    const fail = msg => { throw new Error(msg + (i < src.length ? ' near "' + src.slice(i, i + 8) + '"' : '')); };
+    const skip = () => { while (i < src.length && /[\s,.·*]/.test(src[i])) i++; };
+    function exponent() {
+      skip();
+      if (src[i] === "'") { i++; return -1; }
+      if (src[i] !== '^') return 1;
+      i++; skip();
+      const m = /^\(?\s*(-?\d+)\s*\)?/.exec(src.slice(i));
+      if (!m) fail('Expected a number after ^');
+      i += m[0].length;
+      return Number(m[1]);
+    }
+    function seq(depth) {
+      const out = [];
+      for (;;) {
+        skip();
+        if (i >= src.length) { if (depth) fail('Missing )'); return out; }
+        const ch = src[i];
+        if (ch === ')') { if (!depth) fail('Unmatched )'); i++; return out; }
+        let part;
+        if (ch === '(') { i++; part = seq(depth + 1); }
+        else {
+          const m = /^([sS]?)\s*(-?)\s*(\d+)/.exec(src.slice(i));
+          if (!m) fail('Unexpected "' + ch + '"');
+          i += m[0].length;
+          const g = Number(m[3]);
+          if (g < 1) fail('Generators start at 1');
+          part = [(m[1] === 'S' ? -1 : 1) * (m[2] ? -1 : 1) * g];
+        }
+        const e = exponent();
+        const base = e >= 0 ? part : part.slice().reverse().map(g => -g);
+        for (let k = 0; k < Math.abs(e); k++) out.push(...base);
+        if (out.length > 5000) fail('Word is too long');
+      }
+    }
+    return seq(0);
+  }
+  // Freely reduce s s^-1 pairs (does not change the braid).
+  function freeReduce(word) {
+    const out = [];
+    for (const g of word) { if (out.length && out[out.length - 1] === -g) out.pop(); else out.push(g); }
+    return out;
+  }
+  // The sub-braid on the strands that start at the given positions.
+  function keepStrands(n, word, keep) {
+    const K = new Set(keep), at = Array.from({ length: n }, (_, i) => i), out = [];
+    for (const g of word) {
+      const i = Math.abs(g) - 1, a = at[i], b = at[i + 1];
+      if (K.has(a) && K.has(b)) { let r = 0; for (let p = 0; p < i; p++) if (K.has(at[p])) r++; out.push(Math.sign(g) * (r + 1)); }
+      at[i] = b; at[i + 1] = a;
+    }
+    return { n: K.size, word: out };
+  }
+
+  // ---------- Laurent polynomials in t with BigInt coefficients ----------
+  // { o: lowest exponent, c: [coefficients] }
+  const P = {
+    norm(p) {
+      let a = 0, b = p.c.length;
+      while (a < b && p.c[a] === 0n) a++;
+      while (b > a && p.c[b - 1] === 0n) b--;
+      return a === b ? { o: 0, c: [] } : { o: p.o + a, c: p.c.slice(a, b) };
+    },
+    k(v, e = 0) { return P.norm({ o: e, c: [BigInt(v)] }); },
+    zero() { return { o: 0, c: [] }; },
+    isZero(p) { return p.c.length === 0; },
+    add(p, q, sign = 1n) {
+      if (!p.c.length) return sign === 1n ? q : P.norm({ o: q.o, c: q.c.map(x => -x) });
+      if (!q.c.length) return p;
+      const o = Math.min(p.o, q.o), hi = Math.max(p.o + p.c.length, q.o + q.c.length), c = new Array(hi - o).fill(0n);
+      p.c.forEach((x, i) => { c[p.o + i - o] += x; });
+      q.c.forEach((x, i) => { c[q.o + i - o] += sign * x; });
+      return P.norm({ o, c });
+    },
+    sub(p, q) { return P.add(p, q, -1n); },
+    mul(p, q) {
+      if (!p.c.length || !q.c.length) return P.zero();
+      const c = new Array(p.c.length + q.c.length - 1).fill(0n);
+      for (let i = 0; i < p.c.length; i++) if (p.c[i]) for (let j = 0; j < q.c.length; j++) c[i + j] += p.c[i] * q.c[j];
+      return P.norm({ o: p.o + q.o, c });
+    },
+    // exact division (throws if not exact)
+    div(p, q) {
+      if (!q.c.length) throw new Error('division by zero');
+      if (!p.c.length) return P.zero();
+      const r = p.c.slice(), qn = q.c.length, lead = q.c[qn - 1], out = new Array(Math.max(0, r.length - qn + 1)).fill(0n);
+      for (let i = r.length - qn; i >= 0; i--) {
+        const x = r[i + qn - 1];
+        if (x % lead !== 0n) throw new Error('inexact division');
+        const f = x / lead; out[i] = f;
+        if (f) for (let j = 0; j < qn; j++) r[i + j] -= f * q.c[j];
+      }
+      if (r.some(x => x !== 0n)) throw new Error('inexact division');
+      return P.norm({ o: p.o - q.o, c: out });
+    },
+    // Alexander normalization, as in knot tables: lowest term t^0, positive leading coefficient
+    alex(p) {
+      p = P.norm(p);
+      if (!p.c.length) return [];
+      let c = p.c.slice();
+      if (c[c.length - 1] < 0n) c = c.map(x => -x);
+      return c.map(Number);
+    }
+  };
+  // Determinant of a square matrix of Laurent polynomials (fraction-free Bareiss).
+  function det(M) {
+    const n = M.length;
+    if (!n) return P.k(1);
+    const A = M.map(r => r.slice());
+    let sign = 1n, prev = P.k(1);
+    for (let k = 0; k < n - 1; k++) {
+      if (P.isZero(A[k][k])) {
+        let r = k + 1; while (r < n && P.isZero(A[r][k])) r++;
+        if (r === n) return P.zero();
+        [A[k], A[r]] = [A[r], A[k]]; sign = -sign;
+      }
+      for (let i = k + 1; i < n; i++) for (let j = k + 1; j < n; j++)
+        A[i][j] = P.div(P.sub(P.mul(A[i][j], A[k][k]), P.mul(A[i][k], A[k][j])), prev);
+      prev = A[k][k];
+    }
+    const d = A[n - 1][n - 1];
+    return sign === 1n ? d : P.sub(P.zero(), d);
+  }
+  // Reduced Burau representation applied as column operations: M <- M * rho(g).
+  function buraApply(M, n, g) {
+    const i = Math.abs(g), d = n - 1, t = P.k(1, 1), ti = P.k(1, -1), one = P.k(1);
+    // rho(s_i) is the identity except in columns i-2, i-1, i (0-based i-1 is the middle)
+    const c = i - 1;   // 0-based index of the -t entry
+    for (const row of M) {
+      const L = c - 1 >= 0 ? row[c - 1] : null, Mi = row[c], Rr = c + 1 < d ? row[c + 1] : null;
+      if (g > 0) {
+        // columns: new[c-1] = old[c-1]; new[c] = t*old[c-1] - t*old[c] + old[c+1]; new[c+1] = old[c+1]
+        let v = P.mul(P.k(-1, 1), Mi);
+        if (L) v = P.add(v, P.mul(t, L));
+        if (Rr) v = P.add(v, Rr);
+        row[c] = v;
+      } else {
+        // inverse: new[c] = old[c-1] - t^-1 old[c] + t^-1 old[c+1]
+        let v = P.mul(P.k(-1, -1), Mi);
+        if (L) v = P.add(v, L);
+        if (Rr) v = P.add(v, P.mul(ti, Rr));
+        row[c] = v;
+      }
+    }
+    void one;
+  }
+  // One-variable Alexander polynomial of the closure (coefficients, lowest degree first).
+  // For a link with several components this is the Conway-normalized one-variable
+  // polynomial up to sign and powers of t; it is 0 for split links.
+  function alexander(n, word) {
+    if (n < 2) return [1];
+    const d = n - 1;
+    const M = Array.from({ length: d }, (_, r) => Array.from({ length: d }, (_, c) => P.k(r === c ? 1 : 0)));
+    for (const g of word) buraApply(M, n, g);
+    const IM = M.map((r, i) => r.map((x, j) => P.sub(P.k(i === j ? 1 : 0), x)));
+    const D = det(IM);
+    const num = P.norm({ o: 0, c: Array.from({ length: n }, () => 1n) });   // 1 + t + ... + t^(n-1)
+    return P.alex(P.div(D, num));
+  }
+  function polyText(c) {
+    if (!c.length) return '0';
+    const terms = [];
+    c.forEach((x, e) => {
+      if (!x) return;
+      const a = Math.abs(x), co = a === 1 && e ? '' : String(a);
+      const v = e === 0 ? '' : e === 1 ? 't' : 't' + SUP(e);
+      terms.push({ neg: x < 0, s: co + v });
+    });
+    terms.reverse();
+    return terms.map((tm, k) => (k ? (tm.neg ? ' − ' : ' + ') : (tm.neg ? '−' : '')) + tm.s).join('');
+  }
+
+  // Blackboard ribbon: each strand doubled by a parallel edge on its +a side.
+  // Generator i becomes the pair of strands i crossing the pair i+1 flat.
+  function blackboardRibbon(n, word) {
+    const out = [];
+    for (const g of word) {
+      const i = Math.abs(g), s = Math.sign(g);
+      out.push(s * 2 * i, s * (2 * i - 1), s * (2 * i + 1), s * 2 * i);
+    }
+    return { strands: 2 * n, word: out };
+  }
+
+  // Everything about the closure of an arbitrary braid.
+  function describeBraid(n, word) {
+    const rb = readBraid(n, word);
+    const rib = blackboardRibbon(n, word);
+    const rr = readBraid(rib.strands, rib.word);
+    const components = rb.components.map((c, idx) => {
+      const core = rr.compOf[2 * c[0]], edge = rr.compOf[2 * c[0] + 1];
+      const sub = keepStrands(n, word, c);
+      return {
+        braidStrands: c, laps: c.length,
+        framing: rr.linking[core][edge], writhe: rb.writhe[idx],
+        alexander: alexander(sub.n, sub.word), subBraid: sub
+      };
+    });
+    return {
+      ok: true, kind: 'braid', strands: n, word,
+      braid: { strands: n, word },
+      ribbonBraid: { strands: rib.strands, word: rib.word, cores: Array.from({ length: n }, (_, i) => 2 * i), edges: Array.from({ length: n }, (_, i) => 2 * i + 1), framing: 'blackboard' },
+      components, linking: rb.linking,
+      alexander: alexander(n, word)
+    };
+  }
+
+  // ---------- geometry of a closed braid ----------
+  // Strand positions along a line in the cross-section (a radial, b up). Each
+  // generator gets an equal slice of the loop; inside it, strands i and i+1 turn
+  // half a turn about their midpoint, positive generators the same way as a
+  // positive twist of the model (so the strand moving inward passes above).
+  // Returns, for each starting position, a function theta in [0, 2pi] -> [a, b].
+  const laneWidth = n => Math.min(0.4, 1.6 / Math.max(n, 1));
+  function braidLayout(n, word, opts = {}) {
+    const lw = opts.laneWidth || laneWidth(n);
+    const lift = opts.lift || 2.2;
+    const lane = j => (j - (n - 1) / 2) * lw;
+    const m = Math.max(word.length, 1), slot = (2 * Math.PI) / m;
+    // where each strand is at the start of each slot
+    const posAt = [Array.from({ length: n }, (_, i) => i)];   // posAt[k][strand] = position
+    const at = Array.from({ length: n }, (_, i) => i);
+    word.forEach(g => { const i = Math.abs(g) - 1; [at[i], at[i + 1]] = [at[i + 1], at[i]]; const p = new Array(n); at.forEach((s, q) => { p[s] = q; }); posAt.push(p); });
+    const ease = u => u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u);
+    return Array.from({ length: n }, (_, strand) => theta => {
+      let k = Math.floor(theta / slot);
+      if (k >= m) k = m - 1; if (k < 0) k = 0;
+      const p0 = posAt[k][strand];
+      if (!word.length) return [lane(p0), 0];
+      const g = word[k], i = Math.abs(g) - 1;
+      if (p0 !== i && p0 !== i + 1) return [lane(p0), 0];
+      const u = ease((theta / slot - k - 0.1) / 0.8);
+      const mid = (lane(i) + lane(i + 1)) / 2, r = lw / 2;
+      const start = p0 === i + 1 ? 0 : Math.PI;            // angle about the midpoint
+      const al = start + Math.sign(g) * Math.PI * u;
+      return [mid + r * Math.cos(al), lift * r * Math.sin(al)];
+    });
   }
 
   const SUP = e => String(e).replace('-', '⁻').replace(/\d/g, d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]);
@@ -169,7 +417,7 @@
     return base.length === 1 || !e ? inner + e : '(' + inner + ')' + e;
   }
 
-  const api = { gcd, wordFormula, braidWord, permutation, cycles, readBraid, stepsFor, torusKnot, describe, wordText };
+  const api = { laneWidth, gcd, wordFormula, parseBraid, freeReduce, keepStrands, alexander, polyText, blackboardRibbon, describeBraid, braidLayout, braidWord, permutation, cycles, readBraid, stepsFor, torusKnot, describe, wordText };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KnotMath = api;
 })(typeof window !== 'undefined' ? window : globalThis);

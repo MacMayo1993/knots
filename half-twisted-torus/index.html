@@ -281,6 +281,18 @@ h2 {
 .note-block h3 { margin: 0; font-size: 1rem; font-weight: 600; }
 .note-block p { margin: 0; color: var(--muted); max-width: 60ch; }
 .mono { font-family: var(--f-mono); font-size: 0.92em; }
+.panel[data-mode="braid"] .torus-only, .panel:not([data-mode="braid"]) .braid-only { display: none; }
+.braid-form { display: grid; gap: 8px; }
+.braid-row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.braid-row label { display: grid; gap: 4px; font-size: 0.82rem; color: var(--muted); }
+.braid-row .grow { flex: 1 1 180px; min-width: 0; }
+.braid-form input[type="text"], .braid-form input[type="number"] {
+  font: 500 0.95rem/1.2 var(--f-mono); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 9px 10px; width: 100%;
+}
+.braid-form input[type="number"] { width: 5.5em; }
+.braid-help { margin: 0; font-size: 0.8rem; color: var(--muted); }
+.braid-error { margin: 0; font-size: 0.85rem; color: var(--red); min-height: 1.2em; }
 .exact { display: grid; gap: 10px; }
 .exact .readout dd { font-size: 0.9rem; overflow-wrap: anywhere; }
 .stripes { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
@@ -307,8 +319,44 @@ h2 {
       <p class="hint">Drag to rotate · scroll to zoom</p>
     </div>
 
-    <aside class="panel">
+    <aside class="panel" id="panel">
       <fieldset>
+        <legend>Model</legend>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="torus" aria-pressed="true">Twisted torus</button>
+          <button type="button" data-mode="braid" aria-pressed="false">Any braid</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="braid-only">
+        <legend>Braid word</legend>
+        <form class="braid-form" id="braidForm" novalidate>
+          <div class="braid-row">
+            <label class="grow" for="braidInput">Word
+              <input type="text" id="braidInput" value="s1 S2 s1 S2" autocomplete="off" spellcheck="false" aria-describedby="braidHelp">
+            </label>
+            <label for="braidStrands">Strands
+              <input type="number" id="braidStrands" min="1" max="10" placeholder="auto">
+            </label>
+            <button type="submit" class="secondary">Draw</button>
+          </div>
+          <p class="braid-help" id="braidHelp">Write generators as <span class="mono">s1 s2 S1</span> (capital for the inverse), <span class="mono">σ1 σ2⁻¹</span> or <span class="mono">1 2 -1</span>. Use <span class="mono">(s1 s2)^3</span> for powers. Up to 10 strands.</p>
+          <p class="braid-error" id="braidError" role="alert"></p>
+        </form>
+        <div class="seg" id="braidExamples">
+          <button type="button" data-word="s1^3">Trefoil</button>
+          <button type="button" data-word="(s1 S2)^2">Figure-eight</button>
+          <button type="button" data-word="s1^3 s2 S1 s2">5₂</button>
+          <button type="button" data-word="s1^2 S2 s1 S2^2">6₃</button>
+          <button type="button" data-word="(s1 S2)^4">8₁₈</button>
+          <button type="button" data-word="s1^2">Hopf link</button>
+          <button type="button" data-word="s1^2 S2 s1 S2">Whitehead link</button>
+          <button type="button" data-word="(s1 S2)^3">Borromean rings</button>
+        </div>
+        <button type="button" class="link-btn" id="braidFromTorus">Start from the last torus construction</button>
+      </fieldset>
+
+      <fieldset class="torus-only">
         <legend>Tube cross-section</legend>
         <div class="seg" id="shapeSeg">
           <button type="button" id="shape-circle" data-shape="circle" aria-pressed="true">Round</button>
@@ -334,7 +382,7 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset class="torus-only">
         <legend>Turn the cut end by</legend>
         <div class="seg" id="twistSeg">
           <button type="button" id="twist-0" data-k="0" aria-pressed="false">Nothing</button>
@@ -351,7 +399,7 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset class="torus-only">
         <legend>Build it</legend>
         <div class="build">
           <div class="build-buttons">
@@ -363,7 +411,7 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset class="torus-only">
         <legend>Cut it</legend>
         <div class="build">
           <button type="button" class="secondary" id="cutBtn">Cut along the color lines</button>
@@ -380,18 +428,23 @@ h2 {
         <div class="exact">
           <dl class="readout">
             <div>
-              <dt>Braid whose closure is the cut strips</dt>
+              <dt id="x-braid-dt">Braid whose closure is the cut strips</dt>
               <dd id="x-braid">–</dd>
               <dd class="note" id="x-braid-note"></dd>
             </div>
             <div>
-              <dt>Strips: laps, turns around the core, knot, framing</dt>
+              <dt id="x-stripes-dt">Strips: laps, turns around the core, knot, framing</dt>
               <dd><ul class="stripes" id="x-stripes"></ul></dd>
-              <dd class="note">Framing: how many times a strip's edge winds around its own centerline.</dd>
+              <dd class="note" id="x-framing-note">Framing: how many times a strip's edge winds around its own centerline.</dd>
             </div>
             <div>
               <dt>Linking matrix</dt>
               <dd><pre class="matrix" id="x-matrix">–</pre></dd>
+            </div>
+            <div>
+              <dt>Alexander polynomial of the whole link</dt>
+              <dd id="x-alex">–</dd>
+              <dd class="note">Written as in knot tables: lowest term a constant, leading coefficient positive. It is 0 for a split link.</dd>
             </div>
           </dl>
           <div class="exact-actions">
@@ -405,18 +458,18 @@ h2 {
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset class="torus-only">
         <legend>Paint colors</legend>
         <div class="paints" id="paints"></div>
         <button type="button" class="link-btn" id="resetPaint">Reset colors</button>
       </fieldset>
 
-      <div class="actions">
+      <div class="actions torus-only">
         <button type="button" class="primary" id="travel">Pause traveler</button>
         <label class="check" for="seam"><input type="checkbox" id="seam" checked> Show the cut</label>
       </div>
 
-      <div>
+      <div class="torus-only">
         <div class="label">What changed</div>
         <dl class="readout">
           <div>
@@ -639,7 +692,8 @@ window.addEventListener('error', function (e) {
     building: false, buildT: 0,
     cut: 0, cutTarget: 0,   // 0 joined, 1 cut along the color lines and pulled apart
     grow: null,         // sweep progress 0..1 while growing from the shape; null when off
-    growing: false, growT: 0
+    growing: false, growT: 0,
+    braid: null         // { n, word, text } while showing an arbitrary closed braid
   };
 
   // ---------- geometry ----------
@@ -668,7 +722,44 @@ window.addEventListener('error', function (e) {
     out[i + 1] = b;
     out[i + 2] = rr * Math.sin(theta);
   }
+  // A closed braid: each strand is a flat ribbon carried once around the loop.
+  // Ribbons stay level (their width is radial), which is the blackboard framing.
+  function buildBraidMesh() {
+    const { n, word } = state.braid;
+    const lay = KM.braidLayout(n, word);
+    const perm = KM.permutation(n, word);
+    const comps = KM.cycles(perm), compOf = new Array(n);
+    comps.forEach((c, i) => c.forEach(p => { compOf[p] = i; }));
+    const hw = KM.laneWidth(n) * 0.28;
+    const segU = Math.min(1200, Math.max(160, Math.max(word.length, 1) * 28)), segV = 1;
+    const per = (segU + 1) * (segV + 1);
+    nVerts = per * n;
+    thetaArr = new Float32Array(nVerts); phiArr = new Float32Array(nVerts);
+    pos = new Float32Array(nVerts * 3);
+    nQuads = segU * segV * n;
+    qIdx = new Int32Array(nQuads * 4); qPiece = new Uint8Array(nQuads);
+    mesh = { segU, segV, per, n };
+    let q = 0;
+    for (let st = 0; st < n; st++) {
+      const base = st * per, f = lay[st];
+      for (let i = 0; i <= segU; i++) {
+        const th = (i / segU) * TAU, [a, b] = f(Math.min(th, TAU - 1e-9));
+        for (let j = 0; j <= segV; j++) {
+          const v = base + i * (segV + 1) + j;
+          thetaArr[v] = th;
+          place(th, a + (j ? hw : -hw), b, pos, v * 3);
+        }
+      }
+      for (let i = 0; i < segU; i++) {
+        const a = base + i * (segV + 1), b = a + segV + 1;
+        qIdx[q * 4] = a; qIdx[q * 4 + 1] = b; qIdx[q * 4 + 2] = b + 1; qIdx[q * 4 + 3] = a + 1;
+        qPiece[q] = compOf[st] % COMP_COLORS.length;
+        q++;
+      }
+    }
+  }
   function buildMesh() {
+    if (state.braid) { buildBraidMesh(); return; }
     const sh = shapeOf();
     const n = sh.colors.length;
     const segU = 150, segV = sh.offsets.length - 1;
@@ -730,6 +821,7 @@ window.addEventListener('error', function (e) {
     updatePositions();
   }
   function updatePositions() {
+    if (state.braid) return;   // a braid's ribbons are built once in buildBraidMesh
     const shape = state.shape, k = state.k, m = state.m;
     if (m >= 2 - 1e-9) {
       const growTh = state.grow === null ? Infinity : state.grow * TAU;
@@ -956,6 +1048,11 @@ window.addEventListener('error', function (e) {
     updateExact();
   }
   function updateHud() {
+    if (state.braid) {
+      const d = exactInfo(), N = d.components.length;
+      hud.textContent = 'Closed braid on ' + state.braid.n + (state.braid.n === 1 ? ' strand' : ' strands') + ' · ' + N + (N === 1 ? ' component' : ' components');
+      return;
+    }
     if (state.grow !== null) {
       if (state.grow < 1e-6) { hud.textContent = 'The ' + shapeOf().label + ' cross-section, before it moves'; return; }
       const turned = state.k * state.grow;
@@ -1001,6 +1098,7 @@ window.addEventListener('error', function (e) {
   const KM = window.KnotMath;
   const ops = [];   // every operation since the page opened, for the experiment record
   function logOp(op, value) { ops.push({ op, value, at: new Date().toISOString() }); if (ops.length > 500) ops.shift(); }
+  const minus = x => String(x).replace('-', '−');
   // exact fraction for a twist, e.g. 0.666… -> "2/3"
   function turnText(x) {
     for (let q = 1; q <= 24; q++) if (near(x * q)) { const p = Math.round(x * q); return q === 1 ? String(p) : p + '/' + q; }
@@ -1012,35 +1110,59 @@ window.addEventListener('error', function (e) {
     const q = m[2] ? Number(m[2]) : 1;
     return q ? Number(m[1]) / q : null;
   }
-  function exactInfo() {
+  function torusInfo() {
     const sh = shapeOf(), k = state.twistTo;
     if (sh.sym && !near(k * sh.sym)) return { ok: false, reason: 'The cut ends don\'t fit yet, so there is no closed surface to describe.' };
-    return KM.describe({ kind: sh.open ? 'line' : 'ring', pieces: sh.colors.length, turn: k });
+    const d = KM.describe({ kind: sh.open ? 'line' : 'ring', pieces: sh.colors.length, turn: k });
+    if (d.ok) d.alexander = KM.alexander(d.braid.strands, d.braid.word);
+    return d;
   }
+  let braidCache = null;
+  function exactInfo() {
+    if (!state.braid) return torusInfo();
+    const b = state.braid;
+    if (!braidCache || braidCache.key !== b.n + ':' + b.word.join(',')) braidCache = Object.assign(KM.describeBraid(b.n, b.word), { key: b.n + ':' + b.word.join(',') });
+    return braidCache;
+  }
+  const CONVENTION = 'Generator +i is a positive crossing of strands i and i+1 (SnapPy/Spherogram braid_closure).';
   function experiment() {
     const d = exactInfo();
     if (!d.ok) return null;
-    return {
-      format: 'half-twisted-torus/experiment',
-      version: 1,
-      created: new Date().toISOString(),
-      construction: { shape: state.shape, label: shapeOf().label, kind: d.kind, pieces: d.pieces, turn: turnText(state.twistTo), steps: d.steps },
+    const base = { format: 'half-twisted-torus/experiment', version: 2, created: new Date().toISOString() };
+    if (state.braid) {
+      return Object.assign(base, {
+        construction: { type: 'braid', strands: d.strands, word: d.word, text: state.braid.text },
+        operations: ops.slice(),
+        braid: { strands: d.strands, word: d.word, convention: 'Closure is the link drawn. ' + CONVENTION },
+        ribbonBraid: Object.assign({ note: 'Blackboard ribbon: every strand doubled by an edge on one side, so a component\'s framing is the linking number of its core strand with its edge strand (equal to its writhe in the braid). Positions are 0-based.' }, d.ribbonBraid),
+        components: d.components.map(c => ({ braidStrands: c.braidStrands, laps: c.laps, framing: c.framing, writhe: c.writhe, alexander: c.alexander })),
+        linkingMatrix: d.linking,
+        alexander: d.alexander,
+        verify: 'python verify/verify.py <this file>'
+      });
+    }
+    return Object.assign(base, {
+      construction: { type: 'torus', shape: state.shape, label: shapeOf().label, kind: d.kind, pieces: d.pieces, turn: turnText(state.twistTo), steps: d.steps },
       operations: ops.slice(),
-      braid: { strands: d.braid.strands, word: d.braid.word, formula: KM.wordFormula(d.kind, d.pieces, d.steps), convention: 'Closure is the strips left after cutting along the color lines. Generator +i is a positive crossing of strands i and i+1 (SnapPy/Spherogram braid_closure). A positive twist gives positive generators.' },
+      braid: { strands: d.braid.strands, word: d.braid.word, formula: KM.wordFormula(d.kind, d.pieces, d.steps), convention: 'Closure is the strips left after cutting along the color lines. ' + CONVENTION + ' A positive twist gives positive generators.' },
       ribbonBraid: Object.assign({ note: 'Adds one edge beside each strip. A strip\'s framing is the linking number of its core strand with its edge strand. Positions are 0-based.' }, d.ribbonBraid),
-      components: d.components.map(c => ({ pieces: c.pieces, braidStrands: c.braidStrands, laps: c.laps, turns: c.turns, knot: c.knot, framing: c.framing, oneSided: c.oneSided })),
+      components: d.components.map(c => ({ pieces: c.pieces, braidStrands: c.braidStrands, laps: c.laps, turns: c.turns, knot: c.knot, framing: c.framing, oneSided: c.oneSided, alexander: c.alexander })),
       linkingMatrix: d.linking,
+      alexander: d.alexander,
       verify: 'python verify/verify.py <this file>'
-    };
+    });
   }
   const matrixText = M => {
-    const cells = M.map(r => r.map(x => String(x).replace('-', '−')));
+    const cells = M.map(r => r.map(minus));
     const w = Math.max(...cells.flat().map(c => c.length));
     return cells.map(r => r.map(c => c.padStart(w)).join('  ')).join('\n');
   };
+  const hashFor = () => state.braid
+    ? '#braid=' + state.braid.word.join(',') + '&strands=' + state.braid.n
+    : '#shape=' + state.shape + '&turn=' + turnText(state.twistTo);
   let exactKey = '';
   function updateExact() {
-    const key = state.shape + '|' + state.twistTo;
+    const key = state.braid ? 'b|' + state.braid.n + '|' + state.braid.word.join(',') : state.shape + '|' + state.twistTo;
     if (key === exactKey) return;
     exactKey = key;
     const set = (id, t) => { document.getElementById(id).textContent = t; };
@@ -1048,19 +1170,36 @@ window.addEventListener('error', function (e) {
     list.textContent = '';
     const d = exactInfo();
     ['x-copy', 'x-download'].forEach(id => { document.getElementById(id).disabled = !d.ok; });
-    try { history.replaceState(null, '', '#shape=' + state.shape + '&turn=' + turnText(state.twistTo)); } catch (_) {}
-    if (!d.ok) { set('x-braid', '–'); set('x-braid-note', d.reason); set('x-matrix', '–'); return; }
-    set('x-braid', KM.wordFormula(d.kind, d.pieces, d.steps));
-    set('x-braid-note', d.braid.strands + (d.braid.strands === 1 ? ' strand' : ' strands') + ' · ' + d.braid.word.length + ' crossings · ' +
-      (d.kind === 'ring' ? 'δ turns ' + d.pieces + ' points ' + '1/' + d.pieces + ' of a turn' : 'Δ turns the strip half a turn'));
+    try { history.replaceState(null, '', hashFor()); } catch (_) {}
+    set('x-braid-dt', state.braid ? 'Braid word' : 'Braid whose closure is the cut strips');
+    set('x-stripes-dt', state.braid ? 'Components: strands, framing, Alexander polynomial' : 'Strips: laps, turns around the core, knot, framing');
+    set('x-framing-note', state.braid
+      ? 'Framing: the blackboard framing of the flat ribbon drawn, which equals the component\'s writhe in the braid.'
+      : 'Framing: how many times a strip\'s edge winds around its own centerline.');
+    if (!d.ok) { set('x-braid', '–'); set('x-braid-note', d.reason); set('x-matrix', '–'); set('x-alex', '–'); return; }
+    const n = d.braid.strands, m = d.braid.word.length;
+    const counts = n + (n === 1 ? ' strand' : ' strands') + ' · ' + m + (m === 1 ? ' crossing' : ' crossings');
+    if (state.braid) {
+      set('x-braid', KM.wordText(d.word));
+      set('x-braid-note', counts + ' · ' + d.components.length + (d.components.length === 1 ? ' component' : ' components'));
+    } else {
+      set('x-braid', KM.wordFormula(d.kind, d.pieces, d.steps));
+      set('x-braid-note', counts + ' · ' + (d.kind === 'ring' ? 'δ turns ' + d.pieces + ' points 1/' + d.pieces + ' of a turn' : 'Δ turns the strip half a turn'));
+    }
     d.components.forEach((c, i) => {
       const li = document.createElement('li');
-      const knot = c.knot.name === 'unknot' ? 'unknot' : c.knot.name + (c.knot.name.startsWith('T(') ? '' : ' ' + 'T(' + c.knot.torus.join(',') + ')');
-      li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' lap, ' : ' laps, ') + String(c.turns).replace('-', '−') + (Math.abs(c.turns) === 1 ? ' turn · ' : ' turns · ') + knot +
-        ' · ' + (c.oneSided ? 'Möbius, no framing' : 'framing ' + String(c.framing).replace('-', '−'));
+      if (state.braid) {
+        li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' strand' : ' strands') + ' · framing ' + minus(c.framing) + ' · Δ = ' + KM.polyText(c.alexander);
+      } else {
+        const knot = c.knot.name === 'unknot' ? 'unknot' : c.knot.name + (c.knot.name.startsWith('T(') ? '' : ' T(' + c.knot.torus.join(',') + ')');
+        li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' lap, ' : ' laps, ') + minus(c.turns) + (Math.abs(c.turns) === 1 ? ' turn · ' : ' turns · ') + knot +
+          ' · ' + (c.oneSided ? 'Möbius, no framing' : 'framing ' + minus(c.framing));
+      }
+      if (state.braid) li.style.color = 'var(' + COLOR_VARS[COMP_COLORS[i % COMP_COLORS.length]] + ')';
       list.appendChild(li);
     });
     set('x-matrix', matrixText(d.linking));
+    set('x-alex', KM.polyText(d.alexander));
   }
   function flash(msg) { document.getElementById('x-status').textContent = msg; }
   async function copyText(t, what) {
@@ -1079,14 +1218,89 @@ window.addEventListener('error', function (e) {
     const blob = new Blob([json + '\n'], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'torus-' + state.shape + '-turn-' + e.construction.turn.replace('/', 'over') + '.json';
+    a.download = state.braid
+      ? 'braid-' + state.braid.n + '-' + (state.braid.word.length ? state.braid.word.join('_').replace(/-/g, 'm') : 'identity').slice(0, 60) + '.json'
+      : 'torus-' + state.shape + '-turn-' + e.construction.turn.replace('/', 'over') + '.json';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     flash('Saved ' + a.download + '.');
   });
-  // Apply a shape and twist, from a link or a saved experiment.
-  function applyConstruction(shape, turn) {
+
+  // ---------- braid mode ----------
+  const MAX_STRANDS = 10, MAX_CROSSINGS = 400;
+  const COMP_COLORS = [0, 2, 1, 3, 4, 5, 6, 7];   // red, blue, ochre, green, …
+  const panelEl = document.getElementById('panel');
+  const braidInput = document.getElementById('braidInput'), braidStrandsIn = document.getElementById('braidStrands');
+  const braidError = document.getElementById('braidError');
+  // Check a word and strand count; returns { n, word } or throws with a message for the reader.
+  function checkBraid(word, strands) {
+    const need = word.reduce((a, g) => Math.max(a, Math.abs(g) + 1), 1);
+    const n = strands ? strands : Math.max(need, 1);
+    if (!Number.isInteger(n) || n < 1) throw new Error('The number of strands must be a whole number.');
+    if (n < need) throw new Error('σ' + (need - 1) + ' needs at least ' + need + ' strands.');
+    if (n > MAX_STRANDS) throw new Error('Up to ' + MAX_STRANDS + ' strands, please.');
+    if (word.length > MAX_CROSSINGS) throw new Error('Up to ' + MAX_CROSSINGS + ' crossings, please.');
+    return { n, word };
+  }
+  function setMode(mode) {
+    panelEl.dataset.mode = mode;
+    document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  }
+  // Show a braid (or return to the torus with null).
+  function showBraid(b, text) {
+    if (b) {
+      stopGrow(); state.building = false; uncut();
+      state.twisting = false; state.k = state.twistTo;
+      if (state.m < 2) setM(2);
+      state.braid = { n: b.n, word: b.word.slice(), text: text || KM.wordText(b.word) };
+      logOp('braid', { strands: b.n, word: b.word.slice() });
+      setMode('braid');
+    } else {
+      if (!state.braid) return;
+      state.braid = null;
+      logOp('torus', state.shape + ' turn ' + turnText(state.twistTo));
+      setMode('torus');
+    }
+    buildMesh(); buildSeam(); buildTrail(); restartTraveler(); updateReadouts();
+  }
+  function drawFromForm() {
+    try {
+      const word = KM.parseBraid(braidInput.value);
+      const sv = braidStrandsIn.value.trim();
+      const b = checkBraid(word, sv ? Number(sv) : 0);
+      braidError.textContent = '';
+      showBraid(b, braidInput.value.trim());
+    } catch (err) { braidError.textContent = err.message; }
+  }
+  document.getElementById('braidForm').addEventListener('submit', ev => { ev.preventDefault(); drawFromForm(); });
+  document.querySelectorAll('#braidExamples button').forEach(btn => btn.addEventListener('click', () => {
+    braidInput.value = btn.dataset.word; braidStrandsIn.value = '';
+    drawFromForm();
+  }));
+  document.querySelectorAll('#modeSeg button').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.dataset.mode === 'torus') showBraid(null);
+    else if (!state.braid) drawFromForm();
+  }));
+  document.getElementById('braidFromTorus').addEventListener('click', () => {
+    const d = torusInfo();
+    if (!d.ok) { braidError.textContent = 'The last torus construction has no closed stripes (' + twistLabel(state.twistTo).toLowerCase() + ' on the ' + shapeOf().label + ').'; return; }
+    if (d.braid.strands > MAX_STRANDS || d.braid.word.length > MAX_CROSSINGS) { braidError.textContent = 'That construction is too big to edit here.'; return; }
+    braidInput.value = d.braid.word.length ? d.braid.word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ') : '';
+    braidStrandsIn.value = String(d.braid.strands);
+    drawFromForm();
+  });
+
+  // Apply a construction, from a link or a saved experiment.
+  function applyConstruction(c) {
+    if (c && c.type === 'braid') {
+      const b = checkBraid((c.word || []).map(Number).filter(g => Number.isInteger(g) && g !== 0), Number(c.strands) || 0);
+      braidInput.value = c.text || KM.wordText(b.word); braidStrandsIn.value = String(b.n);
+      showBraid(b, c.text);
+      return true;
+    }
+    const shape = c && c.shape, turn = c && parseTurn(c.turn);
     if (!Object.prototype.hasOwnProperty.call(SHAPES, shape) || turn === null || !isFinite(turn)) return false;
+    showBraid(null);
     if (shape !== state.shape) document.getElementById('shape-' + shape).click();
     twistTo(turn);
     return true;
@@ -1097,14 +1311,26 @@ window.addEventListener('error', function (e) {
     if (!f) return;
     try {
       const e = JSON.parse(await f.text());
-      const c = e && e.construction;
-      if (!c || !applyConstruction(c.shape, parseTurn(c.turn))) throw new Error('no shape and turn in it');
+      if (!applyConstruction(e && e.construction)) throw new Error('no construction in it');
       logOp('load', f.name);
       flash('Loaded ' + f.name + '.');
     } catch (err) { flash('Could not load ' + f.name + ': ' + err.message); }
   });
   function readHash() {
     const h = new URLSearchParams(location.hash.slice(1));
+    if (h.has('braid')) {
+      try {
+        const word = h.get('braid').split(',').filter(x => x.trim()).map(x => Number(x));
+        if (word.some(g => !Number.isInteger(g) || g === 0)) throw new Error('bad word');
+        const b = checkBraid(word, Number(h.get('strands')) || 0);
+        state.braid = { n: b.n, word: b.word, text: KM.wordText(b.word) };
+        braidInput.value = word.map(g => (g < 0 ? 'S' : 's') + Math.abs(g)).join(' ');
+        braidStrandsIn.value = String(b.n);
+        setMode('braid');
+        logOp('open link', location.hash);
+      } catch (err) { braidError.textContent = 'The link\'s braid could not be read: ' + err.message; }
+      return;
+    }
     if (h.has('shape') || h.has('turn')) {
       const shape = h.get('shape') || state.shape, turn = h.has('turn') ? parseTurn(h.get('turn')) : state.twistTo;
       if (!Object.prototype.hasOwnProperty.call(SHAPES, shape) || turn === null || Math.abs(turn) > 12) return;
@@ -1301,9 +1527,9 @@ window.addEventListener('error', function (e) {
   let vx = new Float32Array(0), vy = vx, vz = vx, sx = vx, sy = vx;
   let cacheKey = '', cacheVal = null;
   function fillCache() {
-    const key = state.shape + '|' + pal.c.map(c => c.join(',')).join(';');
+    const key = (state.braid ? 'braid' : state.shape) + '|' + pal.c.map(c => c.join(',')).join(';');
     if (key === cacheKey) return cacheVal;
-    cacheVal = shapeOf().colors.map(i => {
+    cacheVal = (state.braid ? COMP_COLORS : shapeOf().colors).map(i => {
       const c0 = pal.c[i], out = [];
       for (let l = 0; l <= 48; l++) {
         const lam = l / 48;
@@ -1383,7 +1609,7 @@ window.addEventListener('error', function (e) {
         }
       }
     }
-    if (((state.m >= 2 && seamBox.checked) || state.grow !== null) && state.cut < 0.02 && seamPts) {
+    if (!state.braid && ((state.m >= 2 && seamBox.checked) || state.grow !== null) && state.cut < 0.02 && seamPts) {
       for (let i = 0; i + 1 < seamPts.length / 3; i += 2) {
         const A = view(seamPts[i * 3], seamPts[i * 3 + 1], seamPts[i * 3 + 2]);
         const B = view(seamPts[i * 3 + 3], seamPts[i * 3 + 4], seamPts[i * 3 + 5]);
@@ -1504,7 +1730,7 @@ window.addEventListener('error', function (e) {
     if (!state.userMoved && !reduceMotion) state.yaw += dt * 0.12;
     if (skip > 0) { skip--; requestAnimationFrame(frame); return; }
     const t0 = performance.now();
-    try { render(!state.twisting && state.m >= 2 && state.grow === null && state.cut < 0.02, trailCount, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; return; }
+    try { render(!state.braid && !state.twisting && state.m >= 2 && state.grow === null && state.cut < 0.02, trailCount, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; return; }
     const cost = performance.now() - t0;
     skip = cost > 60 ? 3 : cost > 30 ? 1 : 0;   // give a slow device time to breathe between drawings
     requestAnimationFrame(frame);

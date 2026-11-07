@@ -1,8 +1,9 @@
 {
   "format": "half-twisted-torus/experiment",
-  "version": 1,
-  "created": "2026-11-07T03:41:16.953Z",
+  "version": 2,
+  "created": "2026-11-07T03:51:53.913Z",
   "construction": {
+    "type": "torus",
     "shape": "hept",
     "label": "heptagon",
     "kind": "ring",
@@ -14,7 +15,7 @@
     {
       "op": "open link",
       "value": "#shape=hept&turn=3/7",
-      "at": "2026-11-07T03:41:16.514Z"
+      "at": "2026-11-07T03:51:53.468Z"
     }
   ],
   "braid": {
@@ -43,11 +44,13 @@
         "crossingNumber": 14
       },
       "framing": 21,
-      "oneSided": false
+      "oneSided": false,
+      "alexander": [1, -1, 0, 1, -1, 0, 1, 0, -1, 1, 0, -1, 1]
     }
   ],
   "linkingMatrix": [
     [0]
   ],
+  "alexander": [1, -1, 0, 1, -1, 0, 1, 0, -1, 1, 0, -1, 1],
   "verify": "python verify/verify.py <this file>"
 }
