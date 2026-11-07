@@ -1,0 +1,53 @@
+{
+  "format": "half-twisted-torus/experiment",
+  "version": 1,
+  "created": "2026-11-07T03:41:16.953Z",
+  "construction": {
+    "shape": "hept",
+    "label": "heptagon",
+    "kind": "ring",
+    "pieces": 7,
+    "turn": "3/7",
+    "steps": 3
+  },
+  "operations": [
+    {
+      "op": "open link",
+      "value": "#shape=hept&turn=3/7",
+      "at": "2026-11-07T03:41:16.514Z"
+    }
+  ],
+  "braid": {
+    "strands": 7,
+    "word": [1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6],
+    "formula": "(σ1 σ2 σ3 σ4 σ5 σ6)³",
+    "convention": "Closure is the strips left after cutting along the color lines. Generator +i is a positive crossing of strands i and i+1 (SnapPy/Spherogram braid_closure). A positive twist gives positive generators."
+  },
+  "ribbonBraid": {
+    "note": "Adds one edge beside each strip. A strip's framing is the linking number of its core strand with its edge strand. Positions are 0-based.",
+    "strands": 14,
+    "word": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+    "cores": [0, 12, 10, 8, 6, 4, 2],
+    "edges": [13, 11, 9, 7, 5, 3, 1]
+  },
+  "components": [
+    {
+      "pieces": [0, 1, 2, 3, 4, 5, 6],
+      "braidStrands": [0, 4, 1, 5, 2, 6, 3],
+      "laps": 7,
+      "turns": 3,
+      "knot": {
+        "name": "T(3,7)",
+        "torus": [3, 7],
+        "genus": 6,
+        "crossingNumber": 14
+      },
+      "framing": 21,
+      "oneSided": false
+    }
+  ],
+  "linkingMatrix": [
+    [0]
+  ],
+  "verify": "python verify/verify.py <this file>"
+}

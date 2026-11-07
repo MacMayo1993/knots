@@ -1,0 +1,68 @@
+{
+  "format": "half-twisted-torus/experiment",
+  "version": 1,
+  "created": "2026-11-07T03:41:19.538Z",
+  "construction": {
+    "shape": "hex",
+    "label": "hexagon",
+    "kind": "ring",
+    "pieces": 6,
+    "turn": "2/3",
+    "steps": 4
+  },
+  "operations": [
+    {
+      "op": "open link",
+      "value": "#shape=hex&turn=2/3",
+      "at": "2026-11-07T03:41:19.084Z"
+    }
+  ],
+  "braid": {
+    "strands": 6,
+    "word": [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
+    "formula": "(σ1 σ2 σ3 σ4 σ5)⁴",
+    "convention": "Closure is the strips left after cutting along the color lines. Generator +i is a positive crossing of strands i and i+1 (SnapPy/Spherogram braid_closure). A positive twist gives positive generators."
+  },
+  "ribbonBraid": {
+    "note": "Adds one edge beside each strip. A strip's framing is the linking number of its core strand with its edge strand. Positions are 0-based.",
+    "strands": 12,
+    "word": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    "cores": [0, 10, 8, 6, 4, 2],
+    "edges": [11, 9, 7, 5, 3, 1]
+  },
+  "components": [
+    {
+      "pieces": [0, 2, 4],
+      "braidStrands": [0, 2, 4],
+      "laps": 3,
+      "turns": 2,
+      "knot": {
+        "name": "trefoil",
+        "torus": [2, 3],
+        "genus": 1,
+        "crossingNumber": 3
+      },
+      "framing": 6,
+      "oneSided": false
+    },
+    {
+      "pieces": [1, 3, 5],
+      "braidStrands": [1, 3, 5],
+      "laps": 3,
+      "turns": 2,
+      "knot": {
+        "name": "trefoil",
+        "torus": [2, 3],
+        "genus": 1,
+        "crossingNumber": 3
+      },
+      "framing": 6,
+      "oneSided": false
+    }
+  ],
+  "linkingMatrix": [
+    [0, 6],
+    [6, 0]
+  ],
+  "verify": "python verify/verify.py <this file>"
+}
