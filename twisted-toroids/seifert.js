@@ -24,13 +24,13 @@
     const gap = opts.gap || Math.min(0.95, 2.6 / Math.max(1, n - 1));
     const bulge = opts.bulge || 0.5, width = opts.width || 0.55;
     const level = p => (p - (n - 1) / 2) * gap;
-    const positions = [], indices = [], vLevel = [], vTheta = [], vRim = [];
+    const positions = [], indices = [], vLevel = [], vTheta = [], vRim = [], parts = [];
     const add = (x, y, z, lv = -1, ti = -1, rim = false) => { positions.push(x, y, z); vLevel.push(lv); vTheta.push(ti); vRim.push(rim); return positions.length / 3 - 1; };
     const thetaOf = i => (i / N) * TAU;
     // disks: a center, rings out to the rim, one vertex per angle step
     const rim = [];
     for (let p = 0; p < n; p++) {
-      const y = level(p), c = add(0, y, 0, p, -1), rings = [];
+      const y = level(p), c = add(0, y, 0, p, -1), rings = [], start = indices.length;
       for (let q = 1; q <= RINGS; q++) {
         const r = RADIUS * q / RINGS, row = [];
         for (let i = 0; i < N; i++) row.push(add(r * Math.cos(thetaOf(i)), y, r * Math.sin(thetaOf(i)), p, i, q === RINGS));
@@ -45,13 +45,14 @@
         }
       }
       rim.push(rings[RINGS - 1]);
+      parts.push({ kind: 'disk', disk: p, start, count: indices.length - start, rows: N, center: c, rim: rim[p] });
     }
     // bands: one per crossing, attached along the middle of its slot
     const bands = [];
     word.forEach((g, k) => {
       const lo = Math.abs(g) - 1, sgn = Math.sign(g);
       const a = k * SLOT + 3, b = (k + 1) * SLOT - 3, S = b - a;
-      const grid = [];
+      const grid = [], start = indices.length;
       for (let v = 0; v <= ALONG; v++) {
         const row = [];
         for (let s = 0; s <= S; s++) {
@@ -72,9 +73,30 @@
         indices.push(p, q, t, p, t, r);
       }
       bands.push({ crossing: k, levels: [lo, lo + 1], sign: sgn });
+      parts.push({ kind: 'band', crossing: k, sign: sgn, start, count: indices.length - start, rows: ALONG, grid });
     });
-    return { positions, indices, vLevel, vTheta, vRim, n, word, slot: SLOT, steps: N, gap, level, bands };
+    return { positions, indices, vLevel, vTheta, vRim, n, word, slot: SLOT, steps: N, gap, level, bands, parts };
   }
+
+  // Reveal complete angular sectors of each disk, then successive rows of each
+  // signed band. Triangle order and positions are unchanged, so the completed
+  // surface and its exports are exactly the same mesh as the static version.
+  // One final phase traces the actual boundary loops, after all bands attach.
+  function constructionAt(surface, progress) {
+    const parts = surface.parts, p = Math.max(0, Math.min(1, progress));
+    const t = p * (parts.length + 1), index = Math.min(parts.length, Math.floor(t + 1e-10));
+    if (index === parts.length) return {
+      index, part: null, count: surface.indices.length, frontier: [],
+      trace: Math.max(0, Math.min(1, t - parts.length)), done: p === 1
+    };
+    const part = parts[index], row = Math.max(0, Math.min(part.rows, Math.floor((t - index) * part.rows + 1e-10)));
+    return {
+      index, part, count: part.start + row * (part.count / part.rows),
+      frontier: part.kind === 'disk' ? [part.center, part.rim[row % part.rows]] : part.grid[row],
+      trace: 0, done: false
+    };
+  }
+  const constructionDuration = surface => Math.max(5, Math.min(24, (surface.parts.length + 1) * .85));
 
   // Which braid component each boundary loop follows: read off a rim vertex of the
   // loop that lies outside every band, from the strand at that position in that slot.
@@ -105,7 +127,7 @@
     });
   }
 
-  const api = { build, loopComponents, orientLoops, RADIUS };
+  const api = { build, loopComponents, orientLoops, constructionAt, constructionDuration, RADIUS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SeifertSurface = api;
 })(typeof window !== 'undefined' ? window : globalThis);

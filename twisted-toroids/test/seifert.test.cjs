@@ -58,6 +58,29 @@ const tre = check(2, [1, 1, 1]);
 ok(tre.A.pieces[0].genus === 1, 'trefoil Seifert surface has genus 1');
 ok(check(2, [1, 1, 1, 1, 1]).A.pieces[0].genus === 2, 'cinquefoil: genus 2');
 ok(check(3, [1, -2, 1, -2]).A.pieces[0].genus === 1, 'figure-eight: genus 1');
+// Building uses only prefixes of the original mesh; each complete band realizes
+// the corresponding prefix braid, including inverse crossings and split pieces.
+for (const [n, word] of [[1,[]],[3,[]],[2,[1,1,1]],[3,[1,-2,1,-2]],[4,[1,3,-1,-3]]]) {
+ const S=SF.build(n,word), savedPositions=S.positions.slice(), savedIndices=S.indices.slice();
+ let last=0;
+ for(let j=0;j<=200;j++) {
+  const f=SF.constructionAt(S,j/200);
+  assert(f.count>=last && f.count<=S.indices.length && f.count%3===0);last=f.count;
+  assert(f.frontier.every(v=>Number.isInteger(v)&&v>=0&&v<S.positions.length/3));
+  if(f.trace>0)assert.equal(f.count,S.indices.length);
+ }
+ for(let k=0;k<=word.length;k++) {
+  const f=SF.constructionAt(S,(n+k)/(S.parts.length+1));
+  const A=MK.analyze(S.indices.slice(0,f.count)), prefix=word.slice(0,k);
+  assert.equal(A.euler,n-k);assert(A.pieces.every(p=>p.orientable&&p.nonManifoldEdges===0));
+  assert.equal(A.loops.length,KM.cycles(KM.permutation(n,prefix)).length);
+  assert.equal(A.pieces.length,KM.seifertPieces(n,prefix));
+ }
+ assert.equal(SF.constructionAt(S,0).count,0);
+ assert.equal(SF.constructionAt(S,1).count,S.indices.length);assert.equal(SF.constructionAt(S,1).trace,1);
+ assert(SF.constructionDuration(S)>=5 && SF.constructionDuration(S)<=24);
+ assert.deepEqual(S.positions,savedPositions);assert.deepEqual(S.indices,savedIndices);
+}
 // random braids
 let seed = 99;
 const rnd = k => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % k; };
