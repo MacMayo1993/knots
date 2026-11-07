@@ -356,6 +356,7 @@ details > summary::marker { color: var(--accent); }
 
 /* ---------- menu pages and dock: only in the phone layout ---------- */
 .dock { display: none; }
+.view-tools, .quick-feedback { display: none; }
 .sheet-body > [data-tab] { scroll-margin-top: 12px; }
 
 /* =================== Phone (Pixel portrait first; landscape below) =================== */
@@ -371,23 +372,35 @@ details > summary::marker { color: var(--accent); }
   .stage > .game-bar .gb-stage { flex: 1 1 auto; }
   .stage > .game-bar .gb-xp { width: 58px; }
   .stage-tools { top: calc(env(safe-area-inset-top, 0px) + 68px); left: calc(env(safe-area-inset-left, 0px) + 8px); right: calc(env(safe-area-inset-right, 0px) + 8px); gap: 6px; }
-  .hud { font-size: 0.76rem; padding: 6px 11px; max-width: 100%; }
+  .hud { font-size: 0.8rem; line-height: 1.4; padding: 8px 12px; max-width: 100%; box-shadow: inset 0 0 0 1px var(--g-glass-line); }
+  .view-tools { display: flex; align-items: center; gap: 6px; pointer-events: auto; }
+  .view-tip { flex: 1; min-width: 0; padding-left: 4px; color: var(--muted); font: 500 0.72rem/1.35 var(--f-game); }
+  .view-tools button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    min-height: 44px; min-width: 44px; padding: 0 10px; border: 1px solid var(--g-glass-line); border-radius: 14px;
+    background: var(--g-glass); color: var(--ink); cursor: pointer; font: 600 0.78rem var(--f-game);
+  }
+  .view-tools svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .view-tools button[aria-pressed="true"] { background: var(--g-violet); border-color: transparent; color: #fff; }
+  .view-tools button:active { transform: scale(0.96); }
+  .view-tools button:focus-visible, .mobile-tools :is(button, select):focus-visible, .sheet-tools button:focus-visible { outline: 3px solid var(--g-cyan); outline-offset: 2px; }
   .stage-tools[data-place="top"] > .hud { border-radius: 16px 16px 0 0; }
 
   /* the control deck: bottom of the screen, above the sheet's dock */
   .mobile-tools {
     position: fixed; z-index: 5; left: calc(env(safe-area-inset-left, 0px) + 8px); right: calc(env(safe-area-inset-right, 0px) + 8px);
     bottom: max(calc(var(--sheet-visible, 0px) + 8px), calc(env(safe-area-inset-bottom, 0px) + 78px));
-    display: grid; gap: 7px; padding: 9px; border: 0; border-radius: 24px;
-    background: var(--g-glass); box-shadow: var(--g-shadow), inset 0 0 0 1.5px var(--g-glass-line);
+    display: grid; gap: 8px; padding: 10px; border: 0; border-radius: 22px;
+    background: var(--g-glass); box-shadow: 0 8px 24px rgba(25, 20, 85, 0.12), inset 0 0 0 1px var(--g-glass-line);
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .stage .mobile-tools { transition: bottom 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
-  .quick-shape { gap: 8px; font-family: var(--f-game); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .lab:has(.panel.dragging) .mobile-tools { transition: none; }
+  .quick-shape { gap: 8px; font-family: var(--f-game); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
   .quick-shape select {
     min-height: 46px; border: 0; border-radius: 14px; font: 600 16px var(--f-game); color: var(--ink);
     background: var(--g-btn) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236a4dff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
-    -webkit-appearance: none; appearance: none; box-shadow: inset 0 -4px 0 var(--g-btn-edge);
+    -webkit-appearance: none; appearance: none; box-shadow: inset 0 0 0 1px var(--g-glass-line), inset 0 -2px 0 var(--g-btn-edge);
   }
   .quick-shape-random { grid-template-columns: minmax(0, 1fr) 50px; }
   .quick-shape-random > button { width: 50px; min-height: 46px; font-size: 1.6rem; }
@@ -395,15 +408,22 @@ details > summary::marker { color: var(--accent); }
   .mobile-tools .quick .step { min-height: 50px; font-size: 1.5rem; font-weight: 700; padding: 0; }
   .mobile-tools .q-value {
     display: grid; place-items: center; border-radius: 14px; font: 700 1.05rem var(--f-game); color: var(--ink);
-    background: var(--bg); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.12);
+    background: var(--bg); box-shadow: inset 0 0 0 1px var(--g-glass-line);
   }
-  .mobile-tools #q-cut { min-height: 50px; font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-  .quick-build .secondary { min-height: 42px; font-size: 0.86rem; }
+  .mobile-tools #q-cut { min-height: 50px; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.02em; }
+  .mobile-tools :is(.step, #q-random-toroid, .quick-build .secondary) { box-shadow: inset 0 -2px 0 var(--g-btn-edge); }
+  .quick-build .secondary { min-height: 44px; font-size: 0.82rem; }
   .quick-braid { min-height: 46px; font-size: 0.95rem; }
+  .quick-feedback { display: grid; grid-template-columns: auto minmax(32px, 1fr); align-items: center; gap: 10px; color: var(--accent); font: 500 0.72rem var(--f-game); padding: 2px 3px; }
+  .quick-feedback[hidden] { display: none; }
+  .quick-feedback progress { width: 100%; height: 5px; border: 0; border-radius: 9px; overflow: hidden; accent-color: var(--g-violet); background: var(--rule); }
+  .quick-feedback progress::-webkit-progress-bar { background: var(--rule); border-radius: 9px; }
+  .quick-feedback progress::-webkit-progress-value { background: var(--g-violet); border-radius: 9px; }
+  .quick-feedback progress::-moz-progress-bar { background: var(--g-violet); border-radius: 9px; }
 
   /* the sheet: a game menu with a tab dock as its handle */
   .panel { border-radius: 26px 26px 0 0; background: var(--panel); box-shadow: 0 -10px 34px rgba(20, 10, 80, 0.22); }
-  .sheet-head { padding-bottom: 6px; }
+  .sheet-head { padding: 8px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px)); }
   .sheet-grip { width: 44px; height: 5px; background: var(--rule); margin: 0 auto 4px; }
   .sheet-top { gap: 2px; }
   .sheet-title { display: none; }
@@ -413,14 +433,20 @@ details > summary::marker { color: var(--accent); }
     background: transparent; color: var(--muted); font: 600 0.68rem/1.1 var(--f-game); letter-spacing: 0.02em;
   }
   .dock-tab span { white-space: nowrap; }
-  .dock-tab[aria-selected="true"] { color: var(--accent); background: var(--g-btn); box-shadow: inset 0 -3px 0 var(--g-btn-edge); }
-  .panel:is([data-sheet="peek"], [data-sheet="hidden"]) .dock-tab[aria-selected="true"] { background: transparent; box-shadow: none; }
+  .dock-tab[aria-selected="true"] { color: var(--accent); background: var(--g-btn); box-shadow: inset 0 -2px 0 var(--g-btn-edge); }
+  .panel:is([data-sheet="peek"], [data-sheet="hidden"]) .dock-tab[aria-selected="true"] { background: var(--g-btn); box-shadow: none; }
   .dock-tab:disabled { opacity: 0.35; }
   .dock-tab:active { transform: translateY(2px); }
   .sheet-tools { flex: none; gap: 0; }
-  .sheet-tools .icon-btn { width: 36px; height: 44px; color: var(--muted); }
+  .sheet-tools .icon-btn { width: 44px; height: 44px; color: var(--muted); }
   #fsBtn { display: none; }
-  .sheet-body { border-top: 0; padding-top: 10px; }
+  .sheet-body { border-top: 1px solid var(--g-glass-line); padding-top: 18px; scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+  .sheet-body > fieldset { border-bottom-color: var(--g-glass-line); }
+  .quest-card { min-height: 90px; padding: 12px 10px; row-gap: 7px; box-shadow: inset 0 0 0 1px var(--g-glass-line), inset 0 -2px 0 var(--g-btn-edge); }
+  .quest-card[aria-pressed="true"] { background: var(--panel); box-shadow: inset 0 0 0 2px var(--accent), 0 4px 14px rgba(40, 20, 120, 0.1); }
+  .qc-badge { top: -5px; font-size: 0.6rem; }
+  .qt-hint { width: 44px; }
+  .quest-tracker button { min-height: 44px; }
   .panel .quick { margin-top: 6px; }
   .panel .quick .secondary { min-height: 44px; padding-inline: 16px; }
   .q-word { font-family: var(--f-game); font-weight: 600; }
@@ -436,6 +462,7 @@ details > summary::marker { color: var(--accent); }
   .panel[data-tab="data"] .sheet-body > [data-tab]:not([data-tab="data"]) { display: none; }
   .sheet-body > fieldset > legend { font-size: 0.86rem; }
   .game-toasts, .game-toasts[popover] { top: calc(env(safe-area-inset-top, 0px) + 66px); }
+  .stage[data-focus="true"] .view-tip { color: var(--accent); }
 }
 /* Pixels up to 412 px wide (6/7/8 and 9/10): the ring round the level number shows the
    experience, so the rank (in the menu and trophy room) gives its room to the world name */
@@ -454,14 +481,18 @@ details > summary::marker { color: var(--accent); }
    a controller's left pad, and the model takes the rest; the bar is shorter */
 @media (max-height: 520px) and (pointer: coarse) and (orientation: landscape) {
   .mobile-tools { position: static; bottom: auto; gap: 6px; padding: 7px; border-radius: 20px; }
-  .stage-tools:has(> .mobile-tools:not([hidden])) { right: auto; width: min(250px, 34vw); }
+  .stage-tools:has(> .mobile-tools:not([hidden])) { right: auto; width: min(250px, 34vw); max-height: calc(100dvh - 74px - env(safe-area-inset-top, 0px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; pointer-events: auto; }
   .mobile-tools .quick { grid-template-columns: 44px minmax(0, 1fr) 44px; }
   .mobile-tools .quick .step, .mobile-tools #q-cut, .mobile-tools .q-value { min-height: 42px; }
   .mobile-tools #q-cut { grid-column: 1 / -1; justify-self: stretch; }
   .quick-shape > span { display: none; }
   .quick-shape { grid-template-columns: minmax(0, 1fr); }
   .quick-shape select, .quick-shape-random > button { min-height: 42px; }
-  .quick-build .secondary { min-height: 38px; font-size: 0.78rem; padding: 4px; }
+  .quick-build .secondary { min-height: 44px; font-size: 0.78rem; padding: 4px; }
+  .view-tools { gap: 4px; }
+  .view-tip { font-size: 0.65rem; }
+  .view-tools button { padding-inline: 8px; }
+  .stage-tools:has(> .mobile-tools:not([hidden])) .view-tools button span { display: none; }
   .stage > .game-bar { height: 46px; right: calc(min(400px, 48vw) + 10px); }
   .stage[data-sheet="hidden"] > .game-bar { right: calc(env(safe-area-inset-right, 0px) + 8px); }
   .stage > .game-bar .gb-player { min-height: 42px; }

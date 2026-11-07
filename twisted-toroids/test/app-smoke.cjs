@@ -75,9 +75,11 @@ if(animate){
  const near=sample(.05),far=sample(.5),geometry=p.cutTips[0].geometry;
  get('mapDetails').open=true;get('cutBtn').click();assert.equal(p.state.cut,0);assert(get('q-braid').disabled);get('q-braid').click();assert.equal(p.state.braid,null);tick(20);
  assert(p.state.cut>0&&p.state.cut<.5);assert.notDeepEqual(sample(.05),near);assert.deepEqual(sample(.5),far);
+ assert.equal(get('quickFeedback').hidden,false);assert.match(get('quickFeedbackText').textContent,/Cutting/);assert(get('quickProgress').value>0&&get('quickProgress').value<50);
  assert.equal(p.cutTips.filter(t=>t.visible).length,4);assert(get('hud').textContent.includes('Cutting paint boundaries'));assert(get('mapNote').textContent.includes('Cutting'));
  const beforeReverse=sample(.15),progress=p.state.cut;get('cutBtn').click();assert.equal(p.state.cut,progress);assert.deepEqual(sample(.15),beforeReverse);
  tick(1);assert(get('hud').textContent.includes('Gluing paint boundaries'));tick(19);assert.equal(p.state.cut,0);assert.deepEqual(sample(.05),near);assert(p.cutTips.every(t=>!t.visible));
+ assert.equal(get('quickFeedback').hidden,true);
  get('cutBtn').click();tick(72);assert.equal(p.state.cut,1);assert(p.cutTips.every(t=>!t.visible));assert(get('mapNote').textContent.includes('Paint boundaries are now cut'));
  tick(1);assert.equal(get('q-braid').disabled,false);get('q-braid').click();assert(p.state.braid);get('braidReturnCut').click();
  assert.equal(p.state.braid,null);assert.equal(p.state.cut,1);assert.equal(p.state.cutTarget,1);assert.equal(p.state.twisting,false);
@@ -249,6 +251,34 @@ p.showBraid(null);assert.equal(get('mobileTools').hidden,!phone);
 p.setLabCut('patch');assert.equal(get('mobileTools').hidden,true);p.setLabCut(null);assert.equal(get('mobileTools').hidden,!phone);
 assert.equal(p.getSheet(),'hidden');
 console.log('PASS: collapsed/hidden top toolbar, all shape options, shared twist/cut actions, invalid/animating cut guards, view offset, and braid/lab visibility.');
+if(phone){
+ for(const size of ['hidden','peek','half']){
+  p.setSheet(size);const construction=JSON.stringify(p.experiment().construction),saved=savedPreferences.get('twisted-toroids-sheet');
+  get('viewFocus').click();assert.equal(get('stage').dataset.focus,'true');assert.equal(p.getSheet(),'hidden');
+  assert.equal(get('mobileTools').hidden,true);assert.equal(get('sheetShow').hidden,true);assert.equal(get('panel').inert,true);
+  get('viewFit').click();assert.equal(JSON.stringify(p.experiment().construction),construction);
+  get('viewFocus').click();assert.equal(p.getSheet(),size);assert.equal(get('stage').dataset.focus,'false');
+  assert.equal(savedPreferences.get('twisted-toroids-sheet'),saved);assert.equal(get('sheetBody').inert,size!=='half');
+ }
+ p.setSheet('peek');get('viewFocus').click();get('tab-style').click();
+ assert.equal(get('stage').dataset.focus,'false');assert.equal(p.getSheet(),'half');
+ get('sheetBody').scrollTop=123;get('tab-play').click();get('sheetBody').scrollTop=45;get('tab-style').click();
+ assert.equal(get('sheetBody').scrollTop,123);get('tab-play').click();assert.equal(get('sheetBody').scrollTop,45);
+ p.showBraid({n:2,word:[1,1,1]});p.setSheet('peek');get('viewFocus').click();assert.equal(get('braidToolbar').hidden,true);
+ get('viewFocus').click();assert.equal(get('braidToolbar').hidden,false);p.showBraid(null);p.setSheet('hidden');
+ // Cancellation restores the snap point; unrelated fingers and right clicks do not drive the sheet.
+ const head=get('sheetHead'),target={closest:()=>null};p.setSheet('half');
+ head.dispatch('pointerdown',{target,pointerId:10,isPrimary:true,button:0,clientY:500});
+ head.dispatch('pointermove',{target,pointerId:10,clientY:300});
+ const moved=get('panel').style['--sheet-visible'];
+ head.dispatch('pointermove',{target,pointerId:11,clientY:0});assert.equal(get('panel').style['--sheet-visible'],moved);
+ head.dispatch('pointercancel',{target,type:'pointercancel',pointerId:10});assert.equal(p.getSheet(),'half');
+ const restored=get('panel').style['--sheet-visible'];assert.notEqual(restored,moved);
+ head.dispatch('pointerdown',{target,pointerId:12,isPrimary:true,button:2,clientY:500});
+ head.dispatch('pointermove',{target,pointerId:12,clientY:0});assert.equal(get('panel').style['--sheet-visible'],restored);
+ p.setSheet('hidden');
+ console.log('PASS: focus and Fit preserve construction and saved layout; focus restores toroid/braid controls; tab scroll memory; inert sheet; canceled and unrelated pointer gestures.');
+}
 // Convert completed cuts through the actual controls, preserving link invariants and paint mapping.
 for (const [shape,turn] of [['circle',1.5],['hex',1/3],['square',-.5],['band3',.5],['gear',0]]) {
  get('shape-'+shape).click();p.twistTo(turn);get('cutBtn').click();checkbox(true);p.setSheet('hidden');

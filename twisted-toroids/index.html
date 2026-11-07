@@ -501,6 +501,11 @@ h2 {
       <div class="stage-tools" id="stageTools">
         <div class="quest-tracker" id="questTracker" role="group" aria-label="Active quest" hidden></div>
         <div class="hud" id="hud" aria-live="polite">Drawing the model</div>
+        <div class="view-tools" id="viewTools" role="group" aria-label="Model view">
+          <span class="view-tip" id="viewTip">Drag to rotate · pinch to zoom</span>
+          <button type="button" id="viewFit" aria-label="Fit model in view" title="Reset the camera without changing your construction"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><circle cx="12" cy="12" r="3"/></svg><span>Fit</span></button>
+          <button type="button" id="viewFocus" aria-label="Focus on model" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9V3h6m6 0h6v6M3 15v6h6m6 0h6v-6"/></svg><span id="viewFocusLabel">Focus</span></button>
+        </div>
         <div class="braid-toolbar" id="braidToolbar" aria-label="Braid controls" hidden>
           <div class="braid-top-row">
             <div class="braid-view-tabs" role="group" aria-label="Braid view">
@@ -553,6 +558,10 @@ h2 {
           <div class="quick-build">
             <button type="button" class="secondary" id="q-build">Build from sheet</button>
             <button type="button" class="secondary" id="q-grow">Grow from shape</button>
+          </div>
+          <div class="quick-feedback" id="quickFeedback" hidden>
+            <span id="quickFeedbackText"></span>
+            <progress id="quickProgress" max="100" value="0" aria-label="Construction progress"></progress>
           </div>
         </div>
       </div>
@@ -1564,6 +1573,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncQuick();
   }
   function updateHud() {
+    syncQuickFeedback();
     if (game) game.stage(labCut ? (labModel && labModel.surface === 'klein' ? 'klein' : 'explore') : state.braid ? 'braid' : 'torus');
     if (labCut) {
       // on a phone the readout also carries the drawing status shown under the map elsewhere
@@ -1999,7 +2009,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   // Where the braid toolbar goes: a rail beside the model on desktop, one row along
   // the top on a phone (hidden only while the phone sheet is full).
-  const braidPlacement = () => BS.placement({ braid: !!state.braid, lab: !!labCut, phone: isPhone(), sheet, stageWidth: stage.getBoundingClientRect().width });
+  const braidPlacement = () => isPhone() && stage.dataset.focus === 'true' ? 'hidden' : BS.placement({ braid: !!state.braid, lab: !!labCut, phone: isPhone(), sheet, stageWidth: stage.getBoundingClientRect().width });
   function syncBraidToolbar() {
     const bar = document.getElementById('braidToolbar'), tools = document.getElementById('stageTools'), more = document.getElementById('braidMore');
     const place = braidPlacement(), hidden = place === 'hidden';
@@ -2068,10 +2078,12 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   document.getElementById('braidViewRibbon').addEventListener('click', () => { setRelax(false); seifertBox.checked = false; seifKey = '#'; clearSelection(); syncBraidToolbar(); });
   document.getElementById('braidViewRope').addEventListener('click', () => { leavePull(); setRelax(true); });
   document.getElementById('braidViewSurface').addEventListener('click', () => { if (!seifertBox.checked) seifertBox.click(); });
-  document.getElementById('braidResetView').addEventListener('click', () => {
+  function resetModelView() {
+    cameraGesture++;
     controls.target.set(0, 0, 0); camera.position.setFromSpherical(new THREE.Spherical(6.2, Math.PI / 2 - 0.62, 0.5));
     state.userMoved = false; userZoomed = false; controls.update();
-  });
+  }
+  document.getElementById('braidResetView').addEventListener('click', resetModelView);
   document.getElementById('braidWidth').addEventListener('input', e => {
     braidStyle.width = BC.normalize({ ...braidStyle, width: Number(e.target.value) / 100 }).width;
     saveBraidStyle(); document.getElementById('braidWidthValue').textContent = Math.round(braidStyle.width * 100) + '%';
@@ -2398,10 +2410,13 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   controls.minDistance = 3.6; controls.maxDistance = 18;
   controls.autoRotate = !reduceMotion; controls.autoRotateSpeed = 1.1;
   // a drag stops the slow spin; a zoom also stops the phone layout's automatic fit
-  let zoomFrom = 0, userZoomed = false;
+  let zoomFrom = 0, userZoomed = false, cameraGesture = 0;
   const camDist = () => camera.position.distanceTo(controls.target);
-  controls.addEventListener('start', () => { state.userMoved = true; controls.autoRotate = false; zoomFrom = camDist(); });
-  controls.addEventListener('end', () => { setTimeout(() => { if (Math.abs(camDist() - zoomFrom) > 0.03 * zoomFrom) userZoomed = true; }, 250); });
+  controls.addEventListener('start', () => { cameraGesture++; state.userMoved = true; controls.autoRotate = false; zoomFrom = camDist(); });
+  controls.addEventListener('end', () => {
+    const gesture = cameraGesture;
+    setTimeout(() => { if (gesture === cameraGesture && Math.abs(camDist() - zoomFrom) > 0.03 * zoomFrom) userZoomed = true; }, 250);
+  });
 
   // the surface
   const surfMat = new THREE.MeshStandardMaterial({
@@ -3717,7 +3732,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 
   // ---------- phone layout: full-screen model with a bottom sheet ----------
   // On a phone the panel has hidden, peek, half and full sizes. The torus quick
-  // controls and braid toolbar live above the model in hidden/peek. The camera accounts for both the sheet and the top controls.
+  // controls sit above the dock in portrait; the camera accounts for the deck,
+  // sheet and top controls. Focus temporarily hides the editing controls.
   const phoneMQ = window.matchMedia('(max-width: 760px), (max-height: 520px) and (pointer: coarse)');
   const sheetHead = document.getElementById('sheetHead'), sheetBody = document.getElementById('sheetBody');
   const sheetFab = document.getElementById('sheetShow'), sizeBtn = document.getElementById('sheetSize');
@@ -3728,6 +3744,25 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   let sheet = 'peek';
   try { const v = localStorage.getItem(SHEET_KEY) || localStorage.getItem('half-twisted-torus-sheet'); if (['hidden', 'peek', 'half', 'full'].includes(v)) sheet = v; } catch (_) {}
   let sheetVisible = 0, viewShift = 0;   // px of sheet on screen; current camera shift
+  let focusView = false, focusSheet = sheet;
+  const focusBtn = document.getElementById('viewFocus');
+  function syncFocusView() {
+    stage.dataset.focus = String(focusView);
+    focusBtn.setAttribute('aria-pressed', String(focusView));
+    focusBtn.setAttribute('aria-label', focusView ? 'Exit focus view' : 'Focus on model');
+    document.getElementById('viewFocusLabel').textContent = focusView ? 'Back' : 'Focus';
+  }
+  function toggleFocusView() {
+    if (!isPhone()) return;
+    if (!focusView) { focusSheet = sheet; focusView = true; syncFocusView(); setSheet('hidden', false); }
+    else { focusView = false; syncFocusView(); setSheet(focusSheet, false); }
+    measureTopTools();
+  }
+  focusBtn.addEventListener('click', toggleFocusView);
+  document.getElementById('viewFit').addEventListener('click', resetModelView);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && focusView && !document.querySelector('dialog[open]')) { toggleFocusView(); focusBtn.focus(); }
+  });
   const isPhone = () => phoneMQ.matches;
   const sideMQ = window.matchMedia('(max-height: 520px) and (pointer: coarse) and (orientation: landscape)');
   const isSide = () => sideMQ.matches;
@@ -3740,12 +3775,11 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const deckAtBottom = () => { try { return getComputedStyle(mobileTools).position === 'fixed'; } catch (_) { return false; } };
   function syncMobileTools() {
     syncBraidToolbar();
-    const hidden = !isPhone() || !['hidden','peek'].includes(sheet) || !!state.braid || !!labCut;
+    const hidden = !isPhone() || focusView || !['hidden','peek'].includes(sheet) || !!state.braid || !!labCut;
     const changed = mobileTools.hidden !== hidden;
     mobileTools.hidden = hidden;
     stage.dataset.sheet = sheet;
     if (changed && !hidden) measureTopTools();
-    if (game && changed && typeof game.refresh === 'function') game.refresh();
   }
   if ('ResizeObserver' in window) new ResizeObserver(measureTopTools).observe(stageTools);
   window.addEventListener('resize', measureTopTools);
@@ -3771,6 +3805,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     panelEl.style.setProperty('--sheet-hidden', Math.max(0, Math.round((panelEl.getBoundingClientRect().height || 0) - px)) + 'px');
   }
   function setSheet(name, save = true) {
+    if (focusView && name !== 'hidden') { focusView = false; syncFocusView(); }
     sheet = name;
     panelEl.dataset.sheet = name;
     syncMobileTools();
@@ -3778,7 +3813,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     applySheet(sheetHeights()[name]);
     panelEl.setAttribute('aria-hidden', String(name === 'hidden'));
     panelEl.inert = name === 'hidden';
-    sheetFab.hidden = name !== 'hidden';
+    sheetBody.inert = name === 'hidden' || name === 'peek';
+    sheetFab.hidden = name !== 'hidden' || focusView;
     const up = name === 'peek' || name === 'hidden';
     sizeBtn.setAttribute('aria-expanded', String(!up));
     sizeBtn.setAttribute('aria-label', up ? 'Show more controls' : 'Show fewer controls');
@@ -3793,10 +3829,12 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       setTab(tab, false);
       setSheet(sheet, false);
     } else {
+      if (focusView) sheet = focusSheet;
+      focusView = false; syncFocusView();
       if (notesEl.parentElement !== labEl.parentElement) labEl.after(notesEl);
       if (gameBarEl.parentElement !== headBar) headBar.appendChild(gameBarEl);
       panelEl.style.removeProperty('--sheet-visible'); panelEl.style.removeProperty('--sheet-hidden');
-      panelEl.removeAttribute('aria-hidden'); panelEl.inert = false;
+      panelEl.removeAttribute('aria-hidden'); panelEl.inert = false; sheetBody.inert = false;
       sheetFab.hidden = true; sheetVisible = 0;
       syncMobileTools();
     }
@@ -3813,15 +3851,16 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   // becomes a drag once the finger has clearly moved, otherwise the tap opens the tab.
   let tabDragEnd = -1e9;
   sheetHead.addEventListener('pointerdown', e => {
+    if (drag || e.isPrimary === false || (e.button != null && e.button !== 0)) return;
     const onTab = !!(e.target.closest && e.target.closest('.dock-tab'));
     if (!isPhone() || (!onTab && e.target.closest('button, input, output'))) return;
-    drag = { y: e.clientY, t: performance.now(), start: sheetVisible, moved: false, last: e.clientY, lt: performance.now(), v: 0, tab: onTab, id: e.pointerId };
+    drag = { y: e.clientY, t: performance.now(), start: sheetVisible, sheet, moved: false, last: e.clientY, lt: performance.now(), v: 0, tab: onTab, id: e.pointerId };
     if (onTab) return;
     panelEl.classList.add('dragging');
     try { sheetHead.setPointerCapture(e.pointerId); } catch (_) {}
   });
   sheetHead.addEventListener('pointermove', e => {
-    if (!drag) return;
+    if (!drag || e.pointerId !== drag.id) return;
     const dy = e.clientY - drag.y;
     if (drag.tab && !drag.moved) {
       if (Math.abs(dy) <= 8) return;
@@ -3833,10 +3872,15 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     drag.v = (e.clientY - drag.last) / Math.max(1, now - drag.lt); drag.last = e.clientY; drag.lt = now;
     applySheet(Math.max(0, Math.min(sheetHeights().full, drag.start - dy)));
   });
-  const endSheetDrag = () => {
-    if (!drag) return;
+  const endSheetDrag = e => {
+    if (!drag || e.pointerId !== drag.id) return;
     panelEl.classList.remove('dragging');
     const d = drag; drag = null;
+    try { sheetHead.releasePointerCapture(d.id); } catch (_) {}
+    if (e.type === 'pointercancel' || e.type === 'lostpointercapture') {
+      if (d.tab && d.moved) tabDragEnd = performance.now();
+      setSheet(d.sheet, false); return;
+    }
     if (!d.moved) { if (!d.tab) setSheet(sheet === 'half' ? 'peek' : 'half'); return; }
     if (d.tab) tabDragEnd = performance.now();   // the drag's release is not a tap on the tab
     const h = sheetHeights(), order = ['peek', 'half', 'full'];
@@ -3849,10 +3893,12 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   };
   sheetHead.addEventListener('pointerup', endSheetDrag);
   sheetHead.addEventListener('pointercancel', endSheetDrag);
+  sheetHead.addEventListener('lostpointercapture', endSheetDrag);
 
   // ---------- menu pages: on a phone the dock's tabs show one page of the sheet ----------
   const TABS = ['play', 'quests', 'explore', 'style', 'data'], TAB_KEY = 'twisted-toroids-tab';
   let tab = 'play';
+  const tabScroll = Object.create(null);
   try { const v = localStorage.getItem(TAB_KEY); if (TABS.includes(v)) tab = v; } catch (_) {}
   const tabBtn = t => document.getElementById('tab-' + t);
   function setTab(name, save = true) {
@@ -3860,6 +3906,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     // the construction pages are empty while the cut explorer is open
     if (labCut && (name === 'play' || name === 'data')) name = 'explore';
     const changed = name !== tab;
+    if (changed && isPhone()) tabScroll[tab] = sheetBody.scrollTop;
     tab = name;
     panelEl.dataset.tab = name;
     TABS.forEach(t => {
@@ -3867,7 +3914,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       b.disabled = !!labCut && (t === 'play' || t === 'data');
     });
     sheetBody.setAttribute('aria-labelledby', 'tab-' + name);
-    if (changed && isPhone()) sheetBody.scrollTop = 0;
+    if (changed && isPhone()) sheetBody.scrollTop = tabScroll[name] || 0;
     if (save) try { localStorage.setItem(TAB_KEY, name); } catch (_) {}
   }
   // Code that opens a control in the sheet first shows the page that holds it.
@@ -3889,11 +3936,33 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }));
   document.getElementById('dock').addEventListener('keydown', e => {
     const dir = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-    if (!dir) return;
+    if (!dir && e.key !== 'Home' && e.key !== 'End') return;
     const live = TABS.filter(t => !tabBtn(t).disabled), i = live.indexOf(tab);
-    const next = live[(i + dir + live.length) % live.length];
-    setTab(next); tabBtn(next).focus(); e.preventDefault();
+    const next = e.key === 'Home' ? live[0] : e.key === 'End' ? live[live.length - 1] : live[(i + dir + live.length) % live.length];
+    openTab(next); tabBtn(next).focus(); e.preventDefault();
   });
+
+  // Keep progress next to the action. Only update DOM when the displayed percent
+  // changes; the existing HUD supplies the full mathematical description.
+  let quickFeedbackKey = '';
+  function syncQuickFeedback() {
+    const tip = pullMode ? 'Drag rope to pull · pinch to zoom' : 'Drag to rotate · pinch to zoom';
+    const tipEl = document.getElementById('viewTip');
+    if (tipEl.textContent !== tip) tipEl.textContent = tip;
+    let label = '', progress = 0;
+    if (!state.braid && !labCut) {
+      if (state.building) { label = 'Building from sheet'; progress = state.m / 2; }
+      else if (state.growing) { label = 'Growing from shape'; progress = state.grow || 0; }
+      else if (state.cut !== state.cutTarget) { label = state.cutTarget ? 'Cutting' : 'Gluing'; progress = state.cutTarget ? state.cut : 1 - state.cut; }
+    }
+    const percent = Math.round(progress * 100), key = label + percent;
+    if (key === quickFeedbackKey) return;
+    quickFeedbackKey = key;
+    document.getElementById('quickFeedback').hidden = !label;
+    document.getElementById('quickFeedbackText').textContent = label ? label + ' · ' + percent + '%' : '';
+    const meter = document.getElementById('quickProgress');
+    meter.value = percent; meter.setAttribute('aria-label', label || 'Construction progress');
+  }
 
   // quick bar: shortcuts to the panel's own controls
   document.querySelectorAll('#shapeSeg button').forEach(button => {
@@ -4008,7 +4077,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       // on its side the readout and quick controls are a column down the left
       const sr = stage.getBoundingClientRect(), r = stageTools.getBoundingClientRect(), right = r.left + r.width - sr.left + 10;
       if (Number.isFinite(right) && right < W * 0.6) { tx -= right / 2; freeW = Math.max(1, freeW - right); }
-    } else if (barHidden && (!mobileTools.hidden || (isPhone() && !isSide()))) { measureTopTools(); ty -= topToolsInset / 2; freeH = Math.max(1, freeH - topToolsInset); }
+    } else if (barHidden && (!mobileTools.hidden || (isPhone() && (!isSide() || focusView)))) { measureTopTools(); ty -= topToolsInset / 2; freeH = Math.max(1, freeH - topToolsInset); }
     // the braid toolbar takes the left side (rail) or a band along the top (phone row)
     const bar = document.getElementById('braidToolbar'), place = bar.hidden ? 'hidden' : bar.dataset.place || 'top';
     if (place !== 'hidden') {
