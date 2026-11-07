@@ -225,6 +225,17 @@ def check_braid(exp):
     return problems, name
 
 
+def tau(n, word, comp):
+    """Ozsvath-Szabo tau of one component (0 for an unknot). It is +genus for a
+    positive torus knot and -genus for its mirror, so its sign gives handedness."""
+    m, w = keep_strands(n, word, comp)
+    if m < 2 or not w:
+        return 0
+    K = closure(w, m)
+    K.simplify('global')
+    return K.knot_floer_homology()['tau'] if K.crossings else 0
+
+
 def torus_genus(q, p):
     q, p = abs(q), abs(p)
     return 0 if q < 2 or p < 2 else (q - 1) * (p - 1) // 2
@@ -239,7 +250,7 @@ def check(exp):
     word = braid_word(kind, n, steps)
     if word != exp['braid']['word']:
         problems.append('braid word differs from the construction')
-    rn = 2 * n if kind == 'ring' else 2 * n + 1
+    rn = 2 * n if kind == 'ring' else 3 * n
     rword = braid_word(kind, rn, 2 * steps if kind == 'ring' else steps)
     if rword != exp['ribbonBraid']['word']:
         problems.append('ribbon braid word differs from the construction')
@@ -271,6 +282,12 @@ def check(exp):
     for cc, cm in zip(comps, order):
         if 'alexander' in cm and alexander_hfk(n, word, cc) != cm['alexander']:
             problems.append('stripe %s Alexander: knot Floer %s, model %s' % (cm['pieces'], alexander_hfk(n, word, cc), cm['alexander']))
+        kn = cm.get('knot') or {}
+        if kn.get('chirality'):
+            want = (1 if kn['torus'][1] > 0 else -1) * kn['genus']
+            got = tau(n, word, cc)
+            if got != want:
+                problems.append('stripe %s handedness: tau %d, model says %s' % (cm['pieces'], got, kn['name']))
         g = genus(n, word, cc)
         if g != torus_genus(cm['laps'], cm['turns']):
             problems.append('stripe %s genus: Spherogram %d, T(%d,%d) has %d' % (cm['pieces'], g, cm['laps'], cm['turns'], torus_genus(cm['laps'], cm['turns'])))
@@ -318,6 +335,9 @@ def sweep(max_turns=2):
                 turns = 0 if centre else steps * laps // (n if kind == 'ring' else 2)
                 if genus(n, word, cc) != torus_genus(laps, turns):
                     problems.append('genus of %s' % cc)
+                g = torus_genus(laps, turns)
+                if g and tau(n, word, cc) != (1 if turns > 0 else -1) * g:
+                    problems.append('handedness of %s' % cc)
             for A, B in itertools.combinations(comps, 2):
                 # parallel (q, p) curves on one torus link q*p times; in a line, an inner
                 # stripe links an outer one (outer turns) x (inner laps) times

@@ -4,7 +4,13 @@ An interactive model by Mac Mayo. A painted torus is cut through the tube, one e
 
 ## Open it
 
-Double-click `index.html`. It opens in any modern browser and runs offline. There is no install, no build step, no 3D library and no WebGL. The page loads one helper script, `knotmath.js`, from the same folder. It draws with the browser's 2D canvas. The Google Fonts link is optional; without a connection the page falls back to system fonts.
+Open the GitHub Pages site, or serve this folder locally and open the page:
+
+```
+python3 -m http.server 8000      # then visit http://localhost:8000/
+```
+
+The page draws with [Three.js](https://threejs.org) (WebGL 2), loaded as JavaScript modules. Browsers won't load modules from a double-clicked file, which is why it needs a server. There is no install and no build step. Three.js r186.1 is copied into `vendor/three/`, unmodified, so the page makes no requests to other sites. The only exception is the optional Google Fonts link; without a connection the page falls back to system fonts.
 
 ## Controls
 
@@ -21,7 +27,8 @@ Double-click `index.html`. It opens in any modern browser and runs offline. Ther
 - **Paint colors:** one color picker per painted half or face of the current shape. Your choices are remembered in your browser; **Reset colors** restores the defaults.
 - **Pause / Send a traveler:** a dot rides one stripe until it gets home.
 - **Show the cut:** the dashed ring where the tube was sliced.
-- Drag or use the arrow keys to rotate; scroll to zoom.
+- Drag or use the arrow keys to rotate; scroll or pinch to zoom.
+- **Follow a strip:** tap any strip on the model, or a line in the exact description's strip list. That strip or component keeps its color while the rest fade, and its full route is drawn: the centerline as a solid line and its edge as a dashed one, faintly where they pass behind the surface. The readout at the top says how many laps it takes, which knot it is, and its framing, the number of times the dashed edge winds around the solid centerline. Tap it again, tap empty space, or press Escape to clear.
 
 ## What the readouts mean
 
@@ -38,7 +45,9 @@ Each construction carries a set of points on the cross-section once around the c
 - **Closed cross-sections** with `n` painted pieces and a twist of `s/n` of a turn: `δ^s`, where `δ = σ1 σ2 … σ(n-1)`. Its closure is the torus link `T(n, s)`.
 - **Flat strips** with `n` lanes and `h` half turns: `Δ^h`, where `Δ` is the half twist.
 
-Generator `+i` is a positive crossing of strands `i` and `i+1`, which is the convention SnapPy and Spherogram use for `braid_closure`. A positive twist in the model gives positive generators. `knotmath.js` reads the strips, the linking matrix and each strip's framing off the braid word itself. It does not use the model's readout formulas, so the two act as checks on each other. The framing comes from a second "ribbon" braid that also carries one edge of every strip. A strip's framing is the linking number of its center line with that edge.
+Generator `+i` is a positive crossing of strands `i` and `i+1`, which is the convention SnapPy and Spherogram use for `braid_closure`. A positive twist in the model gives positive generators. `knotmath.js` reads the strips, the linking matrix and each strip's framing off the braid word itself. It does not use the model's readout formulas, so the two act as checks on each other. The framing comes from a second "ribbon" braid that also carries a parallel copy of every strip, pushed a little way across it. A strip's framing is the linking number of its center line with that copy. On a flat strip the copies sit inside each lane, never on the band's center line: that line lies on the axis the band turns about, so it closes after one lap even when the strip around it takes two.
+
+Nontrivial torus knots are chiral: T(2, 3), the right-handed trefoil, and its mirror T(2, −3), the left-handed trefoil, are different knots. The readouts always name the handedness. A positive twist gives a positive braid, which closes to a right-handed torus knot.
 
 **Any braid.** The page draws the closure of the braid you enter: strands sit side by side along the radius, and each generator gets an equal share of the loop, where strands `i` and `i+1` swap places by turning half a turn about their midpoint. The ribbons stay level, so each component's framing is its blackboard framing, which equals its writhe in the braid. This is a different framing from the torus surface framing that the twisted-torus strips use. For example, the trefoil `(σ1 σ2)²` has framing 6 as a strip on the torus and framing 4 as a level ribbon. The Alexander polynomial comes from the reduced Burau representation: `det(I − ρ(β)) / (1 + t + … + t^(n−1))`, computed exactly with whole-number coefficients. It is written as knot tables write it, with a constant lowest term and a positive leading coefficient. For a link with several components it is the one-variable polynomial, and it is 0 for a split link.
 
@@ -46,12 +55,13 @@ A downloaded experiment records the construction, every operation since the page
 
 Two independent checks:
 
-- `node test/geometry.test.mjs` samples the model's actual curves for every shape and for twists of up to 2 turns each way. It compares Gauss-integral linking numbers with the braid-derived linking matrices and framings. This also confirms the sign convention.
+- `node test/geometry.test.mjs` samples the model's actual curves for every shape and for twists of up to 2 turns each way. It compares Gauss-integral linking numbers with the braid-derived linking matrices and framings, and checks that exactly the Möbius center lanes are reported as one-sided. This also confirms the sign convention. The closed cross-sections are sampled as circles, which are isotopic to the drawn polygons and other shapes, so the test certifies the topology but not every rendered shape or animation frame.
 - The geometry test also draws 35 braids the way the page does, five fixed and thirty random, and checks their linking numbers and blackboard framings against the braid word. It also checks the Burau Alexander polynomials of all the torus constructions against the closed formula for torus knots.
-- `python verify/verify.py <experiment.json …>` (after `pip install snappy`) rebuilds the braid from the construction alone. It then uses Spherogram to count the strips and compute the linking numbers and framings, and it checks each strip's genus against the claimed torus knot using knot Floer homology. For a braid experiment it uses Spherogram to check the component count, linking numbers and blackboard framings. It checks each knotted component's Alexander polynomial against the Euler characteristic of its knot Floer homology, and prints SnapPy's name for the link when it can find one. For a link with several components, the whole-link polynomial is not checked independently, because that needs Sage. `python verify/verify.py --random 400` runs `knotmath.js` (through Node) on random braids and checks every claim the same way. Run `python verify/verify.py --sweep` to check every preset shape with twists of up to 2 turns each way. That takes a few minutes; add `--max-turns 1` for a run of about 10 seconds. `verify/examples/` holds experiments exported from the page.
+- `python verify/verify.py <experiment.json …>` (after `pip install snappy`) rebuilds the braid from the construction alone. It then uses Spherogram to count the strips and compute the linking numbers and framings, and it uses knot Floer homology to check each strip's genus against the claimed torus knot and its handedness with the τ invariant: τ equals the genus for a right-handed torus knot and minus the genus for a left-handed one. For a braid experiment it uses Spherogram to check the component count, linking numbers and blackboard framings. It checks each knotted component's Alexander polynomial against the Euler characteristic of its knot Floer homology, and prints SnapPy's name for the link when it can find one. For a link with several components, the whole-link polynomial is not checked independently, because that needs Sage. `python verify/verify.py --random 400` runs `knotmath.js` (through Node) on random braids and checks every claim the same way. Run `python verify/verify.py --sweep` to check every preset shape with twists of up to 2 turns each way. That takes about 8 minutes; add `--max-turns 1` for a run of about 10 seconds. `verify/examples/` holds experiments exported from the page.
 
 ## Code layout
 
+- `vendor/three/`: Three.js r186.1 (MIT), with OrbitControls and the fat-line addons.
 - `knotmath.js`: braid words, reading a braid (components, linking matrix, writhe), `describe()` for a torus construction, `parseBraid()`, `describeBraid()`, the Burau `alexander()` and `braidLayout()`, the geometry the page draws for a braid. Works as a browser script (`window.KnotMath`) and as a Node module.
 - `test/geometry.test.mjs`, `verify/verify.py`: the checks above.
 
@@ -60,9 +70,10 @@ Everything else is inside `index.html`:
 - `<style>`: design tokens for light and dark themes, then layout.
 - `<script>`:
   - `SHAPES` and `section()` define each cross-section and its paint.
-  - `buildMesh()` and `updatePositions()` build the twisted tube. For the build animation, `updatePositions()` unrolls the cross-section using an arc-length table (`arc`), rolls it by scaling its turning angle, then bends the straight tube into the ring along a circular arc while turning the far end.
+  - `buildMesh()` and `updatePositions()` build the twisted tube. `surfacePoint()` is the finished model's formula for one point, and the highlighted routes use it too, so they sit exactly on the mesh. For the build animation, `updatePositions()` unrolls the cross-section using an arc-length table (`arc`), rolls it by scaling its turning angle, then bends the straight tube into the ring along a circular arc while turning the far end.
   - `analysis()`, `updateReadouts()` and `updateHud()` compute and show the counts.
   - `updateExact()`, `experiment()` and `applyConstruction()` handle the exact description, the export, links and loading.
   - `showBraid()` switches modes, and `buildBraidMesh()` turns `braidLayout()` into ribbons for the renderer.
-  - `render()` is a painter's-algorithm renderer: it sorts the tube's quads, the trail and the traveler by depth and draws them back to front.
+  - The three.js scene section hands the mesh to WebGL (`syncSurface()` updates positions, normals and per-vertex colors only when they change) and draws the seam, traveler, build edges and selection lines as fat lines. `render()` updates those each frame.
+  - `select()`, `torusRoute()` and `braidRoute()` handle following a strip.
   - `frame()` is the animation loop.

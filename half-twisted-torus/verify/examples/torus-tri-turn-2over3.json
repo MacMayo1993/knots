@@ -1,7 +1,7 @@
 {
   "format": "half-twisted-torus/experiment",
   "version": 2,
-  "created": "2026-11-07T03:51:52.881Z",
+  "created": "2026-11-07T04:08:01.443Z",
   "construction": {
     "type": "torus",
     "shape": "tri",
@@ -15,7 +15,7 @@
     {
       "op": "open link",
       "value": "#shape=tri&turn=2/3",
-      "at": "2026-11-07T03:51:51.874Z"
+      "at": "2026-11-07T04:08:00.637Z"
     }
   ],
   "braid": {
@@ -38,8 +38,9 @@
       "laps": 3,
       "turns": 2,
       "knot": {
-        "name": "trefoil",
+        "name": "right-handed trefoil",
         "torus": [2, 3],
+        "chirality": "right-handed",
         "genus": 1,
         "crossingNumber": 3
       },

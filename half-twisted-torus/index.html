@@ -92,6 +92,7 @@ h1 {
   align-items: start;
 }
 @media (max-width: 880px) { .lab { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 881px) { .stage { position: sticky; top: 16px; } }   /* keep the model in view while using the panel */
 
 .stage {
   position: relative;
@@ -296,7 +297,10 @@ h2 {
 .exact { display: grid; gap: 10px; }
 .exact .readout dd { font-size: 0.9rem; overflow-wrap: anywhere; }
 .stripes { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.stripes li { font-family: var(--f-mono); font-size: 0.85rem; }
+.stripes li { font-family: var(--f-mono); font-size: 0.85rem; cursor: pointer; border-radius: 6px; padding: 2px 6px; margin-inline: -6px; }
+.stripes li:hover { background: var(--bg); }
+.stripes li[aria-pressed="true"] { background: var(--ink); color: var(--bg) !important; }
+.stripes li:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .matrix { margin: 0; font-family: var(--f-mono); font-size: 0.85rem; line-height: 1.35; white-space: pre; overflow-x: auto; }
 .exact-actions { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 .exact-status { font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
@@ -314,9 +318,9 @@ h2 {
 
   <section class="lab" aria-label="Interactive model">
     <div class="stage" id="stage">
-      <canvas id="c" tabindex="0" aria-label="3D model of a twisted torus. Drag or use the arrow keys to rotate."></canvas>
+      <canvas id="c" tabindex="0" aria-label="3D model. Drag or use the arrow keys to rotate, tap a strip to follow it, press Escape to clear."></canvas>
       <div class="hud" id="hud" aria-live="polite">Drawing the model</div>
-      <p class="hint">Drag to rotate · scroll to zoom</p>
+      <p class="hint">Drag to rotate · scroll or pinch to zoom · tap a strip to follow it</p>
     </div>
 
     <aside class="panel" id="panel">
@@ -508,7 +512,7 @@ h2 {
       </div>
       <div class="note-block">
         <h3>Cutting along the color lines</h3>
-        <p>Every color boundary is a cut line. After the cut, each strip is a chain of pieces that the twist hands on from one lap to the next, so the number of strips and their lengths come straight from the twist. A strip that goes around <span class="mono">q</span> times while turning <span class="mono">p</span> times around the core is a <span class="mono">(q, p)</span> torus knot: a triangle tube with a ⅔ turn cuts into a trefoil. The flat strips reproduce the classic Möbius experiments: down the middle of a ½-turn strip gives one strip twice as long, in thirds gives a long strip linked with a smaller Möbius band, and down the middle of a 1½-turn strip gives a trefoil.</p>
+        <p>Every color boundary is a cut line. After the cut, each strip is a chain of pieces that the twist hands on from one lap to the next, so the number of strips and their lengths come straight from the twist. A strip that goes around <span class="mono">q</span> times while turning <span class="mono">p</span> times around the core is a <span class="mono">(q, p)</span> torus knot: a triangle tube with a ⅔ turn cuts into a right-handed trefoil, and turning the other way gives the left-handed one, its mirror image. The two can't be deformed into each other, so the readouts always say which. The flat strips reproduce the classic Möbius experiments: down the middle of a ½-turn strip gives one strip twice as long, in thirds gives a long strip linked with a smaller Möbius band, and down the middle of a 1½-turn strip gives a trefoil.</p>
       </div>
       <div class="note-block">
         <h3>The cut</h3>
@@ -519,8 +523,8 @@ h2 {
         <p>Turning a circle spins it but never turns it inside out, so the inside of the tube stays inside. The result is still a torus. Only a mirror flip of the cut end would join inside to outside. That surface is the Klein bottle, which can't be built in 3D without passing through itself.</p>
       </div>
       <div class="note-block">
-        <h3>The paint goes Möbius</h3>
-        <p>Paint applied before the twist can't match at the cut: the red half runs straight into the blue half. Follow the traveler and it rides red for one lap, blue for the next, and only then gets home. That's the Möbius signature, two things becoming one that goes around twice.</p>
+        <h3>The paint gets shuffled, not flipped</h3>
+        <p>Paint applied before the twist can't match at the cut: the red half runs straight into the blue half. Follow the traveler and it rides red for one lap, blue for the next, and only then gets home. The twist permutes the painted pieces at the cut, and a stripe needs as many laps as its piece's cycle is long. That looks like the Möbius band's "go around twice" but it is not the same thing: every stripe on the tube is still two-sided, and cutting along the color lines gives ordinary orientable ribbons. Only the flat strip with an odd number of half turns is a true Möbius band, one-sided with a single edge.</p>
       </div>
       <div class="note-block">
         <h3>Why flat-sided tubes show it best</h3>
@@ -532,7 +536,7 @@ h2 {
       </div>
       <div class="note-block">
         <h3>The antipodal rule</h3>
-        <p>A half-turn of a circle sends each point to the one opposite. On a circle that keeps orientation, so the torus stays two-sided. On a sphere the same move reverses orientation, which is why the projective plane <span class="mono">RP²</span> has no inside or outside.</p>
+        <p>On a circle, the antipodal map <span class="mono">x ↦ −x</span> is the same as a half-turn, a rotation, so it keeps orientation and the torus stays two-sided. On a sphere the two come apart. A half-turn about an axis is still a rotation and keeps orientation. The antipodal map <span class="mono">x ↦ −x</span> is not a rotation: it reverses orientation. Gluing each point of the sphere to its antipode gives the projective plane <span class="mono">RP²</span>, which is one-sided.</p>
       </div>
       <div class="note-block">
         <h3>Reading the numbers</h3>
@@ -543,11 +547,23 @@ h2 {
 </main>
 
 <script src="knotmath.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
 <script>
 window.addEventListener('error', function (e) {
   var hud = document.getElementById('hud');
   if (hud) hud.textContent = 'Error: ' + (e.message || 'script failed');
 });
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 (function () {
   const TAU = Math.PI * 2;
   const R = 1.6;          // distance from centre of hole to centre of tube
@@ -556,8 +572,8 @@ window.addEventListener('error', function (e) {
   const canvas = document.getElementById('c');
   const stage = document.getElementById('stage');
   const hud = document.getElementById('hud');
-  const ctx = canvas.getContext('2d');
-  if (!ctx) { hud.textContent = 'This browser cannot draw the model.'; return; }
+  try { const gl = document.createElement('canvas').getContext('webgl2'); if (!gl) throw 0; }
+  catch (_) { hud.textContent = 'This browser cannot draw the model: it needs WebGL 2.'; return; }
 
   // ---------- colors ----------
   const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888888';
@@ -686,7 +702,6 @@ window.addEventListener('error', function (e) {
     traveling: !reduceMotion,
     progress: reduceMotion ? 1e9 : 0,
     hold: 0,
-    yaw: 0.5, pitch: 0.62, dist: 6.2,
     userMoved: false,
     m: 2,               // build stage: 0 flat sheet, 1 straight tube, 2 finished torus
     building: false, buildT: 0,
@@ -739,9 +754,12 @@ window.addEventListener('error', function (e) {
     nQuads = segU * segV * n;
     qIdx = new Int32Array(nQuads * 4); qPiece = new Uint8Array(nQuads);
     mesh = { segU, segV, per, n };
+    vPiece = new Uint8Array(nVerts);
+    meshVersion++; markPositions(); sel = null;
     let q = 0;
     for (let st = 0; st < n; st++) {
       const base = st * per, f = lay[st];
+      vPiece.fill(compOf[st], base, base + per);
       for (let i = 0; i <= segU; i++) {
         const th = (i / segU) * TAU, [a, b] = f(Math.min(th, TAU - 1e-9));
         for (let j = 0; j <= segV; j++) {
@@ -760,6 +778,7 @@ window.addEventListener('error', function (e) {
   }
   function buildMesh() {
     if (state.braid) { buildBraidMesh(); return; }
+    meshVersion++; sel = null;
     const sh = shapeOf();
     const n = sh.colors.length;
     const segU = 150, segV = sh.offsets.length - 1;
@@ -820,23 +839,27 @@ window.addEventListener('error', function (e) {
     }
     updatePositions();
   }
+  // A point of the finished model: piece p, cross-section parameter phi, loop angle th.
+  // `off` lifts the point off the surface for lines drawn on it: a scale factor for
+  // a closed cross-section, a sideways offset for a flat strip.
+  function surfacePoint(p, phi, th, out, i, off) {
+    const sh = shapeOf(), nc = sh.colors.length, e = smooth(Math.max(0, Math.min(1, state.cut)));
+    let s = section(state.shape, phi);
+    if (off !== undefined) s = sh.open ? [s[0], s[1] + off] : [s[0] * off, s[1] * off];
+    if (e > 0) {
+      if (sh.open) s = [s[0] + e * 0.17 * (p - (nc - 1) / 2), s[1]];
+      else s = [s[0] + e * 0.2 * pieceDir[p][0], s[1] + e * 0.2 * pieceDir[p][1]];
+    }
+    const al = state.k * th, ca = Math.cos(al), sa = Math.sin(al);
+    place(th, s[0] * ca - s[1] * sa, s[0] * sa + s[1] * ca, out, i);
+  }
   function updatePositions() {
     if (state.braid) return;   // a braid's ribbons are built once in buildBraidMesh
-    const shape = state.shape, k = state.k, m = state.m;
+    markPositions();
+    const k = state.k, m = state.m;
     if (m >= 2 - 1e-9) {
       const growTh = state.grow === null ? Infinity : state.grow * TAU;
-      const e = smooth(Math.max(0, Math.min(1, state.cut))), shc = shapeOf(), nc = shc.colors.length;
-      for (let v = 0; v < nVerts; v++) {
-        const th = Math.min(thetaArr[v], growTh);
-        let s = section(shape, phiArr[v]);
-        if (e > 0) {
-          const p = vPiece[v];
-          if (shc.open) s = [s[0] + e * 0.17 * (p - (nc - 1) / 2), s[1]];
-          else s = [s[0] + e * 0.2 * pieceDir[p][0], s[1] + e * 0.2 * pieceDir[p][1]];
-        }
-        const al = k * th, ca = Math.cos(al), sa = Math.sin(al);
-        place(th, s[0] * ca - s[1] * sa, s[0] * sa + s[1] * ca, pos, v * 3);
-      }
+      for (let v = 0; v < nVerts; v++) surfacePoint(vPiece[v], phiArr[v], Math.min(thetaArr[v], growTh), pos, v * 3);
       return;
     }
     // Stage 1 (s1): roll the flat strip into the cross-section by scaling its turning angle.
@@ -964,12 +987,12 @@ window.addEventListener('error', function (e) {
     }
     return { n, fits, L, bands: cycles ? cycles.length : null, offset, cycles, sigma };
   }
+  // Name a (q, p) torus knot with its handedness: a mirror image is a different knot.
   function knotName(q, p) {
-    q = Math.abs(q); p = Math.abs(p);
-    if (q < 2 || p < 2) return 'unknotted';
-    const key = Math.min(q, p) + ',' + Math.max(q, p);
-    const named = { '2,3': 'tied in a trefoil knot', '2,5': 'tied in a cinquefoil knot' };
-    return named[key] || 'tied in a (' + key.replace(',', ', ') + ') torus knot';
+    const kn = KnotMath.torusKnot(q, p);
+    if (!kn.chirality) return 'unknotted';
+    if (!kn.name.startsWith('T(')) return 'tied in a ' + kn.name + ' knot';
+    return 'tied in a ' + kn.chirality + ' (' + kn.torus[0] + ', ' + Math.abs(kn.torus[1]) + ') torus knot';
   }
   // What cutting along every color line produces: one strip per cycle of pieces.
   function cutInfo() {
@@ -977,7 +1000,7 @@ window.addEventListener('error', function (e) {
     if (!a.cycles) return { ok: false, a };
     const n = a.n, h = Math.abs(Math.round(2 * k));
     const strips = a.cycles.map(c => {
-      const L = c.length, p = Math.round(Math.abs(k * L));
+      const L = c.length, p = Math.round(Math.abs(k * L)), pSigned = Math.round(k * L);
       let radius = 1, center = false;
       if (sh.open) {
         const lw = 2 * sh.half / n, x = -sh.half + lw * (c[0] + 0.5);
@@ -985,7 +1008,7 @@ window.addEventListener('error', function (e) {
       }
       const oneSided = !!sh.open && L === 1 && h % 2 === 1;
       // a strip that goes around L times and turns p times around the core is a (L, p) torus knot
-      return { pieces: c, L, p: center ? 0 : p, radius, oneSided, knot: center ? 'unknotted' : knotName(L, p) };
+      return { pieces: c, L, p: center ? 0 : p, radius, oneSided, knot: center ? 'unknotted' : knotName(L, pSigned) };
     });
     const links = [];
     for (let i = 0; i < strips.length; i++) for (let j = i + 1; j < strips.length; j++) {
@@ -1048,6 +1071,17 @@ window.addEventListener('error', function (e) {
     updateExact();
   }
   function updateHud() {
+    if (sel !== null) {
+      const d = exactInfo(), c = d.ok && d.components[sel];
+      if (c) {
+        const what = state.braid ? 'Component' : 'Strip', N = d.components.length;
+        const name = state.braid ? '' : ' · ' + (c.knot.chirality ? c.knot.name : 'unknot');
+        const fr = c.oneSided ? ' · a Möbius band, so it has one edge and no framing'
+          : ' · its edge (dashed) winds ' + minus(c.framing) + (Math.abs(c.framing) === 1 ? ' time' : ' times') + ' around its centerline';
+        hud.textContent = what + ' ' + (sel + 1) + ' of ' + N + ' · ' + c.laps + (c.laps === 1 ? (state.braid ? ' strand' : ' lap') : (state.braid ? ' strands' : ' laps')) + name + fr;
+        return;
+      }
+    }
     if (state.braid) {
       const d = exactInfo(), N = d.components.length;
       hud.textContent = 'Closed braid on ' + state.braid.n + (state.braid.n === 1 ? ' strand' : ' strands') + ' · ' + N + (N === 1 ? ' component' : ' components');
@@ -1191,11 +1225,18 @@ window.addEventListener('error', function (e) {
       if (state.braid) {
         li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' strand' : ' strands') + ' · framing ' + minus(c.framing) + ' · Δ = ' + KM.polyText(c.alexander);
       } else {
-        const knot = c.knot.name === 'unknot' ? 'unknot' : c.knot.name + (c.knot.name.startsWith('T(') ? '' : ' T(' + c.knot.torus.join(',') + ')');
+        const knot = c.knot.name === 'unknot' ? 'unknot'
+          : (c.knot.name.startsWith('T(') ? c.knot.chirality + ' ' : c.knot.name + ' ') + 'T(' + c.knot.torus.map(minus).join(',') + ')';
         li.textContent = (i + 1) + '. ' + c.laps + (c.laps === 1 ? ' lap, ' : ' laps, ') + minus(c.turns) + (Math.abs(c.turns) === 1 ? ' turn · ' : ' turns · ') + knot +
           ' · ' + (c.oneSided ? 'Möbius, no framing' : 'framing ' + minus(c.framing));
       }
       if (state.braid) li.style.color = 'var(' + COLOR_VARS[COMP_COLORS[i % COMP_COLORS.length]] + ')';
+      li.tabIndex = 0; li.setAttribute('role', 'button');
+      li.setAttribute('aria-pressed', String(sel === i));
+      li.title = 'Show this ' + (state.braid ? 'component' : 'strip') + '\'s route, centerline and edge';
+      const pick = () => select(sel === i ? null : i);
+      li.addEventListener('click', pick);
+      li.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
       list.appendChild(li);
     });
     set('x-matrix', matrixText(d.linking));
@@ -1370,7 +1411,7 @@ window.addEventListener('error', function (e) {
     document.getElementById('twist-value').textContent = twistLabel(state.twistTo);
   }
   function twistTo(target) {
-    uncut();
+    uncut(); clearSelection();
     logOp('twist', turnText(target));
     document.querySelectorAll('#twistSeg button').forEach(b =>
       b.setAttribute('aria-pressed', String(Math.abs(parseFloat(b.dataset.k) - target) < 1e-9)));
@@ -1455,6 +1496,7 @@ window.addEventListener('error', function (e) {
   });
   const buildSlider = document.getElementById('build');
   function setM(m) {
+    if (m < 2) clearSelection();
     const wasDone = state.m >= 2;
     state.m = Math.max(0, Math.min(2, m));
     buildSlider.value = String(Math.round(state.m * 100));
@@ -1464,220 +1506,316 @@ window.addEventListener('error', function (e) {
   function stopGrow() { if (state.grow !== null) { state.grow = null; state.growing = false; updatePositions(); } }
   buildSlider.addEventListener('input', () => { state.building = false; stopGrow(); setM(Number(buildSlider.value) / 100); });
   document.getElementById('growBtn').addEventListener('click', () => {
-    state.building = false; uncut();
+    state.building = false; uncut(); clearSelection();
     if (state.m < 2) setM(2);
     state.grow = 0; state.growT = 0; state.growing = true;
     updatePositions();
   });
   document.getElementById('buildBtn').addEventListener('click', () => {
-    stopGrow(); uncut(); state.building = true;
+    stopGrow(); uncut(); clearSelection(); state.building = true;
     if (shapeOf().open) { state.buildT = 4.2; setM(1); }   // a flat strip is already flat: go straight to bending
     else { state.buildT = 0; setM(0); }
   });
 
-  let dragging = false, lx = 0, ly = 0;
-  canvas.addEventListener('pointerdown', e => {
-    dragging = true; lx = e.clientX; ly = e.clientY; state.userMoved = true;
-    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  // ---------- three.js scene ----------
+  // The model's geometry (pos, qIdx, vPiece) is built exactly as before; this
+  // section only hands it to WebGL, adds lines for the seam, traveler and build
+  // edges, and draws the selected strip's centerline and edge.
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+  camera.position.setFromSpherical(new THREE.Spherical(6.2, Math.PI / 2 - 0.62, 0.5));
+  scene.add(camera);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 1.3));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  keyLight.position.set(2, 3, 4);
+  camera.add(keyLight);   // the light follows the view, like the old renderer's
+
+  const controls = new OrbitControls(camera, canvas);
+  controls.enablePan = false;
+  controls.enableDamping = !reduceMotion;
+  controls.minDistance = 3.6; controls.maxDistance = 11;
+  controls.autoRotate = !reduceMotion; controls.autoRotateSpeed = 1.1;
+  controls.addEventListener('start', () => { state.userMoved = true; controls.autoRotate = false; });
+
+  // the surface
+  const surfMat = new THREE.MeshStandardMaterial({
+    vertexColors: true, side: THREE.DoubleSide, roughness: 0.62, metalness: 0,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1   // keep lines drawn on it in front
   });
-  canvas.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    state.yaw += (e.clientX - lx) * 0.009;
-    state.pitch = Math.max(-1.4, Math.min(1.4, state.pitch + (e.clientY - ly) * 0.009));
-    lx = e.clientX; ly = e.clientY;
+  const surface = new THREE.Mesh(new THREE.BufferGeometry(), surfMat);
+  scene.add(surface);
+  let meshVersion = 0, shownVersion = -1, posVersion = 0, shownPos = -1, colorKey = '';
+  const markPositions = () => { posVersion++; };
+
+  // fat lines (pixel widths) for everything drawn on top
+  const lineMats = [];
+  function lineMat(width, opts = {}) {
+    const m = new LineMaterial(Object.assign({ color: 0xffffff, linewidth: width, worldUnits: false }, opts));
+    lineMats.push(m);
+    return m;
+  }
+  function segments(width, opts) { const o = new LineSegments2(new LineSegmentsGeometry(), lineMat(width, opts)); o.frustumCulled = false; scene.add(o); return o; }
+  function polyline(width, opts) { const o = new Line2(new LineGeometry(), lineMat(width, opts)); o.frustumCulled = false; scene.add(o); return o; }
+  function setSegments(obj, arr) {
+    if (!arr.length) { obj.visible = false; return; }
+    obj.geometry.dispose(); obj.geometry = new LineSegmentsGeometry().setPositions(arr); obj.visible = true;
+  }
+  function setPolyline(obj, arr) {
+    if (arr.length < 6) { obj.visible = false; return; }
+    obj.geometry.dispose(); obj.geometry = new LineGeometry().setPositions(arr); obj.visible = true;
+    if (obj.material.dashed) obj.computeLineDistances();
+  }
+  const seamLine = segments(1.6, { transparent: true, opacity: 0.85 });
+  const sheetSolid = segments(2.2), sheetDashed = segments(1.6, { transparent: true, opacity: 0.6 });
+  const trailLine = polyline(2.6);
+  const growOutline = segments(4);
+  growOutline.material.vertexColors = true;
+  const growFill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false }));
+  scene.add(growFill);
+  const traveler = new THREE.Mesh(new THREE.SphereGeometry(0.075, 24, 16), new THREE.MeshBasicMaterial());
+  const travelerRing = new THREE.Mesh(new THREE.SphereGeometry(0.095, 24, 16), new THREE.MeshBasicMaterial({ side: THREE.BackSide }));
+  scene.add(traveler, travelerRing);
+  // the selected strip: centerline and edge, solid where visible and faint behind the surface
+  // centerline solid, edge dashed, so both read on any paint color
+  const DASH = { dashed: true, dashSize: 0.07, gapSize: 0.05 };
+  const selCore = polyline(3.4), selEdge = polyline(2.6, DASH);
+  const selCoreHidden = polyline(2, { transparent: true, opacity: 0.28, depthTest: false });
+  const selEdgeHidden = polyline(1.6, Object.assign({ transparent: true, opacity: 0.28, depthTest: false }, DASH));
+  selCoreHidden.renderOrder = selEdgeHidden.renderOrder = 5;
+
+  let seamShown = null, trailShown = null;
+  function retint() {
+    readPalette();
+    const trace = new THREE.Color(pal.trace);
+    [seamLine, sheetSolid, sheetDashed, trailLine, selCore, selCoreHidden, selEdge, selEdgeHidden].forEach(o => o.material.color.copy(trace));
+    traveler.material.color.copy(trace);
+    travelerRing.material.color.set(pal.stage);
+    growFill.material.color.set(pal.panel);
+    colorKey = '';
+  }
+
+  // ---------- selecting a strip ----------
+  // sel: index into exactInfo().components, or null
+  let sel = null;
+  // pieces (torus) or component (braid) of each mesh piece, for picking
+  function componentOfPiece(piece) {
+    if (state.braid) return piece;
+    const d = exactInfo();
+    if (!d.ok) return null;
+    const i = d.components.findIndex(c => c.pieces.includes(piece));
+    return i < 0 ? null : i;
+  }
+  function select(i) {
+    sel = i;
+    colorKey = '';
+    exactKey = ''; updateExact();
+    buildSelectionLines();
+  }
+  const clearSelection = () => { if (sel !== null) select(null); };
+  // Route of a torus strip on the finished model, lap by lap: each lap is one painted
+  // piece, at a fixed point of its cross-section, carried around once (as the mesh is).
+  function torusRoute(comp, edge) {
+    const sh = shapeOf(), n = sh.colors.length, width = TAU / n, a = analysis();
+    if (!a.sigma) return [];
+    const out = [], v = [0, 0, 0], N = 220;
+    let p = comp.pieces[0];
+    for (let lap = 0; lap < comp.laps; lap++) {
+      const phi = sh.open ? -sh.half + (2 * sh.half / n) * (p + (edge ? 0.85 : 0.5)) : p * width + (edge ? 0.4 * width : 0);
+      for (let i = 0; i <= N; i++) {
+        if (lap && !i) continue;
+        surfacePoint(p, phi, (i / N) * TAU, v, 0, sh.open ? 0.012 : 1.015);
+        out.push(v[0], v[1], v[2]);
+      }
+      p = a.sigma(p);
+    }
+    return out;
+  }
+  function braidRoute(comp, edge) {
+    const { n, word } = state.braid, lay = KM.braidLayout(n, word), hw = KM.laneWidth(n) * 0.28, out = [], v = [0, 0, 0];
+    const N = Math.max(160, word.length * 24);
+    comp.braidStrands.forEach((st, k) => {
+      for (let i = 0; i <= N; i++) {
+        if (k && !i) continue;
+        const th = (i / N) * TAU, [a, b] = lay[st](Math.min(th, TAU - 1e-9));
+        place(th, a + (edge ? hw * 0.85 : 0), b + 0.012, v, 0);
+        out.push(v[0], v[1], v[2]);
+      }
+    });
+    return out;
+  }
+  function buildSelectionLines() {
+    const d = exactInfo();
+    const comp = sel !== null && d.ok ? d.components[sel] : null;
+    const ready = comp && (state.braid || (state.m >= 2 && state.grow === null && !state.twisting));
+    const core = ready ? (state.braid ? braidRoute(comp, false) : torusRoute(comp, false)) : [];
+    const edge = ready && !comp.oneSided ? (state.braid ? braidRoute(comp, true) : torusRoute(comp, true)) : [];
+    setPolyline(selCore, core); setPolyline(selCoreHidden, core);
+    setPolyline(selEdge, edge); setPolyline(selEdgeHidden, edge);
+  }
+
+  // ---------- input ----------
+  const raycaster = new THREE.Raycaster();
+  let downAt = null;
+  canvas.addEventListener('pointerdown', e => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  canvas.addEventListener('pointerup', e => {
+    if (!downAt) return;
+    const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y), quick = performance.now() - downAt.t < 600;
+    downAt = null;
+    if (moved > 6 || !quick) return;
+    const rc = canvas.getBoundingClientRect();
+    raycaster.setFromCamera(new THREE.Vector2((e.clientX - rc.left) / rc.width * 2 - 1, -((e.clientY - rc.top) / rc.height) * 2 + 1), camera);
+    const hit = raycaster.intersectObject(surface)[0];
+    if (!hit || state.m < 2 || state.grow !== null || state.twisting) { clearSelection(); return; }
+    const c = componentOfPiece(vPiece[hit.face.a]);
+    if (c === null) { flash('These ends don\'t close up yet, so there is no strip to follow.'); return; }
+    select(c === sel ? null : c);
   });
-  const endDrag = () => { dragging = false; };
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
-  canvas.addEventListener('wheel', e => {
-    e.preventDefault();
-    state.dist = Math.max(3.6, Math.min(11, state.dist * (1 + Math.sign(e.deltaY) * 0.08)));
-  }, { passive: false });
   canvas.addEventListener('keydown', e => {
-    const step = 0.12;
-    if (e.key === 'ArrowLeft') state.yaw -= step;
-    else if (e.key === 'ArrowRight') state.yaw += step;
-    else if (e.key === 'ArrowUp') state.pitch = Math.max(-1.4, state.pitch - step);
-    else if (e.key === 'ArrowDown') state.pitch = Math.min(1.4, state.pitch + step);
+    if (e.key === 'Escape') { clearSelection(); return; }
+    const step = 0.12, off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
+    if (e.key === 'ArrowLeft') sph.theta -= step;
+    else if (e.key === 'ArrowRight') sph.theta += step;
+    else if (e.key === 'ArrowUp') sph.phi = Math.max(0.15, sph.phi - step);
+    else if (e.key === 'ArrowDown') sph.phi = Math.min(Math.PI - 0.15, sph.phi + step);
     else return;
-    state.userMoved = true; e.preventDefault();
+    camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
+    state.userMoved = true; controls.autoRotate = false; e.preventDefault();
   });
 
-  let W = 0, H = 0, dpr = 1;
+  let W = 0, H = 0;
   function resize() {
     const rc = stage.getBoundingClientRect();
     const w = Math.round(rc.width), h = Math.round(rc.height);
     if (!w || !h || (w === W && h === H)) return;
     W = w; H = h;
-    dpr = Math.min(window.devicePixelRatio || 1, 1.5, 2048 / Math.max(W, H));
-    canvas.width = Math.round(W * dpr);
-    canvas.height = Math.round(H * dpr);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(W, H, false);
+    camera.aspect = W / H; camera.updateProjectionMatrix();
+    lineMats.forEach(m => m.resolution.set(W, H));
   }
   if ('ResizeObserver' in window) new ResizeObserver(resize).observe(stage);
   window.addEventListener('resize', resize);
-  function retint() { readPalette(); }
   if (window.matchMedia) {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     if (mq.addEventListener) mq.addEventListener('change', retint);
   }
   new MutationObserver(retint).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
-  // ---------- painter's-algorithm renderer ----------
-  const LIGHT = (() => { const v = [0.35, 0.55, 0.75]; const l = Math.hypot(...v); return v.map(x => x / l); })();
-  let vx = new Float32Array(0), vy = vx, vz = vx, sx = vx, sy = vx;
-  let cacheKey = '', cacheVal = null;
-  function fillCache() {
-    const key = (state.braid ? 'braid' : state.shape) + '|' + pal.c.map(c => c.join(',')).join(';');
-    if (key === cacheKey) return cacheVal;
-    cacheVal = (state.braid ? COMP_COLORS : shapeOf().colors).map(i => {
-      const c0 = pal.c[i], out = [];
-      for (let l = 0; l <= 48; l++) {
-        const lam = l / 48;
-        out.push('rgb(' + Math.round(c0[0] * lam) + ',' + Math.round(c0[1] * lam) + ',' + Math.round(c0[2] * lam) + ')');
+  // ---------- drawing a frame ----------
+  function syncSurface() {
+    const geo = surface.geometry;
+    if (shownVersion !== meshVersion) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nVerts * 3), 3));
+      const idx = new Uint32Array(nQuads * 6);
+      for (let q = 0; q < nQuads; q++) {
+        const a = qIdx[q * 4], b = qIdx[q * 4 + 1], c = qIdx[q * 4 + 2], d = qIdx[q * 4 + 3];
+        idx.set([a, b, c, a, c, d], q * 6);
       }
-      return out;
-    });
-    cacheKey = key;
-    return cacheVal;
+      g.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.dispose(); surface.geometry = g;
+      shownVersion = meshVersion; shownPos = -1; colorKey = '';
+    }
+    if (shownPos !== posVersion) {
+      const g = surface.geometry;
+      g.attributes.position.needsUpdate = true;
+      g.computeVertexNormals(); g.computeBoundingSphere();
+      shownPos = posVersion;
+    }
+    // colors: paint, or each cut strip in one color, or the components of a braid; dim all but the selection
+    const ci = !state.braid && state.cut > 0.02 ? cutInfo() : null;
+    const rep = ci && ci.ok ? ci.rep : null;
+    const d = sel !== null ? exactInfo() : null;
+    const selPieces = d && d.ok && d.components[sel] ? new Set(state.braid ? [sel] : d.components[sel].pieces) : null;
+    const key = [state.braid ? 'b' : state.shape, rep ? rep.join(',') : '', sel, pal.c.map(c => c.join(',')).join(';'), pal.stage].join('|');
+    if (key === colorKey) return;
+    colorKey = key;
+    const col = surface.geometry.attributes.color.array, bg = new THREE.Color(pal.stage), tmpC = new THREE.Color();
+    const pieces = state.braid ? COMP_COLORS : shapeOf().colors;
+    for (let v = 0; v < nVerts; v++) {
+      const p = vPiece[v], ci0 = state.braid ? COMP_COLORS[p % COMP_COLORS.length] : pieces[rep ? rep[p] : p], c = pal.c[ci0];
+      tmpC.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+      if (selPieces && !selPieces.has(p)) tmpC.lerp(bg, 0.72);
+      col[v * 3] = tmpC.r; col[v * 3 + 1] = tmpC.g; col[v * 3 + 2] = tmpC.b;
+    }
+    surface.geometry.attributes.color.needsUpdate = true;
   }
   function render(showTraveler, trailCount, travelerAt) {
     if (!W || !H) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    const cp = Math.cos(state.pitch), sp = Math.sin(state.pitch);
-    const cyw = Math.cos(state.yaw), syw = Math.sin(state.yaw);
-    const F = (Math.min(W, H) / 2) / Math.tan(21 * Math.PI / 180);
-    const CX = W / 2, CY = H / 2;
-    const view = (x, y, z) => {
-      const x1 = cyw * x + syw * z, z1 = -syw * x + cyw * z;
-      return [x1, cp * y - sp * z1, sp * y + cp * z1];
-    };
-    const project = q => { const zc = state.dist - q[2]; return [CX + F * q[0] / zc, CY - F * q[1] / zc]; };
-
-    if (vx.length !== nVerts) {
-      vx = new Float32Array(nVerts); vy = new Float32Array(nVerts); vz = new Float32Array(nVerts);
-      sx = new Float32Array(nVerts); sy = new Float32Array(nVerts);
+    syncSurface();
+    // seam: the dashed ring where the tube was cut
+    const showSeam = !!seamPts && !state.braid && ((state.m >= 2 && seamBox.checked) || state.grow !== null) && state.cut < 0.02;
+    if (showSeam !== !!seamShown || (showSeam && seamShown !== seamPts)) {
+      const arr = [];
+      if (showSeam) for (let i = 0; i + 1 < seamPts.length / 3; i += 2) arr.push(...seamPts.subarray(i * 3, i * 3 + 6));
+      setSegments(seamLine, arr); seamShown = showSeam ? seamPts : null;
     }
-    for (let v = 0; v < nVerts; v++) {
-      const q = view(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]);
-      vx[v] = q[0]; vy[v] = q[1]; vz[v] = q[2];
-      const zc = state.dist - q[2];
-      sx[v] = CX + F * q[0] / zc; sy[v] = CY - F * q[1] / zc;
-    }
-
-    const items = [];
-    const growTh = state.grow === null ? Infinity : state.grow * TAU;
-    for (let q = 0; q < nQuads; q++) {
-      const a = qIdx[q * 4], b = qIdx[q * 4 + 1], c = qIdx[q * 4 + 2], d = qIdx[q * 4 + 3];
-      if (thetaArr[a] >= growTh - 1e-9) continue;
-      items.push({ k: 0, q, z: (vz[a] + vz[b] + vz[c] + vz[d]) / 4 });
-    }
-    if (state.grow !== null) {
-      // the cross-section itself, sitting where the sweep has reached, turned by the twist so far
-      const th = growTh, al = state.k * th, ca = Math.cos(al), sa = Math.sin(al);
-      const sh = shapeOf(), n = sh.colors.length, open = !!sh.open, Np = open ? 60 : 120, pts = [], pcs = [];
-      let zsum = 0;
-      for (let i = 0; i < Np; i++) {
-        const phi = open ? -sh.half + 2 * sh.half * i / (Np - 1) : i / Np * TAU, sc = section(state.shape, phi);
-        const a = sc[0] * ca - sc[1] * sa, b = sc[0] * sa + sc[1] * ca, rr = R + a;
-        const P = view(rr * Math.cos(th), b, rr * Math.sin(th));
-        pts.push(project(P)); zsum += P[2];
-        pcs.push(open ? Math.min(n - 1, Math.floor((phi + sh.half) / (2 * sh.half / n))) : mod(Math.round(phi / (TAU / n)), n));
-      }
-      items.push({ k: 3, pts, pcs, open, z: zsum / Np + 0.01 });
-    }
-    if (state.m < 2) {
-      // edges of the sheet: the two short ends (glued in step 2) solid, the long edges (glued in step 1) dashed
-      const { segU, segV, per, n } = mesh;
-      const addEdge = (v1, v2, dashed) => {
-        const A = [vx[v1], vy[v1], vz[v1]], B = [vx[v2], vy[v2], vz[v2]];
-        items.push({ k: 1, a: [sx[v1], sy[v1]], b: [sx[v2], sy[v2]], z: (A[2] + B[2]) / 2 + 0.02, w: dashed ? 1.6 : 2.2, dash: dashed });
-      };
+    // the sheet's edges while it is being built
+    if (state.m < 2 && !state.braid) {
+      const { segU, segV, per, n } = mesh, solid = [], dashed = [];
+      const P = v => [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]];
       for (let p = 0; p < n; p++) {
         const base = p * per;
         for (let j = 0; j < segV; j++) {
-          addEdge(base + j, base + j + 1, false);
-          addEdge(base + segU * (segV + 1) + j, base + segU * (segV + 1) + j + 1, false);
+          solid.push(...P(base + j), ...P(base + j + 1));
+          solid.push(...P(base + segU * (segV + 1) + j), ...P(base + segU * (segV + 1) + j + 1));
         }
       }
       if (state.m < 1.999 && !shapeOf().open) {
         const p1 = (1 % n) * per, p0 = 0;
         for (let i = 0; i < segU; i += 2) {
-          addEdge(p1 + i * (segV + 1), p1 + (i + 1) * (segV + 1), true);
-          addEdge(p0 + i * (segV + 1) + segV, p0 + (i + 1) * (segV + 1) + segV, true);
+          dashed.push(...P(p1 + i * (segV + 1)), ...P(p1 + (i + 1) * (segV + 1)));
+          dashed.push(...P(p0 + i * (segV + 1) + segV), ...P(p0 + (i + 1) * (segV + 1) + segV));
         }
       }
-    }
-    if (!state.braid && ((state.m >= 2 && seamBox.checked) || state.grow !== null) && state.cut < 0.02 && seamPts) {
-      for (let i = 0; i + 1 < seamPts.length / 3; i += 2) {
-        const A = view(seamPts[i * 3], seamPts[i * 3 + 1], seamPts[i * 3 + 2]);
-        const B = view(seamPts[i * 3 + 3], seamPts[i * 3 + 4], seamPts[i * 3 + 5]);
-        items.push({ k: 1, a: project(A), b: project(B), z: (A[2] + B[2]) / 2 + 0.03, w: 1.4 });
+      setSegments(sheetSolid, solid); setSegments(sheetDashed, dashed);
+    } else { sheetSolid.visible = false; sheetDashed.visible = false; }
+    // the cross-section at the front of the sweep
+    if (state.grow !== null && !state.braid) {
+      const th = state.grow * TAU, al = state.k * th, ca = Math.cos(al), sa = Math.sin(al);
+      const sh = shapeOf(), n = sh.colors.length, open = !!sh.open, Np = open ? 60 : 120, pts = [], pcs = [];
+      for (let i = 0; i < Np; i++) {
+        const phi = open ? -sh.half + 2 * sh.half * i / (Np - 1) : i / Np * TAU, sc = section(state.shape, phi);
+        const a = sc[0] * ca - sc[1] * sa, b = sc[0] * sa + sc[1] * ca, rr = R + a;
+        pts.push([rr * Math.cos(th), b, rr * Math.sin(th)]);
+        pcs.push(open ? Math.min(n - 1, Math.floor((phi + sh.half) / (2 * sh.half / n))) : mod(Math.round(phi / (TAU / n)), n));
       }
-    }
+      const seg = [], cols = [];
+      for (let i = 0; i < pts.length - (open ? 1 : 0); i++) {
+        const c = pal.c[sh.colors[pcs[i]]], c3 = new THREE.Color().setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+        seg.push(...pts[i], ...pts[(i + 1) % pts.length]);
+        cols.push(c3.r, c3.g, c3.b, c3.r, c3.g, c3.b);
+      }
+      growOutline.geometry.dispose();
+      growOutline.geometry = new LineSegmentsGeometry().setPositions(seg).setColors(cols);
+      growOutline.visible = true;
+      if (!open) {
+        const cx = pts.reduce((s, p) => [s[0] + p[0] / Np, s[1] + p[1] / Np, s[2] + p[2] / Np], [0, 0, 0]), fan = [];
+        for (let i = 0; i < Np; i++) fan.push(...cx, ...pts[i], ...pts[(i + 1) % Np]);
+        growFill.geometry.dispose();
+        growFill.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(fan, 3));
+        growFill.visible = true;
+      } else growFill.visible = false;
+    } else { growOutline.visible = false; growFill.visible = false; }
+    // traveler and its trail
     if (showTraveler && trailPts) {
-      for (let i = 0; i < trailCount - 1; i++) {
-        const A = view(trailPts[i * 3], trailPts[i * 3 + 1], trailPts[i * 3 + 2]);
-        const B = view(trailPts[i * 3 + 3], trailPts[i * 3 + 4], trailPts[i * 3 + 5]);
-        items.push({ k: 1, a: project(A), b: project(B), z: (A[2] + B[2]) / 2 + 0.03, w: 2.2 });
-      }
-      const T = view(travelerAt[0], travelerAt[1], travelerAt[2]);
-      items.push({ k: 2, p: project(T), z: T[2] + 0.06, rad: Math.max(4, F * 0.075 / (state.dist - T[2])) });
-    }
-    items.sort((A, B) => A.z - B.z);
-
-    const cache = fillCache();
-    const ciR = state.cut > 0.02 ? cutInfo() : null;
-    const cutRep = ciR && ciR.ok ? ciR.rep : null;   // when cut, each strip takes the color of one of its pieces
-    for (const it of items) {
-      if (it.k === 0) {
-        const q = it.q;
-        const a = qIdx[q * 4], b = qIdx[q * 4 + 1], c = qIdx[q * 4 + 2], d = qIdx[q * 4 + 3];
-        const d1x = vx[c] - vx[a], d1y = vy[c] - vy[a], d1z = vz[c] - vz[a];
-        const d2x = vx[d] - vx[b], d2y = vy[d] - vy[b], d2z = vz[d] - vz[b];
-        const nx = d1y * d2z - d1z * d2y, ny = d1z * d2x - d1x * d2z, nz = d1x * d2y - d1y * d2x;
-        const nl = Math.hypot(nx, ny, nz) || 1;
-        const lam = 0.5 + 0.5 * Math.abs((nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]) / nl);
-        const fill = cache[cutRep ? cutRep[qPiece[q]] : qPiece[q]][Math.round(lam * 48)];
-        const mx = (sx[a] + sx[b] + sx[c] + sx[d]) / 4, my = (sy[a] + sy[b] + sy[c] + sy[d]) / 4;
-        const grow = (X, Y) => { const dx = X - mx, dy = Y - my, l = Math.hypot(dx, dy) || 1; return [X + dx / l * 0.6, Y + dy / l * 0.6]; };
-        const A2 = grow(sx[a], sy[a]), B2 = grow(sx[b], sy[b]), C2 = grow(sx[c], sy[c]), D2 = grow(sx[d], sy[d]);
-        ctx.fillStyle = fill;
-        ctx.beginPath();
-        ctx.moveTo(A2[0], A2[1]); ctx.lineTo(B2[0], B2[1]); ctx.lineTo(C2[0], C2[1]); ctx.lineTo(D2[0], D2[1]);
-        ctx.closePath(); ctx.fill();
-      } else if (it.k === 3) {
-        const sh = shapeOf();
-        if (!it.open) {
-          ctx.globalAlpha = 0.9;
-          ctx.fillStyle = pal.panel;
-          ctx.beginPath();
-          it.pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
-          ctx.closePath(); ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-        ctx.lineWidth = it.open ? 5 : 3.2;
-        for (let i = 0; i < it.pts.length - (it.open ? 1 : 0); i++) {
-          const p = it.pts[i], q = it.pts[(i + 1) % it.pts.length], c0 = pal.c[sh.colors[it.pcs[i]]];
-          ctx.strokeStyle = 'rgb(' + c0[0] + ',' + c0[1] + ',' + c0[2] + ')';
-          ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
-        }
-      } else if (it.k === 1) {
-        ctx.strokeStyle = pal.trace; ctx.lineWidth = it.w;
-        ctx.globalAlpha = it.dash ? 0.6 : 1;
-        ctx.beginPath(); ctx.moveTo(it.a[0], it.a[1]); ctx.lineTo(it.b[0], it.b[1]); ctx.stroke();
-        ctx.globalAlpha = 1;
-      } else {
-        ctx.fillStyle = pal.trace; ctx.strokeStyle = pal.stage; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(it.p[0], it.p[1], it.rad, 0, TAU); ctx.fill(); ctx.stroke();
-      }
-    }
+      if (trailShown !== trailPts) { setPolyline(trailLine, Array.from(trailPts)); trailShown = trailPts; }
+      trailLine.geometry.instanceCount = Math.max(0, trailCount - 1);
+      trailLine.visible = trailCount > 1;
+      traveler.position.set(travelerAt[0], travelerAt[1], travelerAt[2]);
+      travelerRing.position.copy(traveler.position);
+      traveler.visible = travelerRing.visible = true;
+    } else { trailLine.visible = false; traveler.visible = travelerRing.visible = false; }
+    controls.update();
+    renderer.render(scene, camera);
   }
 
   // ---------- loop ----------
   const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  let last = performance.now(), skip = 0;
+  let last = performance.now();
   const tmp = [0, 0, 0];
   function frame(now) {
     const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
@@ -1717,6 +1855,7 @@ window.addEventListener('error', function (e) {
       const d = state.cutTarget - state.cut, stepC = dt / 0.9;
       state.cut = Math.abs(d) <= stepC ? state.cutTarget : state.cut + Math.sign(d) * stepC;
       updatePositions();
+      if (sel !== null) buildSelectionLines();
     }
     if (!state.twisting && trailPts && state.m >= 2 && state.grow === null && state.cut < 0.02) {
       if (state.traveling) {
@@ -1727,12 +1866,7 @@ window.addEventListener('error', function (e) {
       travelerPoint(p * TAU, tmp, 0);
       trailCount = Math.max(2, Math.floor(p * PER_LAP) + 1);
     }
-    if (!state.userMoved && !reduceMotion) state.yaw += dt * 0.12;
-    if (skip > 0) { skip--; requestAnimationFrame(frame); return; }
-    const t0 = performance.now();
-    try { render(!state.braid && !state.twisting && state.m >= 2 && state.grow === null && state.cut < 0.02, trailCount, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; return; }
-    const cost = performance.now() - t0;
-    skip = cost > 60 ? 3 : cost > 30 ? 1 : 0;   // give a slow device time to breathe between drawings
+    try { render(!state.braid && !state.twisting && state.m >= 2 && state.grow === null && state.cut < 0.02 && sel === null, trailCount, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; return; }
     requestAnimationFrame(frame);
   }
 
@@ -1748,6 +1882,7 @@ window.addEventListener('error', function (e) {
     syncStepper();
     updateReadouts();
     resize();
+    retint();
     try { render(false, 0, tmp); updateHud(); } catch (err) { hud.textContent = 'Drawing failed: ' + err.message; }
     last = performance.now();
     requestAnimationFrame(frame);
