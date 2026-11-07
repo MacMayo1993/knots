@@ -411,6 +411,22 @@ const server = http.createServer((req, res) => {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
       await page.click('#labClear');
     }
+    // Pressing the map moves keyboard focus to it, even though the draw gesture cancels the
+    // browser's default focusing: arrow keys and Enter then reach the map, not the button
+    // used before (Show this cut), and focusing does not scroll the page or the sheet.
+    {
+      const before = await page.evaluate(() => [scrollY, document.getElementById('sheetBody').scrollTop]);
+      const q = at(0.3, 0.5);
+      if (phone) await page.touchscreen.tap(q.x, q.y); else await page.mouse.click(q.x, q.y);
+      await page.waitForTimeout(150);
+      ok(await page.evaluate(() => document.activeElement && document.activeElement.id) === 'flatMap', label + ': pressing the map focuses it');
+      ok(JSON.stringify(await page.evaluate(() => [scrollY, document.getElementById('sheetBody').scrollTop])) === JSON.stringify(before), label + ': focusing the map does not scroll');
+      await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter'); await page.waitForTimeout(150);
+      ok(/2 points/.test(await page.textContent('#labDrawStatus')), label + ': arrow keys and Enter then add a point on the map');
+      ok(await page.evaluate(() => document.activeElement.id) === 'flatMap', label + ': and focus stays on the map');
+      await page.click('#labClear'); await page.waitForTimeout(200);
+      Object.assign(box, await page.locator('#flatMap').boundingBox());
+    }
     await drag(circle);
     ok(/disk/.test(await page.textContent('#labResult')), label + ': a drawn circle closes itself and cuts off a disk');
     await page.click('#labClear'); await page.waitForTimeout(300);

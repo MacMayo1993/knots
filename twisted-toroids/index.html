@@ -3383,6 +3383,10 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     mapDown = { x: e.clientX, y: e.clientY };
     if (!(labCut && labIsDraw()) || (e.button != null && e.button !== 0)) return;
     e.preventDefault();
+    // preventDefault() also cancels the browser's own focusing of the map, which would
+    // leave focus on the last control used (say Show this cut), so arrow keys and Enter
+    // would go there instead. Focus the map ourselves, without scrolling the page/sheet.
+    mapCanvas.focus({ preventScroll: true });
     try { mapCanvas.setPointerCapture?.(e.pointerId); } catch (_) {}
     mapStroke = { id: e.pointerId, start: mapAt(e), drawing: false, added: 0 };
   });

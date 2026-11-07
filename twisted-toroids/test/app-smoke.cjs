@@ -7,13 +7,14 @@ const moduleCode = /<script type="module">([\s\S]*?)<\/script>/.exec(html)[1];
 const source = moduleCode.replace(/^import .*;\n/gm, '');
 new vm.Script(source);
 const nodes = new Map(), buttons = [], timers = [];
+let focused = null;
 function el(tag='div') {
  return {tag,children:[],dataset:{},attrs:{},handlers:{},checked:false,disabled:false,hidden:false,value:'',open:false,offsetHeight:128,
   get firstElementChild(){return this.children[0]||{style:{}};},classList:{add(){},remove(){},contains(){return false;}},
   style:{setProperty(k,v){this[k]=v;},removeProperty(k){delete this[k];}},
   set textContent(v){this.text=v;this.children=[];},get textContent(){return (this.text||'')+this.children.map(c=>c.textContent).join('');},
   setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];},addEventListener(k,f){(this.handlers[k]??=[]).push(f);},
-  appendChild(c){this.children.push(c);c.parentElement=this;return c;},append(...cs){cs.forEach(c=>this.appendChild(c));},after(c){c.parentElement=this.parentElement;},focus(){},
+  appendChild(c){this.children.push(c);c.parentElement=this;return c;},append(...cs){cs.forEach(c=>this.appendChild(c));},after(c){c.parentElement=this.parentElement;},focus(o){focused={el:this,options:o};},
   dispatch(k,extra={}){for(const f of this.handlers[k]||[])f({target:this,preventDefault(){},...extra});},click(){if(!this.disabled)this.dispatch('click');},
   getContext(){return new Proxy({}, {get(t,p){return t[p]||(()=>{});},set(t,p,v){t[p]=v;return true;}});},toBlob(cb){cb({size:1});},remove(){},getBoundingClientRect(){return {width:600,height:550,left:0,top:0};}};
 }
@@ -456,6 +457,8 @@ console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sect
  const at=(u,v)=>({clientX:(36+568*u)*600/640,clientY:(28+212*(1-v))*550/280,pointerId:7});
  const stroke=pts=>{get('flatMap').dispatch('pointerdown',at(...pts[0]));for(const q of pts.slice(1))get('flatMap').dispatch('pointermove',at(...q));get('flatMap').dispatch('pointerup',at(...pts[pts.length-1]));};
  const ring=(cu,cv,r,k=24)=>Array.from({length:k+1},(_,i)=>[cu+r*Math.cos(2*Math.PI*i/k),cv+1.6*r*Math.sin(2*Math.PI*i/k)]);
+ focused=null;get('flatMap').dispatch('pointerdown',at(.3,.3));assert.equal(focused&&focused.el,get('flatMap'),'pressing the map focuses it');
+ assert.equal(focused.options&&focused.options.preventScroll,true,'without scrolling');get('flatMap').dispatch('pointercancel',{});get('labClear').click();
  stroke(ring(.5,.5,.12));assert.equal(p.getLabLoops().length,1,'a drawn circle closes itself');assert.match(get('labResult').textContent,/disk/);
  assert.equal(p.getLabLoops()[0].a,0);assert.equal(p.getLabLoops()[0].b,0);
  // a swipe across the whole map ends near its start on the surface (across the edge): a loop around the hole
