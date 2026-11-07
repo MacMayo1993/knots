@@ -176,6 +176,35 @@ const server = http.createServer((req, res) => {
     await page.context().close();
   }
 
+  // A completed cut can become its closed braid directly, then return to the cut.
+  for (const phone of [false, true]) {
+    page=await open('#shape=hex&turn=1/3',phone?{viewport:{width:390,height:844},isMobile:true,hasTouch:true}:undefined);
+    if(phone) await page.click('#sheetHide');
+    const originalMath=await page.evaluate(()=>['x-jones','x-alex','x-matrix'].map(id=>document.getElementById(id).textContent));
+    const convert=phone?'#q-braid':'#cutToBraid';
+    ok(await page.locator('#cutToBraid').isDisabled(),'uncut conversion is disabled');
+    await page.click(phone?'#q-cut':'#cutBtn');
+    ok(await page.locator(convert).isDisabled(),'conversion waits for cutting animation');
+    await page.waitForFunction(()=>!document.getElementById('cutToBraid').disabled,null,{timeout:15000});
+    await screenshot(page,phone?'cut-to-braid-phone':'cut-to-braid-desktop');
+    await page.click(convert);
+    await page.waitForFunction(()=>document.getElementById('panel').dataset.mode==='braid');
+    ok(await page.getAttribute('#braidViewRibbon','aria-pressed')==='true','conversion opens the braid view');
+    ok(await page.textContent('#braidStats')==='6 strands · 10 crossings · 2 components','cut pieces become braid components');
+    const braidMath=await page.evaluate(()=>['x-jones','x-alex','x-matrix'].map(id=>document.getElementById(id).textContent));
+    ok(JSON.stringify(originalMath)===JSON.stringify(braidMath),'conversion preserves Jones, Alexander and linking matrix');
+    ok(await page.locator('#braidReturnCut').isVisible(),'direct return control stays on screen');
+    await screenshot(page,phone?'converted-braid-phone':'converted-braid-desktop');
+    await page.click('#braidViewPull');
+    await page.click('#braidReturnCut');
+    await page.waitForFunction(()=>document.getElementById('panel').dataset.mode==='torus');
+    ok(await page.textContent('#q-cut')==='Glue','return restores the completed cut');
+    ok(await page.locator('#braidToolbar').isHidden(),'return closes braid controls');
+    ok(await page.inputValue('#q-shape')==='hex','return restores the toroid shape');
+    ok(await page.locator('#cutToBraid').isEnabled(),'restored cut can convert again');
+    await page.context().close();
+  }
+
   // Actual mouse and touch drags reshape the rope while the mathematical word stays fixed.
   const ropePoint = (page, blue = false) => page.evaluate(blue => new Promise(resolve => requestAnimationFrame(() => {
     const c=document.getElementById('c'), o=document.createElement('canvas'), rc=c.getBoundingClientRect();

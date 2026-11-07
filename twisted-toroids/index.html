@@ -500,6 +500,7 @@ h2 {
             <button type="button" id="braidRedo" aria-label="Redo braid edit" title="Redo (Ctrl/⌘ Shift Z)">↷</button>
             <button type="button" id="braidResetView" aria-label="Reset braid camera" title="Reset camera">⌖</button>
           </div>
+          <button type="button" class="braid-return-cut" id="braidReturnCut" hidden>← Back to cut toroid</button>
           <div class="braid-pull-options" id="braidPullOptions" hidden>
             <div class="braid-pull-row">
               <select id="pullScope" aria-label="What to pull"><option value="section">A section</option><option value="component">Whole loop</option></select>
@@ -521,6 +522,7 @@ h2 {
             <button type="button" class="step" id="q-plus" aria-label="Add a step of twist">+</button>
             <button type="button" class="secondary" id="q-cut">Cut</button>
           </div>
+          <button type="button" class="secondary quick-braid" id="q-braid" aria-describedby="cutBraidNote" hidden disabled>Make into braid →</button>
           <div class="quick-build">
             <button type="button" class="secondary" id="q-build">Build from sheet</button>
             <button type="button" class="secondary" id="q-grow">Grow from shape</button>
@@ -559,6 +561,7 @@ h2 {
       <fieldset class="braid-only braid-workspace" id="braidWorkspace">
         <legend>Braid studio</legend>
         <p class="braid-stats" id="braidStats" aria-live="polite"></p>
+        <p class="note braid-origin-note" id="braidOriginNote" hidden></p>
         <details class="braid-editor-box" id="braidEditorDetails" open>
           <summary>Build &amp; edit</summary>
           <p class="note">Select a crossing, then flip, delete, or insert beside it. Scroll the diagram sideways for longer braids. Colors match the closed components.</p>
@@ -756,6 +759,8 @@ h2 {
         <legend>Cut it</legend>
         <div class="build">
           <button type="button" class="secondary" id="cutBtn">Cut along the color lines</button>
+          <button type="button" class="secondary" id="cutToBraid" aria-describedby="cutBraidNote" disabled>Make into braid →</button>
+          <p class="note" id="cutBraidNote" aria-live="polite">Cut along the color lines first, then turn the pieces into a closed braid.</p>
           <label class="check" for="cutColors"><input type="checkbox" id="cutColors" aria-describedby="cutColorNote" disabled> Color by connected piece</label>
           <p class="note" id="cutColorNote" aria-live="polite">Original paint is preserved when you cut.</p>
           <ul class="cut-legend" id="cutColorLegend" aria-label="Connected pieces" hidden></ul>
@@ -945,6 +950,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const AP = window.ToroidAppearance;
   const CUT = window.ToroidCutAnimation;
   const BC = window.BraidControls, braidHistory = BC.history();
+  let cutBraidSource = null;
   let braidStyle = (() => { try { return BC.load(localStorage); } catch (_) { return BC.normalize(); } })();
   const appearance = (() => { try { return AP.load(localStorage); } catch (_) { return AP.normalize(null); } })();
   const R = 1.6;          // distance from centre of hole to centre of tube
@@ -1833,7 +1839,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       setMode('braid');
     } else {
       if (!state.braid) return;
-      state.braid = null;
+      state.braid = null; cutBraidSource = null;
       logOp('torus', state.shape + ' turn ' + turnText(state.twistTo));
       setMode('torus');
     }
@@ -1857,7 +1863,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     drawFromForm();
   }));
   document.querySelectorAll('#modeSeg button').forEach(btn => btn.addEventListener('click', () => {
-    if (btn.dataset.mode === 'torus') showBraid(null);
+    if (btn.dataset.mode === 'torus') { if (cutBraidSource) returnToCutTorus(); else showBraid(null); }
     else if (!state.braid) drawFromForm();
   }));
   // The diagram editor: taps change the word, which redraws the model through the form.
@@ -1889,13 +1895,21 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     document.getElementById('braidRedo').disabled = !braidHistory.canRedo;
     for (const [id, on] of [['Ribbon', !relax && !seifertBox.checked], ['Rope', !!relax && !pullMode], ['Surface', !relax && seifertBox.checked], ['Pull', pullMode]])
       document.getElementById('braidView' + id).setAttribute('aria-pressed', String(on));
+    document.getElementById('braidReturnCut').hidden = !cutBraidSource;
     bar.dataset.pulling = String(pullMode);
     document.getElementById('braidPullOptions').hidden = !pullMode;
     if (changed) measureTopTools();
   }
   function syncBraidWorkspace() {
     syncBraidToolbar();
+    const origin = document.getElementById('braidOriginNote'); origin.hidden = !cutBraidSource;
     if (!state.braid) return;
+    if (cutBraidSource) {
+      const b = state.braid, unchanged = b.n === cutBraidSource.n && b.word.length === cutBraidSource.word.length && b.word.every((g, i) => g === cutBraidSource.word[i]);
+      origin.textContent = unchanged
+        ? 'From your cut toroid: the same centerline knots and links. Each component uses its first painted section’s color. Ribbon widths and surface twists may differ.'
+        : 'Braid edited. Your original cut toroid is saved; use Back to cut toroid to return.';
+    }
     const { n, word } = state.braid, count = KM.cycles(KM.permutation(n, word)).length;
     document.getElementById('braidStats').textContent = n + (n === 1 ? ' strand' : ' strands') + ' · ' + word.length + (word.length === 1 ? ' crossing' : ' crossings') + ' · ' + count + (count === 1 ? ' component' : ' components');
     document.getElementById('braidWidth').value = String(Math.round(braidStyle.width * 100));
@@ -1976,6 +1990,60 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     braidStrandsIn.value = String(d.braid.strands);
     drawFromForm();
   });
+
+  // Convert the centerlines of fully cut strips, using their exact braid and the
+  // component-to-painted-piece correspondence already computed by knotmath.
+  function cutBraidUnavailable() {
+    if (state.braid || labCut) return 'Return to the twisted toroid to convert its cut pieces.';
+    if (state.twisting || state.building || state.grow !== null || state.m < 2) return 'Finish building and twisting the toroid first.';
+    const sh = shapeOf(), n = sh.colors.length, a = analysis();
+    if (!a.cycles) return 'The color lines must meet at the seam before they can form a closed braid.';
+    const kind = sh.open ? 'line' : 'ring', steps = KM.stepsFor({ kind, pieces: n, turn: state.twistTo });
+    const crossings = Math.abs(steps) * (sh.open ? n * (n - 1) / 2 : n - 1);
+    if (steps === null || n > MAX_STRANDS || crossings > MAX_CROSSINGS) return 'Use fewer twists: the braid editor supports up to 400 crossings and 10 strands.';
+    if (!state.cutTarget) return 'Cut along the color lines first, then turn the pieces into a closed braid.';
+    if (state.cut < 1) return 'Cutting… the braid button becomes available when the cut finishes.';
+    return '';
+  }
+  function syncCutBraidControls() {
+    const reason = cutBraidUnavailable(), quick = document.getElementById('q-braid');
+    document.getElementById('cutToBraid').disabled = quick.disabled = !!reason;
+    quick.hidden = !state.cutTarget || !!state.braid || !!labCut;
+    const text = reason || 'Show the cut pieces’ centerlines as a closed braid, then edit, relax, or pull them. The surface twists may differ.';
+    const note = document.getElementById('cutBraidNote'); if (note.textContent !== text) note.textContent = text;
+  }
+  function cutToBraid() {
+    if (cutBraidUnavailable()) { syncCutBraidControls(); return; }
+    const d = torusInfo();
+    if (!d.ok) return;
+    const b = checkBraid(d.braid.word, d.braid.strands);
+    const sh = shapeOf();
+    cutBraidSource = { shape: state.shape, turn: state.twistTo, cutColors: cutColorBox.checked, n: b.n, word: b.word.slice() };
+    // describe() orders components by braid cycles, not by painted section index.
+    // Matching through c.pieces is essential for negative twists and flat bands.
+    braidStyle.colors = BC.normalize({ colors: d.components.map(c => toHex(pal.c[sh.colors[Math.min(...c.pieces)]])) }).colors;
+    saveBraidStyle(); seifertBox.checked = false; seifKey = '#';
+    showBraid(b);
+    logOp('cut to braid', { shape: cutBraidSource.shape, turn: cutBraidSource.turn });
+    if (isPhone()) setSheet('hidden');
+  }
+  function returnToCutTorus() {
+    if (!cutBraidSource) return;
+    const source = cutBraidSource; cutBraidSource = null;
+    showBraid(null);
+    if (state.shape !== source.shape) document.getElementById('shape-' + source.shape).click();
+    twistTo(source.turn);
+    // Restore the completed construction immediately, without replaying its twist
+    // or cut animation. The original surface/framing and paint are still present.
+    state.twisting = false; state.k = state.twistTo = source.turn;
+    stopGrow(); state.building = false; setM(2);
+    cutColorBox.checked = source.cutColors; state.cut = 1; setCut(true);
+    updatePositions(); buildTrail(); restartTraveler(); updateReadouts();
+    if (isPhone()) setSheet('hidden');
+  }
+  document.getElementById('cutToBraid').addEventListener('click', cutToBraid);
+  document.getElementById('q-braid').addEventListener('click', cutToBraid);
+  document.getElementById('braidReturnCut').addEventListener('click', returnToCutTorus);
 
   // Apply a construction, from a link or a saved experiment.
   function applyConstruction(c) {
@@ -3409,6 +3477,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     qc.disabled = cutBtn.disabled || state.twisting;
     qc.setAttribute('aria-label', state.cutTarget ? 'Glue the color boundaries back together' : 'Cut along the color lines');
     quickShape.value = state.shape;
+    syncCutBraidControls();
     syncMobileTools();
     set('q-word', state.braid ? (state.braid.word.length ? KM.wordText(state.braid.word) : 'identity') + ' · ' + state.braid.n + ' strands' : '');
   }
@@ -3496,6 +3565,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       updatePositions();
     }
     renderDt = dt;
+    syncCutBraidControls();
     let trailCount = 0;
     if (state.cut !== state.cutTarget && !labCut) {
       state.cut = CUT.advance(state.cut,state.cutTarget,dt);
