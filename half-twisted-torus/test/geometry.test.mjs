@@ -79,5 +79,68 @@ for (const [name, [kind, n, sym]] of Object.entries(SHAPES)) {
     });
   }
 }
+
+// ---------- torus knots: Burau Alexander polynomial against the closed formula ----------
+// Delta of T(q, p) = (t^pq - 1)(t - 1) / ((t^p - 1)(t^q - 1))
+function torusAlex(q, p) {
+  q = Math.abs(q); p = Math.abs(p);
+  if (q < 2 || p < 2) return [1];
+  const mul = (a, b) => { const c = new Array(a.length + b.length - 1).fill(0); a.forEach((x, i) => b.forEach((y, j) => { c[i + j] += x * y; })); return c; };
+  const tn = k => { const c = new Array(k + 1).fill(0); c[0] = -1; c[k] = 1; return c; };
+  let num = mul(tn(p * q), tn(1)); const den = mul(tn(p), tn(q));
+  const out = new Array(num.length - den.length + 1).fill(0);
+  for (let i = out.length - 1; i >= 0; i--) { const f = num[i + den.length - 1] / den[den.length - 1]; out[i] = f; den.forEach((y, j) => { num[i + j] -= f * y; }); }
+  return out;
+}
+for (const [name, [kind, n, sym]] of Object.entries(SHAPES)) {
+  const step = sym ? 1 / sym : 0.25;
+  for (let j = -Math.round(2 / step); j <= Math.round(2 / step); j++) {
+    const d = KM.describe({ kind, pieces: n, turn: j * step });
+    if (!d.ok) continue;
+    d.components.forEach(c => expect(JSON.stringify(c.alexander) === JSON.stringify(torusAlex(c.laps, c.turns)),
+      name + ' turn ' + (j * step).toFixed(3) + ' Alexander of T(' + c.laps + ',' + c.turns + '): ' + JSON.stringify(c.alexander)));
+  }
+}
+
+// ---------- general braids: the ribbons the page draws ----------
+// Random braids, drawn with braidLayout exactly as index.html does. Linking numbers
+// between components and each component's framing (core against its +a edge, the
+// blackboard framing) must match what describeBraid reads off the word.
+let seed = 12345;
+const rand = k => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % k; };
+function braidCurves(n, word, comp, offset, perSlot) {
+  const lay = KM.braidLayout(n, word), m = Math.max(word.length, 1);
+  const perm = KM.permutation(n, word), pts = [];
+  let strand = comp[0];
+  do {
+    const f = lay[strand];
+    for (let i = 0; i < m * perSlot; i++) {
+      const th = (i / (m * perSlot)) * TAU, [a, b] = f(th), A = a + offset;
+      pts.push([(R + A) * Math.cos(th), b, (R + A) * Math.sin(th)]);
+    }
+    strand = perm[strand];
+  } while (strand !== comp[0]);
+  return pts;
+}
+const cases = [[2, [1, 1]], [2, [-1, -1]], [2, [1, 1, 1]], [3, [1, -2, 1, -2]], [3, [1, -2, 1, -2, 1, -2]]];
+for (let r = 0; r < 30; r++) {
+  const n = 2 + rand(3), len = 1 + rand(7), w = [];
+  for (let i = 0; i < len; i++) w.push((1 + rand(n - 1)) * (rand(2) ? 1 : -1));
+  cases.push([n, w]);
+}
+for (const [n, word] of cases) {
+  const d = KM.describeBraid(n, word), label = 'braid ' + n + ' [' + word + ']';
+  const cores = d.components.map(c => braidCurves(n, word, c.braidStrands, 0, 70));
+  for (let a = 0; a < cores.length; a++) for (let b = a + 1; b < cores.length; b++) {
+    const g = gaussLink(cores[a], cores[b]);
+    expect(Math.abs(g - d.linking[a][b]) < 0.1, label + ' lk ' + d.linking[a][b] + ' vs Gauss ' + g.toFixed(3));
+  }
+  d.components.forEach((c, a) => {
+    const g = gaussLink(cores[a], braidCurves(n, word, c.braidStrands, 0.04, 70));
+    expect(Math.abs(g - c.framing) < 0.1, label + ' framing ' + c.framing + ' vs Gauss ' + g.toFixed(3));
+    expect(c.framing === c.writhe, label + ' blackboard framing equals writhe');
+  });
+}
+
 console.log(checks + ' checks, ' + failures + ' failures');
 process.exit(failures ? 1 : 0);

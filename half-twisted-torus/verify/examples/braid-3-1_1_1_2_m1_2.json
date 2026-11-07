@@ -1,0 +1,45 @@
+{
+  "format": "half-twisted-torus/experiment",
+  "version": 2,
+  "created": "2026-11-07T03:51:57.475Z",
+  "construction": {
+    "type": "braid",
+    "strands": 3,
+    "word": [1, 1, 1, 2, -1, 2],
+    "text": "σ1³ σ2 σ1⁻¹ σ2"
+  },
+  "operations": [
+    {
+      "op": "open link",
+      "value": "#braid=1,1,1,2,-1,2&strands=3",
+      "at": "2026-11-07T03:51:57.044Z"
+    }
+  ],
+  "braid": {
+    "strands": 3,
+    "word": [1, 1, 1, 2, -1, 2],
+    "convention": "Closure is the link drawn. Generator +i is a positive crossing of strands i and i+1 (SnapPy/Spherogram braid_closure)."
+  },
+  "ribbonBraid": {
+    "note": "Blackboard ribbon: every strand doubled by an edge on one side, so a component's framing is the linking number of its core strand with its edge strand (equal to its writhe in the braid). Positions are 0-based.",
+    "strands": 6,
+    "word": [2, 1, 3, 2, 2, 1, 3, 2, 2, 1, 3, 2, 4, 3, 5, 4, -2, -1, -3, -2, 4, 3, 5, 4],
+    "cores": [0, 2, 4],
+    "edges": [1, 3, 5],
+    "framing": "blackboard"
+  },
+  "components": [
+    {
+      "braidStrands": [0, 1, 2],
+      "laps": 3,
+      "framing": 4,
+      "writhe": 4,
+      "alexander": [2, -3, 2]
+    }
+  ],
+  "linkingMatrix": [
+    [0]
+  ],
+  "alexander": [2, -3, 2],
+  "verify": "python verify/verify.py <this file>"
+}
