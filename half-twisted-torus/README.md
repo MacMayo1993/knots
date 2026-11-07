@@ -4,7 +4,13 @@ An interactive model by Mac Mayo. A painted torus is cut through the tube, one e
 
 ## Open it
 
-Double-click `index.html`. It opens in any modern browser and runs offline. There is no install, no build step, no 3D library and no WebGL. The page loads one helper script, `knotmath.js`, from the same folder. It draws with the browser's 2D canvas. The Google Fonts link is optional; without a connection the page falls back to system fonts.
+Open the GitHub Pages site, or serve this folder locally and open the page:
+
+```
+python3 -m http.server 8000      # then visit http://localhost:8000/
+```
+
+The page draws with [Three.js](https://threejs.org) (WebGL 2), loaded as JavaScript modules. Browsers won't load modules from a double-clicked file, which is why it needs a server. There is no install and no build step. Three.js r186.1 is copied into `vendor/three/`, unmodified, so the page makes no requests to other sites. The only exception is the optional Google Fonts link; without a connection the page falls back to system fonts.
 
 ## Controls
 
@@ -21,7 +27,8 @@ Double-click `index.html`. It opens in any modern browser and runs offline. Ther
 - **Paint colors:** one color picker per painted half or face of the current shape. Your choices are remembered in your browser; **Reset colors** restores the defaults.
 - **Pause / Send a traveler:** a dot rides one stripe until it gets home.
 - **Show the cut:** the dashed ring where the tube was sliced.
-- Drag or use the arrow keys to rotate; scroll to zoom.
+- Drag or use the arrow keys to rotate; scroll or pinch to zoom.
+- **Follow a strip:** tap any strip on the model, or a line in the exact description's strip list. That strip or component keeps its color while the rest fade, and its full route is drawn: the centerline as a solid line and its edge as a dashed one, faintly where they pass behind the surface. The readout at the top says how many laps it takes, which knot it is, and its framing, the number of times the dashed edge winds around the solid centerline. Tap it again, tap empty space, or press Escape to clear.
 
 ## What the readouts mean
 
@@ -54,6 +61,7 @@ Two independent checks:
 
 ## Code layout
 
+- `vendor/three/`: Three.js r186.1 (MIT), with OrbitControls and the fat-line addons.
 - `knotmath.js`: braid words, reading a braid (components, linking matrix, writhe), `describe()` for a torus construction, `parseBraid()`, `describeBraid()`, the Burau `alexander()` and `braidLayout()`, the geometry the page draws for a braid. Works as a browser script (`window.KnotMath`) and as a Node module.
 - `test/geometry.test.mjs`, `verify/verify.py`: the checks above.
 
@@ -62,9 +70,10 @@ Everything else is inside `index.html`:
 - `<style>`: design tokens for light and dark themes, then layout.
 - `<script>`:
   - `SHAPES` and `section()` define each cross-section and its paint.
-  - `buildMesh()` and `updatePositions()` build the twisted tube. For the build animation, `updatePositions()` unrolls the cross-section using an arc-length table (`arc`), rolls it by scaling its turning angle, then bends the straight tube into the ring along a circular arc while turning the far end.
+  - `buildMesh()` and `updatePositions()` build the twisted tube. `surfacePoint()` is the finished model's formula for one point, and the highlighted routes use it too, so they sit exactly on the mesh. For the build animation, `updatePositions()` unrolls the cross-section using an arc-length table (`arc`), rolls it by scaling its turning angle, then bends the straight tube into the ring along a circular arc while turning the far end.
   - `analysis()`, `updateReadouts()` and `updateHud()` compute and show the counts.
   - `updateExact()`, `experiment()` and `applyConstruction()` handle the exact description, the export, links and loading.
   - `showBraid()` switches modes, and `buildBraidMesh()` turns `braidLayout()` into ribbons for the renderer.
-  - `render()` is a painter's-algorithm renderer: it sorts the tube's quads, the trail and the traveler by depth and draws them back to front.
+  - The three.js scene section hands the mesh to WebGL (`syncSurface()` updates positions, normals and per-vertex colors only when they change) and draws the seam, traveler, build edges and selection lines as fat lines. `render()` updates those each frame.
+  - `select()`, `torusRoute()` and `braidRoute()` handle following a strip.
   - `frame()` is the animation loop.
