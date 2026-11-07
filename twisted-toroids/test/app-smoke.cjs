@@ -42,11 +42,12 @@ class Geometry{
  setPositions(a){this.positions=Array.from(a);return this;}
  setColors(a){this.colors=a;return this;}
  dispose(){}computeVertexNormals(){}computeBoundingSphere(){}
+ clearGroups(){this.groups=[];}addGroup(start,count,materialIndex){(this.groups??=[]).push({start,count,materialIndex});}
 }
 class Attribute{constructor(array,itemSize){this.array=array;this.itemSize=itemSize;this.version=0;}set needsUpdate(v){if(v)this.version++;}}
 class FloatAttribute extends Attribute{constructor(a,n){super(new Float32Array(a),n);}}
 class Material{constructor(opts={}){Object.assign(this,opts);this.color=new Color(opts.color);this.resolution=new Vector();}}
-class Object3D{constructor(geometry=new Geometry(),material=new Material()){this.geometry=geometry;this.material=material;this.position=new Vector();this.children=[];this.fov=40;this.visible=true;}add(...o){this.children.push(...o);}computeLineDistances(){}updateProjectionMatrix(){}clearViewOffset(){}setViewOffset(){}}
+class Object3D{constructor(geometry=new Geometry(),material=new Material()){this.geometry=geometry;this.material=material;this.position=new Vector();this.children=[];this.userData={};this.fov=40;this.visible=true;}add(...o){this.children.push(...o);}computeLineDistances(){}updateProjectionMatrix(){}clearViewOffset(){}setViewOffset(){}}
 class Renderer{setClearColor(){}setPixelRatio(){}setSize(){}render(){}}
 class OrbitControls{constructor(){this.target=new Vector();}addEventListener(){}update(){}}
 class Raycaster{setFromCamera(){}intersectObject(){return Raycaster.hit ? [Raycaster.hit] : [];}}
@@ -54,7 +55,7 @@ class Curve{constructor(points){this.points=points;}}
 class TubeGeometry extends Geometry{constructor(curve,segments,radius,radial,closed){super();this.curve=curve;this.parameters={segments,radius,radial,closed};const P=[],I=[];curve.points.forEach((p,i)=>{for(let k=0;k<3;k++)P.push(i,k,0);const a=3*i,b=3*((i+1)%curve.points.length);I.push(a,a+1,b,a+1,b+1,b,a+1,a+2,b+1,a+2,b+2,b+1,a+2,a,b+2,a,b,b+2);});this.attributes.position=new Attribute(new Float32Array(P),3);this.index=new Attribute(new Uint32Array(I),1);}}
 const THREE={Curve,CatmullRomCurve3:Curve,TubeGeometry,FrontSide:0,BackSide:1,DoubleSide:2,MathUtils:{degToRad:x=>x*Math.PI/180},Color,Vector2:Vector,Vector3:Vector,Spherical:class{setFromVector3(){return this;}},Scene:Object3D,PerspectiveCamera:Object3D,HemisphereLight:Object3D,DirectionalLight:Object3D,Mesh:Object3D,BufferGeometry:Geometry,BufferAttribute:Attribute,Float32BufferAttribute:FloatAttribute,MeshStandardMaterial:Material,MeshBasicMaterial:Material,SphereGeometry:Geometry,WebGLRenderer:Renderer,Raycaster,SRGBColorSpace:'srgb'};
 const phone=process.argv.includes('--phone'),side=process.argv.includes('--landscape'),animate=process.argv.includes('--animate');
-const win={ToroidRandomizer:require(process.cwd()+'/randomize.js'),BraidControls:require(process.cwd()+'/braid-controls.js'),innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),BraidEditor:require(process.cwd()+'/braid-editor.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),KnotRelax:require(process.cwd()+'/relax.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
+const win={ToroidRandomizer:require(process.cwd()+'/randomize.js'),BraidControls:require(process.cwd()+'/braid-controls.js'),innerHeight:phone?844:900,innerWidth:phone?390:1200,ToroidCutAnimation:require(process.cwd()+'/cut-animation.js'),ToroidAppearance:require(process.cwd()+'/appearance.js'),TorusExplore:require(process.cwd()+'/explore.js'),KnotMath:require(process.cwd()+'/knotmath.js'),MeshKit:require(process.cwd()+'/meshkit.js'),BraidEditor:require(process.cwd()+'/braid-editor.js'),SeifertSurface:require(process.cwd()+'/seifert.js'),SurfaceLab:require(process.cwd()+'/surfaces.js'),KnotRelax:require(process.cwd()+'/relax.js'),BraidStudio:require(process.cwd()+'/braid-studio.js'),addEventListener(){},matchMedia(q){return {matches:(!animate&&q.includes('reduced-motion'))||(phone&&q.includes('max-width'))||(side&&q.includes('orientation: landscape')),addEventListener(){}};}};
 const sandbox={KnotMath:win.KnotMath,THREE,OrbitControls,Line2:Object3D,LineSegments2:Object3D,LineMaterial:Material,LineGeometry:Geometry,LineSegmentsGeometry:Geometry,window:win,document:{documentElement:root,body:el(),getElementById:get,createElement:el,querySelectorAll(s){const key={'#shapeSeg button':'shape','#twistSeg button':'k','#modeSeg button':'mode','#braidExamples button':'word'}[s];return buttons.filter(b=>key in b.dataset);}},getComputedStyle(){return {getPropertyValue(k){return root.style[k]||palette[k]||'#888888';}};},MutationObserver:class{observe(){}},localStorage:{getItem(){return null;},setItem(){}},location:{hash:'',href:'https://example.test/'},history:{replaceState(){}},performance:{now(){return 0;}},requestAnimationFrame(){},setTimeout(f){timers.push(f);},URLSearchParams,console,Blob:class{constructor(parts){this.parts=parts;}},URL:{createObjectURL(){return 'blob:x';},revokeObjectURL(){}}};
 vm.createContext(sandbox);
 const savedPreferences=new Map();
@@ -64,7 +65,7 @@ sandbox.document.createElementNS=(ns,tag)=>el(tag);
 sandbox.document.addEventListener=()=>{};
 get('.lab').parentElement=el(); get('.notes').parentElement=get('.lab').parentElement;
 get('stageTools').getBoundingClientRect=()=>({width:370,height:202,left:10,top:10,bottom:212});
-vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal,makeSTL,getLabModel:()=>labModel,getRelax:()=>relax,getSeif:()=>seifData,seifBuild,seifFront,seifLines,seifCursor,setLabSurface,getLabLoops:()=>labLoops,braidEditor,setRelax,identifyBraid}; setTimeout(start,30);'),sandbox);
+vm.runInContext(source.replace('setTimeout(start, 30);','window.probe={state,appearance,experiment,render,syncSurface,surface,surfacePoint,cutTips,cutInfo,showBraid,twistTo,updatePositions,select,clearSelection,selCore,selEdge,retint,frame,setLabCut,labSurface,labBoundary,mapMarker,chooseMapPoint,syncExplore,setSheet,syncQuick,getShape:shapeOf,getViewShift:()=>viewShift,getSheet:()=>sheet,getMapPick:()=>mapPick,seifCircles,getSelection:()=>sel,getVertexPieces:()=>vPiece,getPalette:()=>pal,makeSTL,getLabModel:()=>labModel,getRelax:()=>relax,getSeif:()=>seifData,seifBuild,seifFront,seifLines,seifCursor,setLabSurface,getLabLoops:()=>labLoops,braidEditor,setRelax,identifyBraid}; setTimeout(start,30);'),sandbox);
 timers.shift()();assert(!get('hud').textContent.includes('failed'));
 const p=win.probe,toggle=get('cutColors'),legend=get('cutColorLegend');get('seam').checked=false;
 if(animate){
@@ -119,14 +120,18 @@ if(animate){
  assert(p.seifBuild.playing);assert(p.seifFront.geometry.drawRange.count<p.getSeif().idx.length);
  get('seifQuickPlay').click();const heldProgress=p.seifBuild.progress;tick(8);assert.equal(p.seifBuild.progress,heldProgress);
  const seek=v=>{get('seifQuickProgress').value=String(v);get('seifQuickProgress').dispatch('input');};
- seek(250);assert.match(get('seifQuickStatus').textContent,/Disk 2 of 2/);assert(p.seifCursor.visible);assert(p.seifLines.every(l=>!l.visible));
- seek(600);assert.match(get('seifBuildStatus').textContent,/Band 2 of 3/);
+ seek(50);assert.match(get('seifQuickStatus').textContent,/Smooth each crossing · 2 Seifert circles/);
+ assert.equal(p.seifFront.geometry.drawRange.count,0);assert(p.seifCircles.some(l=>l.visible));
+ seek(350);assert.match(get('seifQuickStatus').textContent,/Disk 2 of 2/);
+ assert.deepEqual(p.seifFront.geometry.groups.map(g=>g.materialIndex),[0,2],'the disk being built is lit');assert(p.seifCursor.visible);assert(p.seifLines.every(l=>!l.visible));
+ seek(600);assert.match(get('seifQuickStatus').textContent,/Band 2 of 3/);
+ assert(p.seifFront.geometry.groups.some(g=>g.materialIndex===2),'the band being attached is lit');assert(p.seifCircles.every(l=>!l.visible));
  const geom=p.seifFront.geometry, fullIndices=p.getSeif().idx.slice(), partialSTL=p.makeSTL().stl;
  get('palette-sunset').click();tick(1);assert.equal(p.seifBuild.progress,.6);assert.equal(p.seifFront.geometry,geom);
  seek(900);assert.match(get('seifQuickStatus').textContent,/Trace/);assert(p.seifLines.some(l=>l.visible));assert.equal(p.seifCursor.visible,false);
- get('seifBuildFinish').click();assert.equal(p.seifBuild.progress,1);assert.equal(geom.drawRange.count,fullIndices.length);
+ get('seifQuickFinish').click();assert.equal(p.seifBuild.progress,1);assert.deepEqual(p.seifFront.geometry.groups.map(g=>g.materialIndex),[0]);assert.equal(geom.drawRange.count,fullIndices.length);
  assert.deepEqual(p.getSeif().idx,fullIndices);assert.deepEqual(new Uint8Array(p.makeSTL().stl),new Uint8Array(partialSTL));
- get('seifBuildReplay').click();assert.equal(geom.drawRange.count,0);tick(1);assert(p.seifBuild.progress>0);
+ get('seifQuickReplay').click();assert.equal(geom.drawRange.count,0);tick(1);assert(p.seifBuild.progress>0);
  p.showBraid({n:3,word:[1,-2]});tick(1);assert.equal(p.getSeif().S.n,3);assert(p.seifBuild.progress<.02);
  get('braidViewRibbon').click();tick(1);assert.equal(p.getSeif(),null);assert.equal(p.seifBuild.playing,false);assert.equal(p.seifCursor.visible,false);
  assert(p.seifLines.every(l=>!l.visible));assert.equal(get('seifQuick').hidden,true);
@@ -379,32 +384,41 @@ console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sect
  get('braidStyleReset').click();assert.equal(get('braidWidth').value,'100');paint([0,2,1]);
  p.setSheet('hidden');p.syncQuick();assert.equal(get('braidToolbar').hidden,false);p.setLabCut('meridian');p.syncQuick();assert.equal(get('braidToolbar').hidden,true);p.setLabCut(null);p.syncQuick();assert.equal(get('braidToolbar').hidden,false);
  console.log('PASS: braid selection/insertion/mirror/clear/undo/redo, single strand, persistent component colors, ribbon widths preserve centerlines/invariants, toolbar visibility.');
- // Pull tool starts from the original braid, pauses between gestures, and cleans up.
- get('braidViewPull').click();p.render(false,0,[0,0,0]);
- assert(p.getRelax().paused);assert.equal(get('braidPullOptions').hidden,false);assert.equal(get('pullComponent').children.length,4);
- const pullStart=Array.from(p.getRelax().S.P);tick1();assert.deepEqual(Array.from(p.getRelax().S.P),pullStart);
- get('pullTighten').click();tick1();assert.notDeepEqual(Array.from(p.getRelax().S.P),pullStart);
- get('pullTighten').click();const held=Array.from(p.getRelax().S.P);tick1();assert.deepEqual(Array.from(p.getRelax().S.P),held);
- get('pullReset').click();p.render(false,0,[0,0,0]);assert.deepEqual(Array.from(p.getRelax().S.P),pullStart);
+ // Pull starts from the rope: a new rope tightens from the braid's shape first.
+ get('braidViewPull').click();const pullStart=Array.from(p.getRelax().S.P);p.render(false,0,[0,0,0]);
+ assert(!p.getRelax().paused);assert.equal(get('pullTighten').textContent,'Pause');
+ assert.equal(get('braidPullOptions').hidden,false);assert.equal(get('pullComponent').children.length,4);
+ tick1();assert.notDeepEqual(Array.from(p.getRelax().S.P),pullStart,'a new rope tightens in Pull');
+ get('pullTighten').click();assert(p.getRelax().paused);const held=Array.from(p.getRelax().S.P);tick1();assert.deepEqual(Array.from(p.getRelax().S.P),held,'Pause holds the shape');
+ get('pullReset').click();assert.deepEqual(Array.from(p.getRelax().S.P),pullStart,'Reset before the rope settles starts again from the braid');
+ assert(!p.getRelax().paused,'and tightens again');p.render(false,0,[0,0,0]);get('pullTighten').click();
  get('pullUndo').click();p.render(false,0,[0,0,0]);assert.deepEqual(Array.from(p.getRelax().S.P),held);
- get('braidViewRibbon').click();assert.equal(get('braidPullOptions').hidden,true);assert.equal(p.getRelax(),null);
- console.log('PASS: Pull view, paused geometry, tightening, pause, reset, shape undo and view cleanup.');
+ // The rope belongs to the braid: Ribbons and Surface hide it, Rope and Pull bring the same shape back.
+ const rope=p.getRelax();
+ get('braidViewRibbon').click();assert.equal(get('braidPullOptions').hidden,true);assert.equal(p.getRelax(),rope);
+ p.render(false,0,[0,0,0]);assert.equal(p.surface.visible,true);assert.equal(get('braidViewRibbon').attrs['aria-pressed'],'true');
+ get('braidViewRope').click();assert.equal(p.getRelax(),rope);assert.deepEqual(Array.from(rope.S.P),held);assert.equal(get('braidViewRope').attrs['aria-pressed'],'true');
+ get('seifertBox').checked=true;get('seifertBox').dispatch('change');assert.equal(get('braidViewSurface').attrs['aria-pressed'],'true');
+ get('braidViewPull').click();assert.equal(p.getRelax(),rope);assert(rope.paused);assert.deepEqual(Array.from(rope.S.P),held,'Pull resumes from the shape left in Rope');
+ assert.equal(get('seifertBox').checked,false);
+ get('braidViewRibbon').click();
+ console.log('PASS: Pull tightens a new rope, pause, reset, shape undo; the rope survives Ribbons, Rope, Surface and Pull switches.');
  // Seifert surface: shown instead of the ribbons, with its genus, and printable
  p.showBraid({n:3,word:[1,-2,1,-2]});const sb=get('seifertBox');sb.checked=true;sb.dispatch('change');p.render(false,0,[0,0,0]);
  assert.equal(p.getSeif().genus,1);assert.equal(p.surface.visible,false);tick1();assert.match(get('hud').textContent,/Seifert surface · genus 1/);
  assert.equal(p.seifBuild.progress,1,'reduced motion shows the complete surface without autoplay');
- get('seifBuildReplay').click();assert.equal(p.seifBuild.progress,0);get('seifBuildPlay').click();tick1();assert.equal(p.seifBuild.progress,0);
+ get('seifQuickReplay').click();assert.equal(p.seifBuild.progress,0);get('seifQuickPlay').click();tick1();assert.equal(p.seifBuild.progress,0);
  get('seifQuickFinish').click();assert.equal(p.seifFront.geometry.drawRange.count,p.getSeif().idx.length);
  assert.match(get('x-seifert').textContent,/3 disks \+ 4 bands · χ = −1 · genus 1/);assert.match(get('x-seifert-note').textContent,/the knot has genus 1/);
  let made=p.makeSTL();assert(made&&closed(made),'Seifert STL is a closed solid');
  sb.checked=false;sb.dispatch('change');p.render(false,0,[0,0,0]);assert.equal(p.surface.visible,true);
  // relaxation runs through the frame loop and keeps the knot
- get('relaxBtn').click();assert(p.getRelax());for(let i=0;i<40;i++)tick1();
+ get('braidViewRope').click();assert(p.getRelax());for(let i=0;i<40;i++)tick1();
  assert(p.getRelax().S.steps>0);assert.equal(p.surface.visible,false);assert.match(get('hud').textContent,/Relax/);
  made=p.makeSTL();assert(made&&made.indices.length>0,'relaxed tubes export');
- get('relaxBtn').click();assert.equal(p.getRelax(),null);
+ get('braidViewRibbon').click();p.render(false,0,[0,0,0]);assert.equal(p.surface.visible,true);assert(p.getRelax(),'the rope is kept for the next Rope view');
  // Oversized relaxation is rejected before changing the displayed braid or view.
- p.showBraid({n:10,word:Array(110).fill(1)});get('relaxBtn').click();
+ p.showBraid({n:10,word:Array(400).fill(1)});get('braidViewRope').click();
  assert.equal(p.getRelax(),null);assert.match(get('x-status').textContent,/too large to relax/);
  // the twisted torus and braid ribbons export as closed solids too
  p.showBraid(null);get('shape-hex').click();p.twistTo(1/3);made=p.makeSTL();assert(closed(made),'torus STL closed');

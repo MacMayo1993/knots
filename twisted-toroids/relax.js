@@ -14,17 +14,29 @@
 
   // Resolve every crossing, including its over/under midpoint. A fixed number of
   // samples per lap aliases long words (sigma_1^144 used to become two circles).
-  // Keep slot boundaries aligned; `per` is a minimum, never a downsampling limit.
-  const SAMPLES_PER_CROSSING = 8, MAX_POINTS = 8192;
+  // Slot boundaries stay aligned. A strand gets `dense` samples in each slot where
+  // it crosses, and only enough elsewhere to follow its circular lane closely (at
+  // least MIN_PER_LAP per lap): there it is an arc of its lane, and the chord of a
+  // 7.5 degree step strays under 0.005 from it, far less than the lane spacing.
+  // `per` is a minimum per crossing slot, never a downsampling limit.
+  const SAMPLES_PER_CROSSING = 8, MIN_PER_LAP = 48, MAX_POINTS = 8192;
+  function samplePlan(KM, n, word, per = 72) {
+    const lay = KM.braidLayout(n, word), slots = lay.slots || Math.max(1, word.length);
+    const dense = Math.max(SAMPLES_PER_CROSSING, 2 * Math.ceil(per / (2 * slots)));
+    const sparse = Math.max(1, Math.ceil(MIN_PER_LAP / slots));
+    // which positions cross in each slot (all of them for an old-style layout)
+    const busy = lay.busy || Array.from({ length: slots }, () => Array(n).fill(true));
+    const counts = Array.from({ length: n }, (_, st) => Array.from({ length: slots }, (_, s) => busy[s][lay.position ? lay.position(st, s) : st] ? dense : sparse));
+    return { lay, slots, dense, sparse, counts, total: counts.reduce((t, c) => t + c.reduce((a, b) => a + b, 0), 0) };
+  }
   function fromBraid(KM, n, word, per = 72) {
-    const slots = Math.max(1, word.length);
-    per = slots * Math.max(SAMPLES_PER_CROSSING, 2 * Math.ceil(per / (2 * slots)));
-    if (n * per > MAX_POINTS) throw new Error('This braid is too large to relax while preserving every crossing. Try a shorter braid or fewer strands.');
-    const lay = KM.braidLayout(n, word), comps = KM.cycles(KM.permutation(n, word));
+    const plan = samplePlan(KM, n, word, per);
+    if (plan.total > MAX_POINTS) throw new Error('This braid is too large to relax while preserving every crossing. Try a shorter braid or fewer strands.');
+    const { lay, slots, counts } = plan, comps = KM.cycles(KM.permutation(n, word)), width = TAU / slots;
     return comps.map(c => {
       const pts = [];
-      for (const st of c) for (let i = 0; i < per; i++) {
-        const th = (i / per) * TAU, [a, b] = lay[st](Math.min(th, TAU - 1e-9));
+      for (const st of c) for (let s = 0; s < slots; s++) for (let j = 0; j < counts[st][s]; j++) {
+        const th = (s + j / counts[st][s]) * width, [a, b] = lay[st](Math.min(th, TAU - 1e-9));
         pts.push([(R + a) * Math.cos(th), b, (R + a) * Math.sin(th)]);
       }
       return pts;
@@ -63,37 +75,55 @@
     const sc = Math.abs(sN) < 1e-14 ? 0 : sN / sD, tc = Math.abs(tN) < 1e-14 ? 0 : tN / tD;
     return Math.hypot(wx + sc * ux - tc * vx, wy + sc * uy - tc * vy, wz + sc * uz - tc * vz);
   }
-  // A spatial hash of segment midpoints; returns pairs of segments (by first vertex)
-  // that might be within `reach` of each other.
-  function nearPairs(S, reach, fn) {
-    const { P, N, next } = S, cell = reach, grid = new Map();
-    const key = (x, y, z) => x + ',' + y + ',' + z;
-    const cx = new Int32Array(N), cy = new Int32Array(N), cz = new Int32Array(N);
-    for (let i = 0; i < N; i++) {
-      const j = next[i];
-      cx[i] = Math.floor((P[3 * i] + P[3 * j]) / 2 / cell); cy[i] = Math.floor((P[3 * i + 1] + P[3 * j + 1]) / 2 / cell); cz[i] = Math.floor((P[3 * i + 2] + P[3 * j + 2]) / 2 / cell);
-      const k = key(cx[i], cy[i], cz[i]);
-      if (!grid.has(k)) grid.set(k, []);
-      grid.get(k).push(i);
-    }
-    for (let i = 0; i < N; i++) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
-      const list = grid.get(key(cx[i] + dx, cy[i] + dy, cz[i] + dz));
-      if (list) for (const j of list) if (j > i) fn(i, j);
+  // A spatial hash: cells of a given size, each a linked list of items (points), keyed
+  // by a number. Cell coordinates wrap at 1024, so far-apart cells can share a key;
+  // that only adds candidate pairs, which are then measured, never loses one.
+  const cellKey = (x, y, z) => ((x & 1023) * 1024 + (y & 1023)) * 1024 + (z & 1023);
+  function hashPoints(X, count, cell, cells, head, link) {
+    head.clear();
+    for (let i = 0; i < count; i++) {
+      const cx = Math.floor(X[3 * i] / cell), cy = Math.floor(X[3 * i + 1] / cell), cz = Math.floor(X[3 * i + 2] / cell);
+      cells[3 * i] = cx; cells[3 * i + 1] = cy; cells[3 * i + 2] = cz;
+      const k = cellKey(cx, cy, cz), h = head.get(k);
+      link[i] = h === undefined ? -1 : h; head.set(k, i);
     }
   }
-  // The smallest distance between two segments that share no vertex.
+  function scratch(S) {
+    if (!S.scratch || S.scratch.N !== S.N) S.scratch = { N: S.N, mid: new Float64Array(3 * S.N), cells: new Int32Array(3 * S.N), link: new Int32Array(S.N), head: new Map(), seen: new Map() };
+    return S.scratch;
+  }
+  // The smallest distance between two segments that share no vertex. Segments are
+  // hashed by midpoint in cells of size `reach`, so every pair whose midpoints are
+  // closer than `reach` is measured: that is every pair closer than reach - maxSeg.
+  // The true smallest gap is never more than maxSeg (segments i and i + 2 are no
+  // farther apart than segment i + 1 is long), and reach >= 2 maxSeg, so it is
+  // always found. Returning at most reach - maxSeg keeps the answer a lower bound
+  // even for a degenerate loop of three segments.
   function minGap(S) {
-    const { P, next } = S;
+    const { P, N, next } = S, T = scratch(S), M = T.mid;
     let maxSeg = 0;
-    for (let i = 0; i < S.N; i++) { const j = next[i]; maxSeg = Math.max(maxSeg, Math.hypot(P[3 * j] - P[3 * i], P[3 * j + 1] - P[3 * i + 1], P[3 * j + 2] - P[3 * i + 2])); }
+    for (let i = 0; i < N; i++) {
+      const j = next[i];
+      maxSeg = Math.max(maxSeg, Math.hypot(P[3 * j] - P[3 * i], P[3 * j + 1] - P[3 * i + 1], P[3 * j + 2] - P[3 * i + 2]));
+      M[3 * i] = (P[3 * i] + P[3 * j]) / 2; M[3 * i + 1] = (P[3 * i + 1] + P[3 * j + 1]) / 2; M[3 * i + 2] = (P[3 * i + 2] + P[3 * j + 2]) / 2;
+    }
     const reach = Math.max(S.thick * 2, maxSeg * 2);
-    let best = reach;
-    nearPairs(S, reach, (i, j) => {
-      const i1 = next[i], j1 = next[j];
-      if (i === j || i1 === j || j1 === i || i1 === j1) return;
-      const d = segDist(P, i, i1, j, j1);
-      if (d < best) best = d;
-    });
+    hashPoints(M, N, reach, T.cells, T.head, T.link);
+    let best = reach - maxSeg;
+    const C = T.cells, link = T.link, head = T.head;
+    for (let i = 0; i < N; i++) {
+      const i1 = next[i], cx = C[3 * i], cy = C[3 * i + 1], cz = C[3 * i + 2];
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+        const h = head.get(cellKey(cx + dx, cy + dy, cz + dz));
+        for (let j = h === undefined ? -1 : h; j >= 0; j = link[j]) {
+          if (j <= i) continue;
+          const j1 = next[j];
+          if (i1 === j || j1 === i || i1 === j1) continue;
+          const d = segDist(P, i, i1, j, j1);
+          if (d < best) best = d;
+        }
+      }
+    }
     return best;
   }
   // One step. Returns { gap, move }: the smallest gap before the step and the largest
@@ -103,18 +133,12 @@
     if (opts.relax !== false) {
       for (let i = 0; i < N; i++) for (let d = 0; d < 3; d++) F[3 * i + d] = S.pull * ((P[3 * prev[i] + d] + P[3 * next[i] + d]) / 2 - P[3 * i + d]);
       // vertices closer than the thickness push apart (unless they are neighbours on the rope)
-      const grid = new Map(), cell = thick, key = (x, y, z) => x + ',' + y + ',' + z, C = new Int32Array(3 * N);
-      for (let i = 0; i < N; i++) {
-        for (let d = 0; d < 3; d++) C[3 * i + d] = Math.floor(P[3 * i + d] / cell);
-        const k = key(C[3 * i], C[3 * i + 1], C[3 * i + 2]);
-        if (!grid.has(k)) grid.set(k, []);
-        grid.get(k).push(i);
-      }
+      const T = scratch(S), C = T.cells, link = T.link, head = T.head;
+      hashPoints(P, N, thick, C, head, link);
       const near = Math.max(3, Math.ceil(S.N / S.len.length / 40));
       for (let i = 0; i < N; i++) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
-        const list = grid.get(key(C[3 * i] + dx, C[3 * i + 1] + dy, C[3 * i + 2] + dz));
-        if (!list) continue;
-        for (const j of list) {
+        const h = head.get(cellKey(C[3 * i] + dx, C[3 * i + 1] + dy, C[3 * i + 2] + dz));
+        for (let j = h === undefined ? -1 : h; j >= 0; j = link[j]) {
           if (j <= i || ropeNear(S, i, j, near)) continue;
           const ex = P[3 * i] - P[3 * j], ey = P[3 * i + 1] - P[3 * j + 1], ez = P[3 * i + 2] - P[3 * j + 2], dd = Math.hypot(ex, ey, ez);
           if (dd >= thick || dd < 1e-12) continue;
@@ -152,7 +176,17 @@
       P[3 * i] += F[3 * i]; P[3 * i + 1] += F[3 * i + 1]; P[3 * i + 2] += F[3 * i + 2];
     }
     S.steps++;
-    return { gap, move };
+    // Settled: the rope's length has stopped shrinking (under 0.05% in 50 steps), so
+    // it is as tight as its thickness allows; the page stops stepping then. (The
+    // largest single move is no guide: it jitters once the rope is pressed tight.)
+    let settled = false;
+    if (!opts.handle && S.steps % 50 === 0) {
+      let L = 0;
+      for (let i = 0; i < N; i++) { const j = S.next[i]; L += Math.hypot(P[3 * j] - P[3 * i], P[3 * j + 1] - P[3 * i + 1], P[3 * j + 2] - P[3 * i + 2]); }
+      settled = S.lastLength > 0 && (S.lastLength - L) / S.lastLength < 5e-4;
+      S.lastLength = L;
+    }
+    return { gap, move, settled };
   }
   // A frozen display transform keeps a pulled point under the pointer. Automatic
   // relaxation can still re-center/re-scale on each frame using the default.
@@ -179,7 +213,7 @@
     return vertex;
   }
 
-  const api = { fromBraid, create, step, curves, tubeRadius, minGap, segDist, displayFrame, nearestVertex };
+  const api = { fromBraid, samplePlan, create, step, curves, tubeRadius, minGap, segDist, displayFrame, nearestVertex, MAX_POINTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KnotRelax = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -100,3 +100,46 @@
 .seif-build input { width: 100%; min-width: 0; min-height: 32px; margin: 0; accent-color: var(--accent); }
 .seif-build p { margin: 0; min-height: 2.7em; font: .73rem/1.35 var(--f-body); color: var(--muted); }
 .braid-toolbar:has(.seif-build:not([hidden])) .braid-quick-actions { display: none; }
+
+/* ---------- toolbar placement: a rail beside the model on desktop, one row on phones ---------- */
+.braid-top-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 4px; align-items: stretch; }
+.braid-more { font-size: 1.3rem !important; line-height: 1; }
+.braid-more[aria-expanded="true"] { background: var(--bg) !important; border-color: var(--rule) !important; }
+/* Desktop rail: the stage is wider than tall and the model is fitted to its height, so
+   a column of controls at the left costs the model no size at all. */
+.braid-toolbar[data-place="rail"] { width: 188px; gap: 8px; }
+.braid-toolbar[data-place="rail"] .braid-top-row { grid-template-columns: 1fr; }
+.braid-toolbar[data-place="rail"] .braid-more { display: none; }
+.braid-toolbar[data-place="rail"] .braid-view-tabs { grid-template-columns: 1fr; }
+.braid-toolbar[data-place="rail"] .braid-view-tabs button { text-align: left; padding-inline: 12px; }
+.braid-toolbar[data-place="rail"] .braid-quick-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.braid-toolbar[data-place="rail"] .braid-quick-actions > :nth-child(-n+2) { grid-column: 1 / -1; }
+.braid-toolbar[data-place="rail"] .braid-pull-row { grid-template-columns: 1fr; }
+.braid-toolbar[data-place="rail"] .pull-feedback { grid-template-columns: minmax(0, 1fr) 44px 64px; }
+.braid-toolbar[data-place="rail"] #pullStatus { grid-column: 1 / -1; }
+.braid-toolbar[data-place="rail"] .seif-build-actions button { padding: 6px 2px; font-size: .74rem; }
+/* Phone row: the four views and ⋯; editing, customizing and undo open below on demand. */
+.braid-toolbar[data-place="top"] { gap: 5px; padding: 5px; }
+.braid-toolbar[data-place="top"]:not([data-more="true"]) .braid-quick-actions { display: none; }
+.braid-toolbar[data-place="top"] .braid-view-tabs button { font-size: .8rem; padding-inline: 2px; }
+/* The readout and the phone toolbar read as one card. */
+.stage-tools[data-place="top"] { gap: 0; }
+.stage-tools[data-place="top"] > .hud { width: min(100%, 410px); border-radius: 14px 14px 0 0; border-bottom: 0; padding: 6px 12px 4px; font-size: .72rem; line-height: 1.35; }
+.stage-tools[data-place="top"] > .braid-toolbar { border-radius: 0 0 16px 16px; border-top: 0; box-shadow: 0 6px 18px #00000014; }
+
+/* ---------- braid panel ---------- */
+.random-actions .random-level { display: grid; gap: 2px; font: 600 .7rem var(--f-body); color: var(--muted); }
+.random-actions .random-level select { min-height: 40px; width: 100%; border: 1px solid var(--rule); border-radius: 10px; padding: 6px 8px; background: var(--bg); color: var(--ink); font: 600 .83rem var(--f-body); }
+.braid-workspace > .random-actions { align-items: end; margin-top: 14px; }
+.braid-workspace > .random-actions > button { min-height: 40px; }
+.info-note { margin: 14px 0 4px; border-top: 1px solid var(--rule); padding-top: 10px; }
+.info-note > summary { cursor: pointer; font: 600 .82rem var(--f-body); color: var(--muted); min-height: 32px; list-style-position: inside; }
+.info-note > summary:hover { color: var(--ink); }
+.info-note p { margin: 6px 0 0; font-size: .78rem; line-height: 1.5; color: var(--muted); }
+/* On the rail, the readout is a card above the controls, no wider than they are. */
+.stage-tools[data-place="rail"] > .hud { width: 188px; line-height: 1.4; }
+/* On a phone the readout above already says which stage is showing. */
+.braid-toolbar[data-place="top"] #seifQuickStatus { display: none; }
+.braid-toolbar[data-place="top"] .seif-build { gap: 0; padding: 4px 6px; }
+/* the Complexity label wraps its select; only the select is a box */
+.random-actions > .random-level { border: 0; padding: 0; min-height: 0; background: none; }

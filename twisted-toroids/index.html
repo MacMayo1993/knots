@@ -487,13 +487,16 @@ h2 {
       <div class="stage-tools" id="stageTools">
         <div class="hud" id="hud" aria-live="polite">Drawing the model</div>
         <div class="braid-toolbar" id="braidToolbar" aria-label="Braid controls" hidden>
-          <div class="braid-view-tabs" role="group" aria-label="Braid view">
-            <button type="button" id="braidViewRibbon" aria-pressed="true">Ribbons</button>
-            <button type="button" id="braidViewRope" aria-pressed="false">Rope</button>
-            <button type="button" id="braidViewSurface" aria-pressed="false">Surface</button>
-            <button type="button" id="braidViewPull" aria-pressed="false">Pull</button>
+          <div class="braid-top-row">
+            <div class="braid-view-tabs" role="group" aria-label="Braid view">
+              <button type="button" id="braidViewRibbon" aria-pressed="true">Ribbons</button>
+              <button type="button" id="braidViewRope" aria-pressed="false">Rope</button>
+              <button type="button" id="braidViewSurface" aria-pressed="false">Surface</button>
+              <button type="button" id="braidViewPull" aria-pressed="false">Pull</button>
+            </div>
+            <button type="button" id="braidMore" class="braid-more" aria-label="More braid actions" aria-expanded="false" aria-controls="braidQuickActions" title="Edit, customize, undo">⋯</button>
           </div>
-          <div class="braid-quick-actions">
+          <div class="braid-quick-actions" id="braidQuickActions">
             <button type="button" id="braidEdit" class="braid-primary">✎ Edit braid</button>
             <button type="button" id="braidCustomize">Customize</button>
             <button type="button" id="braidUndo" aria-label="Undo braid edit" title="Undo (Ctrl/⌘ Z)">↶</button>
@@ -578,15 +581,32 @@ h2 {
 
       <fieldset class="braid-only braid-workspace" id="braidWorkspace">
         <legend>Braid studio</legend>
-        <div class="random-actions">
-          <select id="randomBraidLevel" aria-label="Random braid complexity" aria-describedby="randomBraidHelp">
-            <option value="simple">Simple</option><option value="varied" selected>Varied</option><option value="intricate">Intricate</option>
-          </select>
-          <button type="button" class="secondary" id="randomBraid">⚄ Random braid</button>
-        </div>
-        <p class="note" id="randomBraidHelp">New strands and crossings; may form a knot, link, or unknot. Undo brings back your previous braid.</p>
         <p class="braid-stats" id="braidStats" aria-live="polite"></p>
         <p class="note braid-origin-note" id="braidOriginNote" hidden></p>
+        <p class="braid-section-label">Start with an example</p>
+        <div class="braid-examples" id="braidExamples">
+          <button type="button" data-word="s1^3"><strong>Trefoil</strong><span>2 strands · 3 crossings</span></button>
+          <button type="button" data-word="(s1 S2)^2"><strong>Figure-eight</strong><span>3 strands · 4 crossings</span></button>
+          <button type="button" data-word="s1^3 s2 S1 s2"><strong>5₂</strong><span>Twist knot</span></button>
+          <button type="button" data-word="s1^2 S2 s1 S2^2"><strong>6₃</strong><span>Six-crossing knot</span></button>
+          <button type="button" data-word="(s1 S2)^4"><strong>8₁₈</strong><span>Eight-crossing knot</span></button>
+          <button type="button" data-word="s1^2"><strong>Hopf link</strong><span>2 linked components</span></button>
+          <button type="button" data-word="s1^2 S2 s1 S2"><strong>Whitehead link</strong><span>2 linked components</span></button>
+          <button type="button" data-word="(s1 S2)^3"><strong>Borromean rings</strong><span>3 linked components</span></button>
+        </div>
+        <label class="table-pick" for="tablePick">Draw a knot or link from the table
+          <select id="tablePick"><option value="">Choose…</option></select>
+        </label>
+        <div class="random-actions">
+          <label class="random-level" for="randomBraidLevel"><span>Complexity</span>
+            <select id="randomBraidLevel" aria-describedby="randomBraidHelp">
+              <option value="simple">Simple</option><option value="varied" selected>Varied</option><option value="intricate">Intricate</option>
+            </select>
+          </label>
+          <button type="button" class="secondary" id="randomBraid">⚄ Random braid</button>
+        </div>
+        <p class="note" id="randomBraidHelp">May form a knot, link or unknot. Undo brings back your previous braid.</p>
+        <button type="button" class="link-btn" id="braidFromTorus">Start from the last torus construction</button>
         <details class="braid-editor-box" id="braidEditorDetails" open>
           <summary>Build &amp; edit</summary>
           <p class="note">Select a crossing, then flip, delete, or insert beside it. Scroll the diagram sideways for longer braids. Colors match the closed components.</p>
@@ -617,39 +637,15 @@ h2 {
           <div class="be-actions"><button type="button" class="secondary" id="braidStyleReset">Reset braid style</button><button type="button" class="link-btn" id="braidAppearance">Palettes &amp; finish ↗</button></div>
           <p class="note">Colors follow component numbers and are saved on this device. Reset to use the current palette.</p>
         </details>
-        <p class="braid-section-label">Start with an example</p>
-        <div class="braid-examples" id="braidExamples">
-          <button type="button" data-word="s1^3"><strong>Trefoil</strong><span>2 strands · 3 crossings</span></button>
-          <button type="button" data-word="(s1 S2)^2"><strong>Figure-eight</strong><span>3 strands · 4 crossings</span></button>
-          <button type="button" data-word="s1^3 s2 S1 s2"><strong>5₂</strong><span>Twist knot</span></button>
-          <button type="button" data-word="s1^2 S2 s1 S2^2"><strong>6₃</strong><span>Six-crossing knot</span></button>
-          <button type="button" data-word="(s1 S2)^4"><strong>8₁₈</strong><span>Eight-crossing knot</span></button>
-          <button type="button" data-word="s1^2"><strong>Hopf link</strong><span>2 linked components</span></button>
-          <button type="button" data-word="s1^2 S2 s1 S2"><strong>Whitehead link</strong><span>2 linked components</span></button>
-          <button type="button" data-word="(s1 S2)^3"><strong>Borromean rings</strong><span>3 linked components</span></button>
-        </div>
-        <label class="table-pick" for="tablePick">Draw a knot or link from the table
-          <select id="tablePick"><option value="">Choose…</option></select>
-        </label>
-        <button type="button" class="link-btn" id="braidFromTorus">Start from the last torus construction</button>
-        <div class="braid-tools">
-          <button type="button" class="secondary" id="relaxBtn">Relax into a smooth knot</button>
-          <button type="button" class="secondary" id="pullStart">Grab &amp; pull the rope</button>
-          <p class="note">Pull a local section or a whole component in 3D. Tighten keeps the rope moving; Pause holds its shape. Choose Rope to rotate the view. Linked loops stay linked. Undo pull and Reset change the shape, not the braid word.</p>
-          <p class="note">The strands pull tight and push each other apart, like rope, but never pass through each other, so the knot stays the same knot.</p>
-          <label class="check" for="seifertBox"><input type="checkbox" id="seifertBox"> Show its Seifert surface</label>
-          <p class="note" id="seifertNote">An orientable surface whose edge is the knot or link: one disk per strand, one twisted band per crossing. Its two sides get two colors.</p>
-          <div class="seif-build" id="seifBuild" aria-label="Surface construction" hidden>
-            <div class="seif-build-actions">
-              <button type="button" class="secondary" id="seifBuildPlay">Pause</button>
-              <button type="button" class="secondary" id="seifBuildReplay">Replay</button>
-              <button type="button" class="secondary" id="seifBuildFinish">Finish</button>
-            </div>
-            <input type="range" id="seifBuildProgress" min="0" max="1000" step="1" value="0" aria-label="Surface construction progress">
-            <p id="seifBuildStatus" role="status"></p>
-          </div>
-          <p class="note">Surface builds the disks, attaches one signed band per crossing, then traces the boundary. Drag the progress slider to inspect a stage. The invariants and STL describe the completed surface.</p>
-        </div>
+        <input type="checkbox" id="seifertBox" hidden aria-hidden="true" tabindex="-1">
+        <details class="info-note" id="braidViewsInfo">
+          <summary>ⓘ About the four views</summary>
+          <p><strong>Ribbons</strong> draws the closed braid as flat ribbons, one color per component.</p>
+          <p><strong>Rope</strong> lets the strands pull tight and push each other apart, like rope. They never pass through each other, so the knot stays the same knot. The rope keeps its shape when you switch views.</p>
+          <p><strong>Surface</strong> builds a Seifert surface step by step: each crossing is smoothed into stacked circles, each circle is filled with a disk, each crossing becomes a twisted band, and the edge of the result is the knot. Its two sides get two colors; drag the slider to inspect a stage. The genus readout and STL describe the finished surface.</p>
+          <p><strong>Pull</strong> lets you drag a section or a whole loop in 3D. It starts from the relaxed rope. Linked loops stay linked; Undo and Reset change the shape, not the braid word.</p>
+          <p>The view buttons sit beside the model; on a phone, ⋯ opens editing, customizing and undo.</p>
+        </details>
       </fieldset>
 
       <fieldset class="appearance-tools">
@@ -964,6 +960,7 @@ h2 {
 <script src="randomize.js"></script>
 <script src="braid-editor.js"></script>
 <script src="relax.js"></script>
+<script src="braid-studio.js"></script>
 <script src="explore.js"></script>
 <script src="cut-animation.js"></script>
 <script type="importmap">
@@ -987,6 +984,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const TAU = Math.PI * 2;
   const AP = window.ToroidAppearance;
   const CUT = window.ToroidCutAnimation;
+  const BS = window.BraidStudio;
   const BC = window.BraidControls, braidHistory = BC.history();
   const RAND = window.ToroidRandomizer;
   let cutBraidSource = null;
@@ -1885,7 +1883,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       setMode('torus');
     }
     buildMesh(); buildSeam(); buildTrail(); restartTraveler(); updateReadouts();
-    if (relax) setRelax(false);
+    dropRope();
     syncBraidWorkspace();
     if (state.braid && braidEditor) braidEditor.render(state.braid.n, state.braid.word);
   }
@@ -1935,13 +1933,21 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     const b = braidHistory[direction]();
     if (b) showBraid(b, null, true);
   }
+  // Where the braid toolbar goes: a rail beside the model on desktop, one row along
+  // the top on a phone (hidden only while the phone sheet is full).
+  const braidPlacement = () => BS.placement({ braid: !!state.braid, lab: !!labCut, phone: isPhone(), sheet, stageWidth: stage.getBoundingClientRect().width });
   function syncBraidToolbar() {
-    const bar = document.getElementById('braidToolbar');
-    const hidden = !state.braid || !!labCut || (isPhone() && !['hidden', 'peek'].includes(sheet));
-    const changed = bar.hidden !== hidden; bar.hidden = hidden;
+    const bar = document.getElementById('braidToolbar'), tools = document.getElementById('stageTools'), more = document.getElementById('braidMore');
+    const place = braidPlacement(), hidden = place === 'hidden';
+    const changed = bar.hidden !== hidden || bar.dataset.place !== place;
+    bar.hidden = hidden; bar.dataset.place = place; tools.dataset.place = hidden ? '' : place;
+    if (place !== 'top') { bar.dataset.more = 'false'; more.setAttribute('aria-expanded', 'false'); }
+    // on a phone the toolbar's ⋯ offers editing, so the sheet's own Edit is not repeated
+    document.getElementById('q-edit').hidden = place === 'top';
     document.getElementById('braidUndo').disabled = !braidHistory.canUndo;
     document.getElementById('braidRedo').disabled = !braidHistory.canRedo;
-    for (const [id, on] of [['Ribbon', !relax && !seifertBox.checked], ['Rope', !!relax && !pullMode], ['Surface', !relax && seifertBox.checked], ['Pull', pullMode]])
+    const view = BS.viewOf({ rope: ropeOn && !pullMode, pull: pullMode, surface: seifertBox.checked });
+    for (const [id, on] of [['Ribbon', view === 'ribbon'], ['Rope', view === 'rope'], ['Surface', view === 'surface'], ['Pull', view === 'pull']])
       document.getElementById('braidView' + id).setAttribute('aria-pressed', String(on));
     document.getElementById('braidReturnCut').hidden = !cutBraidSource;
     bar.dataset.pulling = String(pullMode);
@@ -1986,11 +1992,16 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     setTimeout(() => { details.scrollIntoView?.({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' }); details.querySelector?.('summary')?.focus(); }, 300);
   }
   document.getElementById('braidEdit').addEventListener('click', () => openBraidPanel('braidEditorDetails'));
+  document.getElementById('braidMore').addEventListener('click', () => {
+    const bar = document.getElementById('braidToolbar'), open = bar.dataset.more !== 'true';
+    bar.dataset.more = String(open); document.getElementById('braidMore').setAttribute('aria-expanded', String(open));
+    measureTopTools();
+  });
   document.getElementById('braidCustomize').addEventListener('click', () => openBraidPanel('braidCustomizeDetails'));
   document.getElementById('braidUndo').addEventListener('click', () => replayBraid('undo'));
   document.getElementById('braidRedo').addEventListener('click', () => replayBraid('redo'));
   document.getElementById('braidViewRibbon').addEventListener('click', () => { setRelax(false); seifertBox.checked = false; seifKey = '#'; clearSelection(); syncBraidToolbar(); });
-  document.getElementById('braidViewRope').addEventListener('click', () => { leavePull(); if (!relax) setRelax(true); syncBraidToolbar(); });
+  document.getElementById('braidViewRope').addEventListener('click', () => { leavePull(); setRelax(true); });
   document.getElementById('braidViewSurface').addEventListener('click', () => { if (!seifertBox.checked) seifertBox.click(); });
   document.getElementById('braidResetView').addEventListener('click', () => {
     controls.target.set(0, 0, 0); camera.position.setFromSpherical(new THREE.Spherical(6.2, Math.PI / 2 - 0.62, 0.5));
@@ -2401,19 +2412,31 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   // so its two sides show in two colors, and its boundary curves in component colors.
   const SF = window.SeifertSurface, MK = window.MeshKit;
   const seifertBox = document.getElementById('seifertBox');
-  const seifFront = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ side: THREE.FrontSide, roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
-  const seifBack = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ side: THREE.BackSide, roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+  // Three materials per side, chosen by draw groups while the surface is built:
+  // solid, ghost (see-through disks above the band being attached) and active (the
+  // disk or band being built, lightened). Vertex colors shade each disk by height.
+  const seifMaterials = side => ['solid', 'ghost', 'active'].map(role => new THREE.MeshStandardMaterial({
+    side, vertexColors: true, roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+    transparent: role === 'ghost', opacity: role === 'ghost' ? 0.2 : 1, depthWrite: role !== 'ghost'
+  }));
+  const SEIF_ROLE = { solid: 0, ghost: 1, active: 2 };
+  const seifFront = new THREE.Mesh(new THREE.BufferGeometry(), seifMaterials(THREE.FrontSide));
+  const seifBack = new THREE.Mesh(new THREE.BufferGeometry(), seifMaterials(THREE.BackSide));
   seifFront.visible = seifBack.visible = false; scene.add(seifFront, seifBack);
-  const seifLines = Array.from({ length: 10 }, () => polyline(3.2));
+  const seifLines = Array.from({ length: 10 }, () => polyline(3.2, { transparent: true }));
   seifLines.forEach(l => { l.visible = false; });
+  // the Seifert circles: one per strand, where the smoothed braid falls apart
+  const seifCircles = Array.from({ length: 10 }, () => polyline(2, { transparent: true, opacity: 0.75 }));
+  seifCircles.forEach(l => { l.visible = false; });
   const seifCursor = polyline(4); seifCursor.visible = false;
   let seifKey = '', seifData = null;
   const seifBuild = { progress: 1, playing: false, frontierKey: '' };
   const seifertShown = () => !!state.braid && seifertBox.checked && !labCut;
   function seifBuildLabel() {
-    if (!seifData) return 'Disks → twisted bands → boundary';
+    if (!seifData) return 'Circles → disks → twisted bands → boundary';
     const f = SF.constructionAt(seifData.S, seifBuild.progress), part = f.part;
     const prefix = !seifBuild.playing && !f.done ? 'Paused · ' : '';
+    if (f.phase === 'smooth') return prefix + 'Smooth each crossing · ' + seifData.S.n + (seifData.S.n === 1 ? ' Seifert circle' : ' Seifert circles');
     if (part?.kind === 'disk') return prefix + 'Disk ' + (part.disk + 1) + ' of ' + seifData.S.n;
     if (part?.kind === 'band') return prefix + 'Band ' + (part.crossing + 1) + ' of ' + seifData.S.word.length + ' · ' + KM.wordText([seifData.S.word[part.crossing]]) + ' · disks ' + (Math.abs(seifData.S.word[part.crossing])) + '–' + (Math.abs(seifData.S.word[part.crossing]) + 1);
     if (!f.done) return prefix + 'Trace the knot or link boundary';
@@ -2421,7 +2444,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   function syncSeifBuildControls() {
     const on = seifertShown(), text = seifBuildLabel();
-    for (const prefix of ['seifBuild', 'seifQuick']) {
+    for (const prefix of ['seifQuick']) {
       const box = document.getElementById(prefix), changed = box.hidden === on;
       box.hidden = !on;
       if (changed && prefix === 'seifQuick') measureTopTools();
@@ -2436,11 +2459,24 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   function applySeifBuild() {
     if (!seifData || !seifertShown()) return;
-    const f = SF.constructionAt(seifData.S, seifBuild.progress);
-    seifFront.geometry.setDrawRange(0, f.count);
+    const f = SF.constructionAt(seifData.S, seifBuild.progress), g = seifFront.geometry;
+    g.setDrawRange(0, f.count);
+    // multi-material meshes draw only their groups, so there is always at least one
+    g.clearGroups();
+    const groups = SF.constructionGroups(seifData.S, f);
+    (groups.length ? groups : [{ start: 0, count: 0, role: 'solid' }]).forEach(q => g.addGroup(q.start, q.count, SEIF_ROLE[q.role]));
+    // the knot fades as its crossings are smoothed, and is traced again at the end
     seifLines.forEach((line, i) => {
-      const count = Math.floor((seifData.lineCounts[i] || 0) * f.trace);
-      line.geometry.instanceCount = count; line.visible = count > 0;
+      const n = seifData.lineCounts[i] || 0, smoothing = f.phase === 'smooth';
+      const count = smoothing ? n : Math.floor(n * f.trace);
+      line.geometry.instanceCount = count; line.visible = count > 0 && (!smoothing || f.smooth < 0.95);
+      line.material.opacity = smoothing ? Math.max(0, 1 - f.smooth * 1.05) * 0.9 : 1;
+    });
+    // the circles draw themselves while smoothing, and stay while the disks fill them
+    seifCircles.forEach((line, i) => {
+      const n = seifData.circleCounts[i] || 0, show = f.phase === 'smooth' || f.phase === 'disk';
+      const count = f.phase === 'smooth' ? Math.floor(n * Math.min(1, f.smooth * 1.15)) : n;
+      line.geometry.instanceCount = count; line.visible = show && count > 0;
     });
     const frontierKey = f.frontier.join(',');
     if (seifBuild.frontierKey !== frontierKey) {
@@ -2458,7 +2494,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     seifKey = key;
     seifFront.visible = seifBack.visible = on;
     if (!on) {
-      seifLines.forEach(l => { l.visible = false; }); seifCursor.visible = false;
+      seifLines.forEach(l => { l.visible = false; }); seifCircles.forEach(l => { l.visible = false; }); seifCursor.visible = false;
       seifData = null; seifBuild.progress = 1; seifBuild.playing = false; seifBuild.frontierKey = '';
       syncSeifBuildControls(); return;
     }
@@ -2469,6 +2505,12 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       for (let t = 0; t < flip.length; t++) if (flip[t] < 0) { const x = idx[3 * t + 1]; idx[3 * t + 1] = idx[3 * t + 2]; idx[3 * t + 2] = x; }
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(S.positions, 3));
+      // shade by height: higher disks lighter, so the stack reads in depth
+      let y0 = Infinity, y1 = -Infinity;
+      for (let v = 1; v < S.positions.length; v += 3) { y0 = Math.min(y0, S.positions[v]); y1 = Math.max(y1, S.positions[v]); }
+      const shade = new Float32Array(S.positions.length);
+      for (let v = 0; v < S.positions.length; v += 3) { const k = 0.66 + 0.34 * (y1 > y0 ? (S.positions[v + 1] - y0) / (y1 - y0) : 1); shade[v] = shade[v + 1] = shade[v + 2] = k; }
+      g.setAttribute('color', new THREE.Float32BufferAttribute(shade, 3));
       g.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
       g.computeVertexNormals(); g.computeBoundingSphere();
       seifFront.geometry.dispose(); seifFront.geometry = g; seifBack.geometry = g;
@@ -2482,13 +2524,28 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         });
         setPolyline(seifLines[i], arr);
       });
+      seifCircles.forEach(l => { l.visible = false; });
+      const circleCounts = [];
+      S.parts.filter(q => q.kind === 'disk').slice(0, seifCircles.length).forEach((q, i) => {
+        const arr = [];
+        [...q.rim, q.rim[0]].forEach(v => {
+          const x = S.positions[3 * v], y = S.positions[3 * v + 1], z = S.positions[3 * v + 2], r = Math.hypot(x, z) || 1;
+          arr.push(x + 0.01 * x / r, y, z + 0.01 * z / r);
+        });
+        setPolyline(seifCircles[i], arr); circleCounts.push(q.rim.length);
+      });
       let radius = 0;
       for (let v = 0; v < S.positions.length; v += 3) radius = Math.max(radius, Math.hypot(S.positions[v], S.positions[v + 1], S.positions[v + 2]));
-      seifData = { S, A, idx, source, comp, radius, lineCounts: loops.map(L => L.length), genus: A.pieces.length === 1 ? A.pieces[0].genus : null };
+      seifData = { S, A, idx, source, comp, radius, lineCounts: loops.map(L => L.length), circleCounts, genus: A.pieces.length === 1 ? A.pieces[0].genus : null };
       seifBuild.progress = reduceMotion ? 1 : 0; seifBuild.playing = !reduceMotion; seifBuild.frontierKey = '';
     }
-    const sc = (i, m) => { const c = pal.c[i]; m.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace); };
+    // front and back colors; the active disk or band is lit, toward white
+    const sc = (i, mats) => {
+      const c = pal.c[i];
+      mats.forEach((m, k) => { m.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace); if (k === SEIF_ROLE.active) m.color.lerp(new THREE.Color(1, 1, 1), 0.45); });
+    };
     sc(2, seifFront.material); sc(1, seifBack.material);
+    seifCircles.forEach(l => l.material.color.set(token('--ink')));
     seifData.comp.slice(0, seifLines.length).forEach((comp, i) => {
       const c = braidRGB(comp); seifLines[i].material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
     });
@@ -2501,7 +2558,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     if (seifBuild.progress >= 1 - 1e-12) { seifBuild.progress = 1; seifBuild.playing = false; }
     applySeifBuild();
   }
-  for (const prefix of ['seifBuild', 'seifQuick']) {
+  for (const prefix of ['seifQuick']) {
     const action = (suffix, fn) => document.getElementById(prefix + suffix).addEventListener('click', () => {
       if (!seifertShown()) return;
       syncSeifert(); fn(); applySeifBuild(); updateHud();
@@ -2520,7 +2577,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     // See the disk faces as well as the bands between their stacked levels.
     if (seifertBox.checked && !state.userMoved) {
       const off = camera.position.clone().sub(controls.target), sph = new THREE.Spherical().setFromVector3(off);
-      sph.phi = Math.PI / 2 - 0.5; camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
+      sph.phi = Math.PI / 2 - 0.58; camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
     }
     // Initialize playback with the view change, so the controls never briefly
     // report the previous view's completed progress before the first frame.
@@ -2529,7 +2586,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 
   // Relaxing a closed braid into a smooth knot: one tube per component, rebuilt as
   // the curve moves. relax.js never lets two segments pass through each other.
-  const RX = window.KnotRelax, relaxBtn = document.getElementById('relaxBtn');
+  const RX = window.KnotRelax;
   const relaxTubes = Array.from({ length: 10 }, () => {
     const m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0 }));
     m.visible = false; scene.add(m); return m;
@@ -2539,27 +2596,38 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   const pullMarker = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
   pullMarker.visible = false; pullMarker.renderOrder = 30; scene.add(pullMarker);
   const pullGuide = polyline(1.5); pullGuide.visible = false;
-  const RELAX_STEPS = 1600;
-  const relaxShown = () => !!relax && !!state.braid && !labCut;
+  const RELAX_STEPS = 4000;   // a cap; ropes stop earlier once settled (relax.js)
+  // The rope belongs to the braid, not to the view: Ribbons and Surface hide it
+  // (ropeOn = false) but keep its shape, so Rope and Pull pick up where they left off.
+  // A different braid drops it.
+  let ropeOn = false;
+  const ropeFits = () => !!relax && !!state.braid && relax.key === BS.ropeKey(state.braid);
+  const relaxShown = () => ropeOn && ropeFits() && !labCut;
+  function newRope() {
+    if (!state.braid || !RX) return false;
+    let curves;
+    try { curves = RX.fromBraid(KM, state.braid.n, state.braid.word); }
+    catch (err) { flash(err.message); return false; }
+    relax = { S: RX.create(curves), key: BS.ropeKey(state.braid), done: false, gap: 0, paused: false, dirty: true, frame: null, remaining: RELAX_STEPS };
+    pullHistory = []; pullSelected = -1;
+    logOp('relax', relax.key);
+    return true;
+  }
+  function dropRope() { leavePull(); relax = null; ropeOn = false; pullHistory = []; pullSelected = -1; relaxTubes.forEach(t => { t.visible = false; }); }
   function setRelax(on) {
-    leavePull(); pullHistory = []; pullSelected = -1;
-    if (on && state.braid && RX && THREE.TubeGeometry) {
-      let curves;
-      try { curves = RX.fromBraid(KM, state.braid.n, state.braid.word); }
-      catch (err) { flash(err.message); return; }
-      seifertBox.checked = false; seifKey = '#';
-      relax = { S: RX.create(curves), key: state.braid.n + ':' + state.braid.word.join(','), done: false, gap: 0, paused: false, dirty: true, frame: null, remaining: RELAX_STEPS };
+    leavePull(); pullSelected = -1;
+    if (on) {
+      if (!ropeFits() && !newRope()) return;
+      ropeOn = true; seifertBox.checked = false; seifKey = '#';
       clearSelection(); revealModel();
-      logOp('relax', relax.key);
-    } else relax = null;
-    relaxBtn.textContent = relax ? 'Back to the braid' : 'Relax into a smooth knot';
+    } else ropeOn = false;
     relaxTubes.forEach(t => { t.visible = false; });
+    relax && (relax.dirty = true);
     syncBraidToolbar();
   }
-  relaxBtn.addEventListener('click', () => setRelax(!relax));
   function syncRelax(dt) {
     if (!relaxShown()) { if (pullDrag) endPull(true); pullMarker.visible = pullGuide.visible = false; relaxTubes.forEach(t => { t.visible = false; }); return false; }
-    if (relax.key !== state.braid.n + ':' + state.braid.word.join(',')) { setRelax(false); return false; }
+    if (!ropeFits()) { dropRope(); return false; }
     const moving = !!pullDrag || (!relax.paused && !relax.done);
     if (moving) {
       const per = reduceMotion && !pullMode ? RELAX_STEPS : Math.max(2, Math.round(10 * Math.min(dt, 0.05) / 0.016));
@@ -2568,33 +2636,41 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         const result = RX.step(relax.S, { handle: pullDrag?.handle });
         relax.gap = result.gap; relax.blocked = !!result.blocked;
         if (result.blocked) { relax.paused = true; relax.remaining = 0; syncPullControls('Collision limit reached. Undo or Reset to try another pull.'); break; }
-        if (!pullDrag) relax.remaining--;
+        if (!pullDrag) relax.remaining = result.settled ? 0 : relax.remaining - 1;
         if (performance.now() - started >= 12) break;
       }
       relax.done = !pullDrag && relax.remaining <= 0;
       relax.dirty = true;
+      // the first settled shape is the rope's base: Pull's Reset returns to it
+      if (relax.done && !relax.base && !pullHistory.length) relax.base = shapeSnapshot();
       if (relax.done && pullMode) { relax.paused = true; syncPullControls(); }
+    }
+    // In Pull, the view eases to fit the rope while it tightens, and holds still
+    // during a drag so the grabbed point stays under the pointer.
+    if (pullMode && !pullDrag && relax.frame && !relax.paused && !relax.done) {
+      relax.frame = BS.followFrame(relax.frame, RX.displayFrame(relax.S), reduceMotion ? 1 : 0.08); relax.dirty = true;
     }
     if (relax.dirty) {
       relax.dirty = false;
       const f = relax.frame || RX.displayFrame(relax.S), C = RX.curves(relax.S, 2.1, f), r = RX.tubeRadius(relax.S, 2.1, f);
+      relaxTubes.forEach((t, k) => { if (k >= C.length) t.visible = false; });
       C.forEach((pts, k) => {
         const tube = relaxTubes[k]; if (!tube) return;
-        // Draw exactly the polygon protected by the segment-distance check.
-        // An unconstrained interpolating spline could cross a neighbouring strand.
-        const curve = new THREE.Curve();
-        curve.points = pts.map(p => new THREE.Vector3(...p));
-        curve.getPoint = (t, target = new THREE.Vector3()) => {
-          const u = t * pts.length, i = Math.floor(u), f = u - i;
-          const a = pts[i % pts.length], b = pts[(i + 1) % pts.length];
-          return target.set(a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]));
-        };
-        // TubeGeometry must sample at these polygon vertices, not redistribute
-        // them using Curve's approximate arc-length table.
-        curve.getPointAt = curve.getPoint;
-        curve.getTangentAt = t => curve.getTangent(t);
-        tube.geometry.dispose();
-        tube.geometry = new THREE.TubeGeometry(curve, pts.length, r, 12, true);
+        // Exactly the polygon protected by the segment-distance check (an
+        // interpolating spline could cross a neighbouring strand), drawn into the
+        // same buffers every frame instead of a new geometry.
+        const prev = tube.userData.tube, data = BS.tube(pts, r, 12, prev);
+        if (data !== prev && (!prev || data.positions !== prev.positions)) {
+          const g = new THREE.BufferGeometry();
+          g.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+          g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
+          g.setIndex(new THREE.BufferAttribute(data.index, 1));
+          tube.geometry.dispose(); tube.geometry = g;
+        } else {
+          tube.geometry.attributes.position.needsUpdate = true; tube.geometry.attributes.normal.needsUpdate = true;
+        }
+        tube.geometry.computeBoundingSphere();
+        tube.userData.tube = data;
         const c = braidRGB(k);
         tube.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
         tube.visible = true;
@@ -2603,7 +2679,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     syncPullMarker();
     return true;
   }
-  seifertBox.addEventListener('change', () => { if (seifertBox.checked && relax) setRelax(false); syncBraidToolbar(); });
+  seifertBox.addEventListener('change', () => { if (seifertBox.checked) { leavePull(); ropeOn = false; } syncBraidToolbar(); });
 
   // Pulling uses a fixed world-to-rope transform and a camera-facing drag plane.
   // The pointer supplies a force target; only RX.step may move polygon vertices.
@@ -2629,11 +2705,16 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   }
   function enterPull(component = -1) {
     if (!state.braid || labCut) return;
-    const fresh = !relax;
-    if (fresh) setRelax(true);
-    if (!relax) return;
-    if (!relax.frame) relax.frame = fresh ? { center: [0, 0, 0], scale: 1 } : RX.displayFrame(relax.S);
-    pullMode = true; relax.paused = true; relax.dirty = true;
+    // Pull starts from the rope: the shape left by Rope or an earlier pull, held still;
+    // or, the first time, a new rope that tightens from where the ribbons were.
+    const fresh = !ropeFits();
+    if (fresh && !newRope()) return;
+    ropeOn = true; seifertBox.checked = false; seifKey = '#'; clearSelection();
+    if (fresh) relax.frame = { center: [0, 0, 0], scale: 1 };
+    else if (!relax.frame) relax.frame = RX.displayFrame(relax.S);
+    // a new rope tightens; one still tightening (from Rope) keeps going; a settled
+    // or paused one holds its shape until Tighten
+    pullMode = true; relax.paused = fresh ? false : (relax.paused || relax.done); relax.dirty = true;
     controls.autoRotate = false; controls.enabled = false;
     canvas.style.cursor = 'crosshair';
     document.getElementById('stageHint').textContent = 'Drag the rope · choose Rope to rotate · Esc cancels a pull';
@@ -2733,7 +2814,6 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   window.addEventListener('blur', () => { if (pullDrag) endPull(true); });
   window.addEventListener('resize', () => { if (pullDrag) endPull(true); });
   document.getElementById('braidViewPull').addEventListener('click', () => enterPull());
-  document.getElementById('pullStart').addEventListener('click', () => enterPull());
   document.getElementById('pullScope').addEventListener('change', () => { if (pullDrag) endPull(true); });
   document.getElementById('pullComponent').addEventListener('change', () => { if (pullDrag) endPull(true); pullSelected = -1; syncPullControls('Drag the chosen component.'); });
   document.getElementById('pullTighten').addEventListener('click', () => {
@@ -2752,10 +2832,19 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
   document.getElementById('pullReset').addEventListener('click', () => {
     if (!pullMode || !relax) return;
     if (pullDrag) endPull(true);
-    const saved = shapeSnapshot(), previous = pullHistory.slice(-15);
-    setRelax(true); if (!relax) return;
-    relax.frame = { center: [0, 0, 0], scale: 1 }; pullHistory = [...previous, saved];
-    enterPull(); syncPullControls('Original braid shape restored.');
+    // Back to the rope's settled starting shape, or, if it never settled, tighten
+    // again from the braid. Undo brings back the shape before Reset either way.
+    const saved = shapeSnapshot(), previous = pullHistory.slice(-15), base = relax.base;
+    if (base) restoreShape(base);
+    else {
+      if (!newRope()) return;
+      relax.frame = { center: [0, 0, 0], scale: 1 };
+    }
+    pullHistory = [...previous, saved];
+    if (base) relax.base = base;
+    enterPull();
+    if (!base) { relax.paused = false; relax.done = false; relax.remaining = RELAX_STEPS; }
+    syncPullControls(base ? 'Rope shape restored.' : 'Tightening again from the braid.');
   });
 
   let seamShown = null, trailShown = null;
@@ -2769,7 +2858,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     travelerRing.material.color.set(pal.stage);
     growFill.material.color.set(pal.panel);
     colorKey = ''; seifKey = '#';
-    Object.assign(seifFront.material, AP.FINISHES[appearance.finish]); Object.assign(seifBack.material, AP.FINISHES[appearance.finish]);
+    [...seifFront.material, ...seifBack.material].forEach(m => Object.assign(m, AP.FINISHES[appearance.finish]));
     syncAppearanceControls();
     relaxTubes.forEach((tube, i) => {
       const c = braidRGB(i); tube.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
@@ -3661,14 +3750,23 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
         if (sheetVisible > 1) { const pw = panelEl.getBoundingClientRect().width; tx = pw / 2; freeW = W - pw; }
       } else { const cover = Math.min(sheetVisible, H * 0.6); ty = cover / 2; freeH = H - cover; }
     }
-    const braidToolsVisible = !document.getElementById('braidToolbar').hidden;
-    if (!mobileTools.hidden || braidToolsVisible) { ty -= topToolsInset / 2; freeH = Math.max(1, freeH - topToolsInset); }
-    if (isPhone() || braidToolsVisible) {
+    if (!mobileTools.hidden) { ty -= topToolsInset / 2; freeH = Math.max(1, freeH - topToolsInset); }
+    // the braid toolbar takes the left side (rail) or a band along the top (phone row)
+    const bar = document.getElementById('braidToolbar'), place = bar.hidden ? 'hidden' : bar.dataset.place || 'top';
+    if (place !== 'hidden') {
+      const sr = stage.getBoundingClientRect(), rel = el => { const r = el.getBoundingClientRect(); return { left: r.left - sr.left, top: r.top - sr.top, right: r.left + r.width - sr.left, bottom: r.top + r.height - sr.top }; };
+      const R = BS.reserve(place, W, H, rel(bar), rel(hud));
+      tx += R.tx; ty += R.ty; freeW = Math.max(1, freeW - (W - R.freeW)); freeH = Math.max(1, freeH - (H - R.freeH));
+    }
+    if (isPhone() || place !== 'hidden') {
       if (!userZoomed) {
         const off = camera.position.clone().sub(controls.target), d = off.length(), want = fitDistance(freeW, freeH);
         if (Math.abs(want - d) > 0.01) camera.position.copy(controls.target).add(off.setLength(d + (want - d) * ease));
       }
     }
+    // a bad measurement must never leave the camera stuck at NaN
+    if (!Number.isFinite(tx) || !Number.isFinite(ty)) { tx = 0; ty = 0; }
+    if (!Number.isFinite(viewShiftX)) viewShiftX = 0; if (!Number.isFinite(viewShift)) viewShift = 0;
     viewShiftX += (tx - viewShiftX) * ease; if (Math.abs(tx - viewShiftX) < 0.5) viewShiftX = tx;
     viewShift += (ty - viewShift) * ease; if (Math.abs(ty - viewShift) < 0.5) viewShift = ty;
     if (viewShift || viewShiftX) camera.setViewOffset(W, H, viewShiftX, viewShift, W, H); else camera.clearViewOffset();
