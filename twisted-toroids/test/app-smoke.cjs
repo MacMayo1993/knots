@@ -450,9 +450,26 @@ console.log('PASS: progressive cuts preserve the glued seam on all 20 cross-sect
  for(const [u,v] of [[.5,.1],[.55,.45],[.5,.8]])tap(u,v);get('labClose').click();assert.match(get('labResult').textContent,/One piece, a disk/);
  get('labUndo').click();assert.equal(p.getLabLoops().length,1);get('labClear').click();assert.equal(p.getLabLoops().length,0);assert.match(get('labResult').textContent,/a torus, with no boundary/);
  get('flatMap').dispatch('keydown',{key:'Enter'});get('flatMap').dispatch('keydown',{key:'ArrowRight'});get('flatMap').dispatch('keydown',{key:'Enter'});
- assert.match(get('labDrawStatus').textContent,/2 points/);get('flatMap').dispatch('keydown',{key:'Escape'});assert.match(get('labDrawStatus').textContent,/Tap the map/);
+ assert.match(get('labDrawStatus').textContent,/2 points/);get('flatMap').dispatch('keydown',{key:'Escape'});assert.match(get('labDrawStatus').textContent,/Drag on the map/);
+ // drawing with a finger or the mouse: a stroke that ends near its start closes and cuts
+ assert.equal(get('mapDraw').hidden,false);assert.equal(get('flatMap').dataset.drawing,'true');
+ const at=(u,v)=>({clientX:(36+568*u)*600/640,clientY:(28+212*(1-v))*550/280,pointerId:7});
+ const stroke=pts=>{get('flatMap').dispatch('pointerdown',at(...pts[0]));for(const q of pts.slice(1))get('flatMap').dispatch('pointermove',at(...q));get('flatMap').dispatch('pointerup',at(...pts[pts.length-1]));};
+ const ring=(cu,cv,r,k=24)=>Array.from({length:k+1},(_,i)=>[cu+r*Math.cos(2*Math.PI*i/k),cv+1.6*r*Math.sin(2*Math.PI*i/k)]);
+ stroke(ring(.5,.5,.12));assert.equal(p.getLabLoops().length,1,'a drawn circle closes itself');assert.match(get('labResult').textContent,/disk/);
+ assert.equal(p.getLabLoops()[0].a,0);assert.equal(p.getLabLoops()[0].b,0);
+ // a swipe across the whole map ends near its start on the surface (across the edge): a loop around the hole
+ get('labClear').click();stroke(Array.from({length:21},(_,i)=>[.02+.96*i/20,.3]));
+ assert.equal(p.getLabLoops().length,1,'a swipe across the map closes through the edge');assert.equal(p.getLabLoops()[0].a,1);assert.match(get('labResult').textContent,/annulus/);
+ // a stroke that stops elsewhere stays a draft; tapping its first point closes it
+ get('labClear').click();stroke([[.2,.2],[.4,.2],[.4,.6]]);assert.equal(p.getLabLoops().length,0);assert(p.getLabLoops().length===0&&get('labDrawStatus').textContent.includes('Finish near the start'));
+ tap(.205,.205);assert.equal(p.getLabLoops().length,1,'tapping the first point closes the loop');
+ // outside drawing mode a drag on the map does not draw (it scrolls the sheet on a phone)
+ get('labClear').click();p.setLabCut('closed');assert.equal(get('mapDraw').hidden,true);assert.equal(get('flatMap').dataset.drawing,'false');
+ stroke(ring(.5,.5,.1));assert.equal(p.getLabLoops().length,0);
+ if(phone){p.setSheet('half');assert(/px$/.test(get('panel').style['--sheet-hidden']),'the half sheet reserves room for its hidden part');}
  p.setLabCut(null);
- console.log('PASS: Klein bottle presets and readouts, (a, b) slopes, loops drawn by tapping and by keyboard, undo/clear, marker on cut pieces.');
+ console.log('PASS: Klein bottle presets and readouts, (a, b) slopes, loops drawn by tapping, by keyboard and by dragging (auto-close, across an edge, tap the first point), undo/clear, marker on cut pieces.');
  // every challenge: start it, fail, then solve it through the page's own controls
  const pick=id=>{get('challengePick').value=id;get('challengePick').dispatch('change');get('challengeStart').click();};
  const check=()=>{get('challengeCheck').click();return get('challengeFeedback').textContent;};

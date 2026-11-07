@@ -370,6 +370,56 @@ const server = http.createServer((req, res) => {
     await page.context().close();
   }
 
+  // Drawing your own cut: with a finger on phones (the map and its tools on screen together,
+  // drags draw instead of scrolling the sheet) and with the mouse on desktop.
+  for (const [label, opts] of [['phone', devices['iPhone 13']], ['small phone', devices['iPhone SE']], ['desktop', undefined]]) {
+    page = await open('', opts);
+    const phone = !!opts;
+    if (phone) { await page.tap('#sheetSize'); await page.waitForTimeout(400); await page.tap('#cutLabDetails > summary'); }
+    else await page.click('#cutLabDetails > summary');
+    await page.selectOption('#labCut', 'draw');
+    await page.locator('#labShow').scrollIntoViewIfNeeded();
+    if (phone) await page.tap('#labShow'); else await page.click('#labShow');
+    await page.waitForTimeout(700);
+    if (!phone) await page.locator('#flatMap').scrollIntoViewIfNeeded();
+    const seen = await page.evaluate(() => ['flatMap', 'labClose', 'labUndo', 'labClear'].every(id => { const r = document.getElementById(id).getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.height > 0; }));
+    ok(seen, label + ': the map and its Close/Undo/Clear are on screen together');
+    const box = await page.locator('#flatMap').boundingBox();
+    const at = (u, v) => ({ x: box.x + (36 + 568 * u) * box.width / 640, y: box.y + (28 + 212 * (1 - v)) * box.height / 280 });
+    const circle = Array.from({ length: 25 }, (_, i) => [0.5 + 0.13 * Math.cos(2 * Math.PI * i / 24), 0.5 + 0.3 * Math.sin(2 * Math.PI * i / 24)]);
+    let cdp = null;
+    const drag = async pts => {
+      if (phone) {
+        cdp = cdp || await page.context().newCDPSession(page);
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...at(...pts[0]), id: 1 }] });
+        for (const q of pts.slice(1)) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...at(...q), id: 1 }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      } else {
+        await page.mouse.move(at(...pts[0]).x, at(...pts[0]).y); await page.mouse.down();
+        for (const q of pts.slice(1)) await page.mouse.move(at(...q).x, at(...q).y);
+        await page.mouse.up();
+      }
+      await page.waitForTimeout(400);
+    };
+    const before = await page.evaluate(() => document.getElementById('sheetBody').scrollTop);
+    if (phone) {
+      // half a drag, then check the sheet has not scrolled under the finger
+      cdp = await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...at(0.3, 0.8), id: 1 }] });
+      for (let i = 1; i <= 6; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...at(0.3, 0.8 - 0.1 * i), id: 1 }] });
+      ok(await page.evaluate(() => document.getElementById('sheetBody').scrollTop) === before, label + ': a drag on the map draws instead of scrolling the sheet');
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+      await page.click('#labClear');
+    }
+    await drag(circle);
+    ok(/disk/.test(await page.textContent('#labResult')), label + ': a drawn circle closes itself and cuts off a disk');
+    await page.click('#labClear'); await page.waitForTimeout(300);
+    Object.assign(box, await page.locator('#flatMap').boundingBox());
+    await drag(Array.from({ length: 21 }, (_, i) => [0.02 + 0.96 * i / 20, 0.3]));
+    ok(/an annulus/.test(await page.textContent('#labResult')), label + ': a swipe across the map closes through the edge (an annulus)');
+    await page.context().close();
+  }
+
   ok(errors.length === 0, 'no console or page errors: ' + errors.join(' | '));
   await browser.close(); server.close();
   console.log('PASS: ' + checks + ' browser checks — sticky desktop model, WebGL drawing (torus, Seifert surface, relaxed knot, Klein bottle, phone), knot names, editor, closed STL downloads, PNG, phone bottom sheet, no console errors.');
