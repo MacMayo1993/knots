@@ -1,5 +1,6 @@
 /* Shared braid studio and on-canvas controls. */
-.random-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; margin-bottom: 10px; }
+.random-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.random-actions + .note { font-size: .78rem; line-height: 1.5; color: var(--muted); }
 .random-actions > * { min-width: 0; min-height: 44px; width: 100%; padding: 10px 8px; border: 1px solid var(--rule); border-radius: 10px; font: 600 .83rem var(--f-body); background: var(--bg); color: var(--ink); }
 .random-actions button:hover, .random-palette:hover { border-color: var(--accent); }
 .random-actions > :focus-visible, .random-palette:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
