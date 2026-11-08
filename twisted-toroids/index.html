@@ -871,7 +871,7 @@ h2 {
             <tbody id="twistRows"></tbody>
           </table>
         </div>
-        <p class="note">Tap a turn to try it. <em>Winds</em> is how many times a strip goes around the tube before it gets home; <em>Linked</em> is the linking number of each pair of strips. Turning the other way gives the mirror images.</p>
+        <p class="note">Tap a turn to try it. <em>Winds</em> is how many times a strip goes around the tube before it gets home; <em>Linked</em> is the linking number of each pair of strips. Turning the other way gives the mirror images, with the windings and linking numbers negative.</p>
       </fieldset>
 
       <fieldset data-tab="data">
@@ -1515,11 +1515,15 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       const mob = cs.filter(c => c.oneSided).length;
       return 'Now: ' + label + ': ' + N + (N === 1 ? ' strip' : ' strips') + ', laps ' + uniqueText(cs.map(c => c.laps)) + (mob ? ', with a Möbius band' : '') + '.';
     }
-    const f = lowestTerms(Math.abs(k));
+    // p keeps the twist's sign: turning the other way negates the winding and the
+    // linking numbers and mirrors each knot; the lap count q stays positive.
+    const f = lowestTerms(k);
     if (!f || f.p === 0) return 'Now: no twist: ' + n + ' separate rings, each 1 lap, none linked.';
-    const knot = plainKnot(cs[0].knot.name), mirror = k < 0 && cs[0].knot.chirality && cs[0].knot.chirality !== 'amphichiral' ? ' (left-handed, the mirror image of its row)' : '';
-    return 'Now: ' + label + ' = ' + f.p + '/' + f.q + ', so ' + f.q + (f.q === 1 ? ' lap' : ' laps') + ', winding ' + f.p + (f.p === 1 ? ' time' : ' times') + ', ' + n + ' ÷ ' + f.q + ' = ' + N + (N === 1 ? ' strip' : ' strips') +
-      ', each ' + (knot === 'unknot' ? 'unknotted' : 'a ' + knot) + mirror + (N > 1 ? ', each pair linked ' + f.p * f.q + ' times' : '') + '.';
+    const kn = cs[0].knot, neg = f.p < 0, mirrored = neg && kn.chirality && kn.chirality !== 'amphichiral';
+    const knot = kn.name === 'unknot' ? 'unknotted' : 'a ' + (neg ? kn.name : plainKnot(kn.name)).replace(/\([^)]*\)/g, t => t.replace(/-/g, '−')) + (mirrored ? ', the mirror image of its row' : '');
+    const lk = N > 1 ? d.linking[0][1] : 0;
+    return 'Now: ' + label + ' = ' + minus(f.p) + '/' + f.q + ', so ' + f.q + (f.q === 1 ? ' lap' : ' laps') + ', winding ' + minus(f.p) + (Math.abs(f.p) === 1 ? ' time' : ' times') + (neg ? ' (the other way)' : '') +
+      ', ' + n + ' ÷ ' + f.q + ' = ' + N + (N === 1 ? ' strip' : ' strips') + ', each ' + knot + (N > 1 ? ', each pair with linking number ' + minus(lk) : '') + '.';
   }
   function updateTwistTable() {
     const sh = shapeOf(), n = sh.colors.length;

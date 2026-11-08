@@ -264,9 +264,15 @@ console.log('PASS: collapsed/hidden top toolbar, all shape options, shared twist
  rows[3].children[0].children[0].click();
  assert(Math.abs(p.state.twistTo-2/3)<1e-9,'a row applies its turn');
  assert.equal(rows[3].attrs['aria-current'],'true');assert.equal(rows[0].attrs['aria-current'],undefined);
- assert.equal(get('twistNow').textContent,'Now: ⅔ turn = 2/3, so 3 laps, winding 2 times, 6 ÷ 3 = 2 strips, each a trefoil, each pair linked 6 times.');
+ assert.equal(get('twistNow').textContent,'Now: ⅔ turn = 2/3, so 3 laps, winding 2 times, 6 ÷ 3 = 2 strips, each a trefoil, each pair with linking number 6.');
  p.twistTo(-2/3);assert.equal(rows[3].attrs['aria-current'],'true','turning the other way marks the same row');
- assert(/left-handed, the mirror image/.test(get('twistNow').textContent));
+ // the sign stays: −⅔ is −2/3, the windings and linking numbers are negative, the knots mirrored
+ assert.equal(get('twistNow').textContent,'Now: −⅔ turn = −2/3, so 3 laps, winding −2 times (the other way), 6 ÷ 3 = 2 strips, each a left-handed trefoil, the mirror image of its row, each pair with linking number −6.');
+ get('shape-square').click();p.twistTo(-3/4);
+ assert.equal(get('twistNow').textContent,'Now: −¾ turn = −3/4, so 4 laps, winding −3 times (the other way), 4 ÷ 4 = 1 strip, each a T(3,−4), the mirror image of its row.');
+ get('shape-circle').click();p.twistTo(-1);
+ assert.equal(get('twistNow').textContent,'Now: −1 full turn = −1/1, so 1 lap, winding −1 time (the other way), 2 ÷ 1 = 2 strips, each unknotted, each pair with linking number −1.');
+ get('shape-hex').click();
  p.twistTo(1/4);assert(/does not close up/.test(get('twistNow').textContent),get('twistNow').textContent);
  get('shape-circle').click();
  assert.deepEqual(get('twistRows').children.map(r=>r.children[0].children[0].textContent),['½','1','1½','2','2½','3'],'a round tube closes at half turns');
