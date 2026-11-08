@@ -354,6 +354,17 @@ h2 {
 .matrix { margin: 0; font-family: var(--f-mono); font-size: 0.85rem; line-height: 1.35; white-space: pre; overflow-x: auto; }
 .exact-actions { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 .exact-status { font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.twist-rule { margin: 0 0 8px; font-size: 0.86rem; color: var(--muted); }
+.twist-now { margin: 0 0 10px; font-size: 0.9rem; font-weight: 600; }
+.twist-scroll { overflow-x: auto; margin: 0 -4px; }
+.twist-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.twist-table th { text-align: left; padding: 4px 4px; border-bottom: 1px solid var(--rule); font: 600 0.66rem var(--f-body); letter-spacing: 0.03em; text-transform: uppercase; color: var(--muted); }
+.twist-table td { padding: 3px 4px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+.twist-table tr[aria-current="true"] td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.twist-table td:nth-child(5) { min-width: 6.5em; }
+.twist-table td:nth-child(-n+4), .twist-table td:nth-child(6) { white-space: nowrap; }
+.twist-try { min-width: 44px; min-height: 40px; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 10px; background: transparent; color: var(--ink); font: 600 0.9rem var(--f-mono); cursor: pointer; }
 
 /* Sheet parts: only used in the phone layout */
 .sheet-head, .sheet-fab { display: none; }
@@ -849,6 +860,20 @@ h2 {
         </div>
       </fieldset>
 
+      <fieldset class="torus-only twist-table-box" data-tab="data">
+        <legend>Twist table</legend>
+        <p class="twist-rule" id="twistRule"></p>
+        <p class="twist-now" id="twistNow" aria-live="polite"></p>
+        <div class="twist-scroll">
+          <table class="twist-table" aria-describedby="twistRule">
+            <caption class="visually-hidden">Every twist that closes up for this shape, with what cutting the color lines gives</caption>
+            <thead><tr><th scope="col">Turn</th><th scope="col">Strips</th><th scope="col">Laps</th><th scope="col">Winds</th><th scope="col">Each strip</th><th scope="col">Linked</th></tr></thead>
+            <tbody id="twistRows"></tbody>
+          </table>
+        </div>
+        <p class="note">Tap a turn to try it. <em>Winds</em> is how many times a strip goes around the tube before it gets home; <em>Linked</em> is the linking number of each pair of strips. Turning the other way gives the mirror images.</p>
+      </fieldset>
+
       <fieldset data-tab="data">
         <legend>Exact description</legend>
         <div class="exact">
@@ -989,7 +1014,7 @@ h2 {
       </div>
       <div class="note-block">
         <h3>Reading the numbers</h3>
-        <p>A turn of <span class="mono">p/q</span> of a full rotation sends a line home after <span class="mono">q</span> laps. With <span class="mono">n</span> painted pieces shifted by <span class="mono">s</span> places at the cut, the paint forms <span class="mono">gcd(s, n)</span> separate stripes.</p>
+        <p>A turn of <span class="mono">p/q</span> of a full rotation, in lowest terms, sends a line home after <span class="mono">q</span> laps, winding <span class="mono">p</span> times around the tube on the way. With <span class="mono">n</span> painted pieces shifted by <span class="mono">s</span> places at the cut, the paint forms <span class="mono">gcd(s, n) = n/q</span> separate stripes. Each is the <span class="mono">(q, p)</span> torus knot, and any two are linked <span class="mono">p × q</span> times. The twist table lists every twist for the current shape.</p>
       </div>
     </div>
   </section>
@@ -1460,6 +1485,73 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
     }
     return { n, fits, L, bands: cycles ? cycles.length : null, offset, cycles, sigma };
   }
+  // ---------- twist table: every twist that closes up for the current shape ----------
+  // A turn p/q in lowest terms (on a tube whose paint closes every 1/per of a turn)
+  // gives n/q strips, each with q laps winding p times: the (q, p) torus knot. The rows
+  // come from KnotMath.twistTable(), which also runs the independent calculation.
+  const twistRows = document.getElementById('twistRows');
+  let twistTableKey = '', twistRowEls = [];
+  const plainKnot = name => name.replace(/^(right|left)-handed /, '');
+  const uniqueText = list => [...new Set(list.map(String))].map(minus).join('\u2009/\u2009');
+  const PIECE_WORDS = { half: 'halves', face: 'faces', arm: 'arms', tooth: 'teeth', lane: 'lanes' };
+  function lowestTerms(x) {
+    for (let q = 1; q <= 48; q++) if (near(x * q)) { const p = Math.round(x * q), g = gcd(Math.abs(p), q) || 1; return { p: p / g, q: q / g }; }
+    return null;
+  }
+  function twistRule(sh, n, per) {
+    if (sh.open) return 'A flat strip\'s ' + n + ' lanes swap sides at every half turn. After an odd number of half turns each lane joins the lane opposite it, so two lanes become one strip that goes around twice' +
+      (n % 2 ? ', and the middle lane becomes a Möbius band' : '') + '. After an even number, every lane comes home in one lap.';
+    const word = PIECE_WORDS[sh.kind] || 'pieces', step = fracText(1 / per).txt;
+    const fit = !sh.sym ? 'A round tube fits back at any angle, but its ' + n + ' paint ' + word + ' only line up every ' + step + ' turn.'
+      : per === 1 ? (/^[aeiou]/.test(sh.label) ? 'An ' : 'A ') + sh.label + ' has no turning symmetry, so it only fits back after whole turns.'
+      : 'The ' + sh.label + ' has ' + n + ' ' + word + ' and fits back every ' + step + ' turn.';
+    return fit + ' Write a turn as p/q in lowest terms: each strip takes q laps to come home and winds p times around the tube, there are ' + n + ' ÷ q strips, each the (q, p) torus knot, and any two strips are linked p × q times.';
+  }
+  function twistNowText(sh, n) {
+    const k = state.twistTo, label = twistLabel(k), d = torusInfo();
+    if (!d.ok) return 'Now: ' + label + ' does not close up: ' + (analysis().fits || !sh.sym ? 'the paint meets out of line' : 'the ends do not fit') + '. Every turn in the table does.';
+    const cs = d.components, N = cs.length;
+    if (sh.open) {
+      const mob = cs.filter(c => c.oneSided).length;
+      return 'Now: ' + label + ': ' + N + (N === 1 ? ' strip' : ' strips') + ', laps ' + uniqueText(cs.map(c => c.laps)) + (mob ? ', with a Möbius band' : '') + '.';
+    }
+    const f = lowestTerms(Math.abs(k));
+    if (!f || f.p === 0) return 'Now: no twist: ' + n + ' separate rings, each 1 lap, none linked.';
+    const knot = plainKnot(cs[0].knot.name), mirror = k < 0 && cs[0].knot.chirality && cs[0].knot.chirality !== 'amphichiral' ? ' (left-handed, the mirror image of its row)' : '';
+    return 'Now: ' + label + ' = ' + f.p + '/' + f.q + ', so ' + f.q + (f.q === 1 ? ' lap' : ' laps') + ', winding ' + f.p + (f.p === 1 ? ' time' : ' times') + ', ' + n + ' ÷ ' + f.q + ' = ' + N + (N === 1 ? ' strip' : ' strips') +
+      ', each ' + (knot === 'unknot' ? 'unknotted' : 'a ' + knot) + mirror + (N > 1 ? ', each pair linked ' + f.p * f.q + ' times' : '') + '.';
+  }
+  function updateTwistTable() {
+    const sh = shapeOf(), n = sh.colors.length;
+    if (twistTableKey !== state.shape) {
+      twistTableKey = state.shape;
+      const T = KM.twistTable({ kind: sh.open ? 'line' : 'ring', pieces: n, sym: sh.sym });
+      twistRows.textContent = ''; twistRowEls = [];
+      T.rows.forEach(r => {
+        const tr = document.createElement('tr'), first = document.createElement('td'), b = document.createElement('button');
+        b.type = 'button'; b.className = 'twist-try'; b.textContent = fracText(r.turn).txt;
+        b.setAttribute('aria-label', 'Try ' + twistLabel(r.turn).toLowerCase());
+        b.addEventListener('click', () => {
+          if (state.braid || labCut) return;
+          stopGrow(); state.building = false;
+          if (state.m < 2) setM(2);
+          twistTo(r.turn);
+          updateTwistTable();
+        });
+        first.appendChild(b); tr.appendChild(first);
+        const each = [...new Set(r.knots.map((k, i) => r.oneSided[i] ? 'Möbius band' : plainKnot(k)))].join(' + ');
+        [String(r.strips), uniqueText(r.laps), uniqueText(r.turns), each, r.strips > 1 ? r.linking.map(minus).join(', ') : '–'].forEach(t => {
+          const td = document.createElement('td'); td.textContent = t; tr.appendChild(td);
+        });
+        twistRows.appendChild(tr); twistRowEls.push({ tr, turn: r.turn });
+      });
+      document.getElementById('twistRule').textContent = twistRule(sh, n, T.per);
+    }
+    const a = Math.abs(state.twistTo);
+    twistRowEls.forEach(({ tr, turn }) => { if (Math.abs(turn - a) < 1e-9) tr.setAttribute('aria-current', 'true'); else tr.removeAttribute('aria-current'); });
+    const now = twistNowText(sh, n), el = document.getElementById('twistNow');
+    if (el.textContent !== now) el.textContent = now;
+  }
   // Name a (q, p) torus knot with its handedness: a mirror image is a different knot.
   function knotName(q, p) {
     const kn = KnotMath.torusKnot(q, p);
@@ -1572,6 +1664,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
       : 'A plain band: two sides and two edges.';
     updateCutReadout();
     updateExact();
+    updateTwistTable();
     syncQuick();
   }
   function updateHud() {

@@ -160,6 +160,27 @@
     };
   }
 
+  // Every twist that closes up, for a tube with `pieces` painted pieces and turning
+  // symmetry `sym` (0: a round tube, which fits at any angle), or for a flat strip
+  // (kind 'line', which closes at every half turn). It runs from the smallest closing
+  // twist up to whole turns, with at least minRows rows. For a tube, closing twists are
+  // multiples of 1/gcd(sym, pieces); a turn p/q in lowest terms gives pieces/q stripes,
+  // each going q laps and winding p times (the (q, p) torus knot), and any two link
+  // p·q times. Each row also has what describe() finds, so the rule can be checked.
+  function twistTable({ kind = 'ring', pieces, sym = 0 }, minRows = 6) {
+    const n = pieces, per = kind === 'line' ? 2 : gcd(sym || n, n);
+    const turnsShown = Math.ceil(minRows / per), rows = [];
+    for (let m = 1; m <= per * turnsShown; m++) {
+      const d = describe({ kind, pieces: n, turn: m / per });
+      if (!d.ok) continue;
+      const g = gcd(m, per), cs = d.components, links = [];
+      for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) links.push(d.linking[i][j]);
+      rows.push({ m, turn: m / per, p: m / g, q: per / g, strips: cs.length,
+        laps: cs.map(c => c.laps), turns: cs.map(c => c.turns), knots: cs.map(c => c.knot.name),
+        oneSided: cs.map(c => !!c.oneSided), linking: [...new Set(links)].sort((a, b) => a - b) });
+    }
+    return { kind, pieces: n, per, rows };
+  }
 
   // ---------- general braids ----------
   // Parse a braid word. Accepts integers (1 -2 3), s1 / σ1 / sigma1 with ^-1, ^3,
@@ -715,7 +736,7 @@
     return base.length === 1 || !e ? inner + e : '(' + inner + ')' + e;
   }
 
-  const api = { laneWidth, gcd, wordFormula, parseBraid, freeReduce, keepStrands, alexander, polyText, blackboardRibbon, describeBraid, braidLayout, braidWord, permutation, cycles, readBraid, stepsFor, torusKnot, describe, wordText,
+  const api = { laneWidth, gcd, twistTable, wordFormula, parseBraid, freeReduce, keepStrands, alexander, polyText, blackboardRibbon, describeBraid, braidLayout, braidWord, permutation, cycles, readBraid, stepsFor, torusKnot, describe, wordText,
     braidColumns, bracket, jones, jonesText, jonesAt, mirrorPoly, polyKey, mirrorWord, homogeneous, seifertPieces, seifertGenus, identify, knotTable, tableName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KnotMath = api;

@@ -513,3 +513,15 @@ details > summary::marker { color: var(--accent); }
 .sailor-explore-link{display:flex;align-items:center;gap:12px;border:1px solid var(--rule);border-radius:12px;padding:15px 12px;margin:8px 0 18px;text-decoration:none;color:var(--ink);background:var(--panel)}
 .sailor-explore-link>span:first-child{font-size:24px}.sailor-explore-link>span:last-child{margin-left:auto}
 .sailor-explore-link strong{font-size:14px;display:block}.sailor-explore-link small{display:block;font-size:11px;color:var(--muted);line-height:1.6;margin-top:5px}
+
+/* ---------- twist table (Data page) ---------- */
+.twist-try {
+  border: 0; border-radius: 12px; font: 700 0.95rem var(--f-game);
+  background: var(--g-btn); color: var(--ink); box-shadow: inset 0 -3px 0 var(--g-btn-edge);
+  transition: transform 0.07s ease-out, box-shadow 0.07s ease-out;
+}
+.twist-try:active { transform: translateY(2px); box-shadow: inset 0 -1px 0 var(--g-btn-edge); }
+.twist-table tr[aria-current="true"] .twist-try { background: var(--g-violet); color: #fff; box-shadow: inset 0 -3px 0 var(--g-violet-edge); }
+.twist-table tr[aria-current="true"] td { background: rgba(106, 77, 255, 0.12); }
+.twist-table th { font-family: var(--f-game); }
+.twist-now { font-family: var(--f-game); font-weight: 600; padding: 8px 10px; border-radius: 12px; background: var(--g-btn); }

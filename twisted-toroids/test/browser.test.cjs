@@ -490,6 +490,18 @@ const server = http.createServer((req, res) => {
     ok(await page.locator('#appearanceDetails').isVisible() && await page.locator('.quest-card').first().isHidden(), label + ': the Style tab shows its page');
     await page.tap('#tab-style'); await page.waitForTimeout(400);
     ok(await page.evaluate(() => document.getElementById('panel').dataset.sheet) === 'peek', label + ': tapping the open tab lowers the sheet');
+    // The Data page's twist table: every closing twist for the round tube, fitting the
+    // screen; a row applies its turn and the worked example follows.
+    await page.tap('#tab-data'); await page.waitForTimeout(450);
+    await page.locator('.twist-table').scrollIntoViewIfNeeded();
+    ok(await page.locator('#twistRows tr').count() === 6 && await page.locator('.twist-table').isVisible(), label + ': the twist table lists the round tube\'s six half-turn twists');
+    const fitTable = await page.evaluate(() => { const t = document.querySelector('.twist-table'), w = t.parentElement; return [t.scrollWidth, w.clientWidth]; });
+    ok(fitTable[0] <= fitTable[1] + 1, label + ': the twist table fits the screen without sideways scrolling: ' + fitTable);
+    await page.tap('#twistRows tr:nth-child(3) .twist-try');
+    await page.waitForFunction(() => /1½ turns/.test(document.getElementById('q-twist').textContent) && /^Now: 1½ turns/.test(document.getElementById('twistNow').textContent), null, { timeout: 15000 });
+    ok(await page.getAttribute('#twistRows tr:nth-child(3)', 'aria-current') === 'true' && /3\/2, so 2 laps, winding 3 times/.test(await page.textContent('#twistNow')), label + ': tapping 1½ turns makes the trefoil row current');
+    await screenshot(page, 'twist-table-' + tag);
+    await page.tap('#tab-data'); await page.waitForTimeout(400);
     if (name !== 'Pixel 8') { await page.context().close(); continue; }
     // Keyboard navigation reveals the selected page, and each page remembers its place.
     await page.locator('#tab-style').press('End'); await page.waitForTimeout(350);
@@ -606,5 +618,5 @@ const server = http.createServer((req, res) => {
 
   ok(errors.length === 0, 'no console or page errors: ' + errors.join(' | '));
   await browser.close(); server.close();
-  console.log('PASS: ' + checks + ' browser checks — sticky desktop model, WebGL drawing (torus, Seifert surface, relaxed knot, Klein bottle, phone), knot names, editor, closed STL downloads, PNG, phone bottom sheet, game layer on Pixel 10/8/10 Pro XL (title, bar, deck, dock tabs, a full quest, menu, trophies, saving, landscape), no console errors.');
+  console.log('PASS: ' + checks + ' browser checks — sticky desktop model, WebGL drawing (torus, Seifert surface, relaxed knot, Klein bottle, phone), knot names, editor, closed STL downloads, PNG, phone bottom sheet, game layer on Pixel 10/8/10 Pro XL (title, bar, deck, dock tabs, twist table, a full quest, menu, trophies, saving, landscape), no console errors.');
 })().catch(err => { console.error(err); server.close(); process.exit(1); });
