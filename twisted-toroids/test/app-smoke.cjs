@@ -251,6 +251,37 @@ p.showBraid(null);assert.equal(get('mobileTools').hidden,!phone);
 p.setLabCut('patch');assert.equal(get('mobileTools').hidden,true);p.setLabCut(null);assert.equal(get('mobileTools').hidden,!phone);
 assert.equal(p.getSheet(),'hidden');
 console.log('PASS: collapsed/hidden top toolbar, all shape options, shared twist/cut actions, invalid/animating cut guards, view offset, and braid/lab visibility.');
+// The twist table: one row per closing twist for the shape, the current one marked, a row
+// button applies its turn, and the worked example follows the twist.
+{
+ const shape0=p.state.shape,turn0=p.state.twistTo;
+ get('shape-hex').click();
+ const rows=get('twistRows').children;
+ assert.equal(rows.length,6,'a hexagon closes at every sixth of a turn');
+ assert.deepEqual(rows.map(r=>r.children[0].children[0].textContent),['⅙','⅓','½','⅔','⅚','1']);
+ assert(/hexagon has 6 faces and fits back every ⅙ turn/.test(get('twistRule').textContent),get('twistRule').textContent);
+ assert.deepEqual(rows[3].children.slice(1).map(c=>c.textContent),['2','3','2','trefoil','6'],'⅔ on a hexagon: 2 trefoils, 3 laps, winding 2, linked 6 times');
+ rows[3].children[0].children[0].click();
+ assert(Math.abs(p.state.twistTo-2/3)<1e-9,'a row applies its turn');
+ assert.equal(rows[3].attrs['aria-current'],'true');assert.equal(rows[0].attrs['aria-current'],undefined);
+ assert.equal(get('twistNow').textContent,'Now: ⅔ turn = 2/3, so 3 laps, winding 2 times, 6 ÷ 3 = 2 strips, each a trefoil, each pair with linking number 6.');
+ p.twistTo(-2/3);assert.equal(rows[3].attrs['aria-current'],'true','turning the other way marks the same row');
+ // the sign stays: −⅔ is −2/3, the windings and linking numbers are negative, the knots mirrored
+ assert.equal(get('twistNow').textContent,'Now: −⅔ turn = −2/3, so 3 laps, winding −2 times (the other way), 6 ÷ 3 = 2 strips, each a left-handed trefoil, the mirror image of its row, each pair with linking number −6.');
+ get('shape-square').click();p.twistTo(-3/4);
+ assert.equal(get('twistNow').textContent,'Now: −¾ turn = −3/4, so 4 laps, winding −3 times (the other way), 4 ÷ 4 = 1 strip, each a T(3,−4), the mirror image of its row.');
+ get('shape-circle').click();p.twistTo(-1);
+ assert.equal(get('twistNow').textContent,'Now: −1 full turn = −1/1, so 1 lap, winding −1 time (the other way), 2 ÷ 1 = 2 strips, each unknotted, each pair with linking number −1.');
+ get('shape-hex').click();
+ p.twistTo(1/4);assert(/does not close up/.test(get('twistNow').textContent),get('twistNow').textContent);
+ get('shape-circle').click();
+ assert.deepEqual(get('twistRows').children.map(r=>r.children[0].children[0].textContent),['½','1','1½','2','2½','3'],'a round tube closes at half turns');
+ assert(/round tube fits back at any angle, but its 2 paint halves only line up every ½ turn/.test(get('twistRule').textContent));
+ get('shape-band3').click();
+ assert.deepEqual(get('twistRows').children[0].children.slice(1).map(c=>c.textContent),['2','2\u2009/\u20091','1\u2009/\u20090','unknot + Möbius band','1'],'a 3-lane strip at ½: a long strip linked once with a Möbius band');
+ get('shape-'+shape0).click();p.twistTo(turn0);
+}
+console.log('PASS: twist table rows, rule, worked example, mirror and non-closing twists, and its row buttons.');
 if(phone){
  for(const size of ['hidden','peek','half']){
   p.setSheet(size);const construction=JSON.stringify(p.experiment().construction),saved=savedPreferences.get('twisted-toroids-sheet');
